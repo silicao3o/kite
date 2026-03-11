@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: docker-monitor
+
+  # 이메일 설정 (Gmail 예시)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# Docker 설정
+docker:
+  # Docker 소켓 경로 (Linux: unix:///var/run/docker.sock, Windows: tcp://localhost:2375)
+  host: ${DOCKER_HOST:unix:///var/run/docker.sock}
+
+  monitor:
+    # 로그 가져올 줄 수
+    log-tail-lines: ${LOG_TAIL_LINES:50}
+    # 서버 식별 이름
+    server-name: ${SERVER_NAME:Production-Server-01}
+
+    # 재연결 설정
+    reconnect:
+      # 초기 재연결 대기 시간 (밀리초)
+      initial-delay-ms: ${RECONNECT_INITIAL_DELAY:5000}
+      # 최대 재연결 대기 시간 (밀리초, 5분)
+      max-delay-ms: ${RECONNECT_MAX_DELAY:300000}
+      # 백오프 배수
+      multiplier: ${RECONNECT_MULTIPLIER:2.0}
+      # 최대 재시도 횟수 (0 = 무제한)
+      max-retries: ${RECONNECT_MAX_RETRIES:10}
+
+    # 알림 중복 방지 설정
+    deduplication:
+      # 중복 방지 활성화
+      enabled: ${DEDUP_ENABLED:true}
+      # 중복 방지 시간 창 (초) - 이 시간 내 동일 컨테이너/액션 알림 스킵
+      window-seconds: ${DEDUP_WINDOW_SECONDS:60}
+
+    # 컨테이너 필터링 설정
+    filter:
+      # 모니터링 제외할 컨테이너 이름 패턴 (정규식)
+      exclude-names:
+        # - ".*-temp"
+        # - "test-.*"
+      # 모니터링 제외할 이미지 이름 패턴 (정규식)
+      exclude-images:
+        # - "busybox.*"
+        # - "alpine.*"
+      # 모니터링할 컨테이너 이름 패턴 (정규식, 비어있으면 모두 포함)
+      include-names: []
+      # 모니터링할 이미지 이름 패턴 (정규식, 비어있으면 모두 포함)
+      include-images: []
+
+    notification:
+      email:
+        # 알림 받을 이메일 (쉼표로 여러 명 지정 가능)
+        to: ${ALERT_EMAIL:zergskybmw@gmail.com}
+        # 발신자 이메일
+        from: ${MAIL_FROM:silicao3o@daquv.com}
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.example.dockermonitor: DEBUG
+    com.github.dockerjava: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
