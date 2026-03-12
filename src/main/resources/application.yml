@@ -6,7 +6,7 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME:zergskybmw@gmail.com}
+    username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
       mail:
@@ -66,9 +66,9 @@ docker:
     notification:
       email:
         # 알림 받을 이메일 (쉼표로 여러 명 지정 가능)
-        to: ${ALERT_EMAIL:silicao3o@daquv.com}
+        to: ${ALERT_EMAIL}
         # 발신자 이메일
-        from: ${MAIL_FROM:zergskybmw@gmail.com}
+        from: ${MAIL_FROM}
 
 # 로깅 설정
 logging:
