@@ -89,6 +89,21 @@ docker:
           max-restarts: 5
           restart-delay-seconds: 5
 
+    # JWT 인증 설정
+    security:
+      # JWT 인증 활성화 (기본: 비활성화)
+      enabled: ${SECURITY_ENABLED:false}
+      jwt:
+        # JWT 서명 비밀키 (최소 32자 이상)
+        secret: ${JWT_SECRET:docker-monitor-default-secret-key-change-in-production}
+        # 토큰 만료 시간 (초, 기본 24시간)
+        expiration-seconds: ${JWT_EXPIRATION:86400}
+      user:
+        # 기본 사용자명
+        username: ${AUTH_USERNAME:admin}
+        # 기본 비밀번호
+        password: ${AUTH_PASSWORD:admin}
+
 # 로깅 설정
 logging:
   level:
