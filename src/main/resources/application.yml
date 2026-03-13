@@ -30,6 +30,13 @@ docker:
     # 서버 식별 이름
     server-name: ${SERVER_NAME:Production-Server-01}
 
+    # 메트릭 수집 설정
+    metrics:
+      # 메트릭 수집 활성화
+      enabled: ${METRICS_ENABLED:true}
+      # 메트릭 수집 주기 (초)
+      collection-interval-seconds: ${METRICS_COLLECTION_INTERVAL:15}
+
     # 재연결 설정
     reconnect:
       # 초기 재연결 대기 시간 (밀리초)
