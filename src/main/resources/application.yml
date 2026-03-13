@@ -70,6 +70,18 @@ docker:
         # 발신자 이메일
         from: ${MAIL_FROM}
 
+    # 자가치유 설정
+    self-healing:
+      enabled: ${SELF_HEALING_ENABLED:true}
+      reset-window-minutes: ${SELF_HEALING_RESET_WINDOW:30}
+      rules:
+        - name-pattern: "test-*"
+          max-restarts: 3
+          restart-delay-seconds: 2
+        - name-pattern: "web-*"
+          max-restarts: 5
+          restart-delay-seconds: 5
+
 # 로깅 설정
 logging:
   level:
