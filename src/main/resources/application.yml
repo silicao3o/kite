@@ -108,6 +108,32 @@ docker:
       #     container-pattern: "myapp-.*"
       #     max-unavailable: 1
 
+    # Health Check Probe 설정
+    health-check:
+      # 활성화 여부
+      enabled: ${HEALTH_CHECK_ENABLED:false}
+      # 전체 probe 실행 주기 (초)
+      period-seconds: ${HEALTH_CHECK_PERIOD:15}
+      # 앱 시작 후 첫 probe 전 대기 (초)
+      initial-delay-seconds: ${HEALTH_CHECK_INITIAL_DELAY:30}
+      # 감시할 컨테이너/probe 목록
+      probes: []
+      # 예시:
+      # probes:
+      #   - container-pattern: "demo-api-.*"
+      #     liveness:
+      #       type: HTTP
+      #       path: /actuator/health
+      #       port: 8081
+      #       initial-delay-seconds: 30
+      #       period-seconds: 15
+      #       failure-threshold: 3
+      #     readiness:
+      #       type: HTTP
+      #       path: /actuator/health/readiness
+      #       port: 8081
+      #       failure-threshold: 3
+
     # AI 분석 설정
     ai:
       enabled: ${AI_ENABLED:false}
