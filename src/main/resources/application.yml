@@ -2,6 +2,16 @@ spring:
   application:
     name: docker-monitor
 
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          max-age: 3600        # CSS/JS 1시간 캐시
+          must-revalidate: true
+
+  thymeleaf:
+    cache: true                # 운영환경 Thymeleaf 템플릿 캐시
+
   # 이메일 설정 (환경변수로 오버라이드 가능)
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
