@@ -92,6 +92,15 @@ docker:
           max-restarts: 5
           restart-delay-seconds: 5
 
+    # AI 분석 설정
+    ai:
+      enabled: ${AI_ENABLED:false}
+      provider: ${AI_PROVIDER:ANTHROPIC}
+      anthropic-api-key: ${ANTHROPIC_API_KEY:}
+      openai-api-key: ${OPENAI_API_KEY:}
+      gemini-api-key: ${GEMINI_API_KEY:}
+      timeout-seconds: ${AI_TIMEOUT:30}
+
     # JWT 인증 설정
     security:
       # JWT 인증 활성화 (기본: 비활성화)
