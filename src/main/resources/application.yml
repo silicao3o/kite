@@ -108,6 +108,25 @@ docker:
       #     container-pattern: "myapp-.*"
       #     max-unavailable: 1
 
+    # Desired State 관리 설정
+    desired-state:
+      # 활성화 여부
+      enabled: ${DESIRED_STATE_ENABLED:false}
+      # Reconcile 주기 (초)
+      reconcile-interval-seconds: ${DESIRED_STATE_INTERVAL:30}
+      # 관리할 서비스 목록
+      services: []
+      # 예시:
+      # services:
+      #   - name: demo-api
+      #     image: ghcr.io/myorg/demo-api:latest
+      #     replicas: 2
+      #     container-name-prefix: demo-api
+      #     env:
+      #       - "DB_HOST=postgres"
+      #     ports:
+      #       - "8081:8081"
+
     # Health Check Probe 설정
     health-check:
       # 활성화 여부
