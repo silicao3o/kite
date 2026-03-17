@@ -92,6 +92,22 @@ docker:
           max-restarts: 5
           restart-delay-seconds: 5
 
+    # GHCR 이미지 자동 업데이트 설정
+    image-watch:
+      # 활성화 여부
+      enabled: ${IMAGE_WATCH_ENABLED:false}
+      # 폴링 주기 (초, 기본 5분)
+      poll-interval-seconds: ${IMAGE_WATCH_INTERVAL:300}
+      # GHCR 인증 토큰 (private 이미지용)
+      ghcr-token: ${GHCR_TOKEN:}
+      # 감시할 이미지 목록 (예시)
+      watches: []
+      # watches:
+      #   - image: ghcr.io/myorg/myapp
+      #     tag: latest
+      #     container-pattern: "myapp-.*"
+      #     max-unavailable: 1
+
     # AI 분석 설정
     ai:
       enabled: ${AI_ENABLED:false}
