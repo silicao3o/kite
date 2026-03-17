@@ -108,6 +108,25 @@ docker:
       #     container-pattern: "myapp-.*"
       #     max-unavailable: 1
 
+    # 다중 노드 스케줄링 설정
+    nodes:
+      # 활성화 여부
+      enabled: ${NODES_ENABLED:false}
+      # Heartbeat 체크 주기 (초)
+      heartbeat-interval-seconds: ${NODES_HEARTBEAT_INTERVAL:30}
+      # 배치 전략: LEAST_USED | ROUND_ROBIN
+      placement-strategy: ${NODES_PLACEMENT_STRATEGY:LEAST_USED}
+      # 관리할 노드 목록
+      nodes: []
+      # 예시:
+      # nodes:
+      #   - name: server-1
+      #     host: 192.168.1.10
+      #     port: 2375
+      #   - name: server-2
+      #     host: 192.168.1.11
+      #     port: 2375
+
     # Desired State 관리 설정
     desired-state:
       # 활성화 여부
