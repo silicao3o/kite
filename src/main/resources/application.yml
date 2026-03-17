@@ -2,19 +2,19 @@ spring:
   application:
     name: docker-monitor
 
-  # 이메일 설정 (Gmail 예시)
+  # 이메일 설정 (환경변수로 오버라이드 가능)
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
-            required: true
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: false
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -82,6 +82,9 @@ docker:
       enabled: ${SELF_HEALING_ENABLED:true}
       reset-window-minutes: ${SELF_HEALING_RESET_WINDOW:30}
       rules:
+        - name-pattern: "demo-*"
+          max-restarts: 5
+          restart-delay-seconds: 10
         - name-pattern: "test-*"
           max-restarts: 3
           restart-delay-seconds: 2
