@@ -1,0 +1,22 @@
+name: oom-recovery
+description: OOM Killer에 의해 종료된 컨테이너 복구
+riskLevel: MEDIUM
+trigger:
+  event: container.die
+  conditions:
+    exitCode: "137"
+    oomKilled: "true"
+actions:
+  - name: wait-for-memory
+    type: delay
+    params:
+      seconds: "10"
+  - name: restart-container
+    type: container.restart
+    params:
+      containerId: "{{containerId}}"
+  - name: send-notification
+    type: email
+    params:
+      subject: "OOM Recovery: {{containerName}}"
+      body: "컨테이너 {{containerName}}이 OOM으로 종료되어 자동 복구되었습니다."

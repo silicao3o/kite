@@ -1,0 +1,13 @@
+name: disk-full
+description: 디스크 사용률 임계치 초과 시 정리 및 알림
+riskLevel: MEDIUM
+trigger:
+  event: metrics.disk.high
+  conditions:
+    threshold: "90"
+actions:
+  - name: send-warning
+    type: email
+    params:
+      subject: "Disk Warning: {{containerName}}"
+      body: "컨테이너 {{containerName}}의 디스크 사용률이 {{diskUsage}}%로 위험 수준입니다."

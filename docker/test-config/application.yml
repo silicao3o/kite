@@ -1,0 +1,115 @@
+# ── docker-monitor 테스트 오버라이드 설정 ─────────────────────────
+# docker-compose.test.yml 에서 /app/config/application.yml 로 마운트됨
+# 이 파일은 classpath:application.yml 을 오버라이드함
+
+docker:
+  monitor:
+    server-name: "Local-Demo"
+
+    # ── 자가치유 규칙 ─────────────────────────────────────────────
+    self-healing:
+      enabled: true
+      reset-window-minutes: 5
+      rules:
+        - name-pattern: "exercise-auth"
+          max-restarts: 5
+          restart-delay-seconds: 5
+        - name-pattern: "schedule-diary"
+          max-restarts: 5
+          restart-delay-seconds: 5
+        - name-pattern: "demo-*"
+          max-restarts: 3
+          restart-delay-seconds: 3
+
+    # ── GHCR 이미지 자동 업데이트 (5.1) ──────────────────────────
+    image-watch:
+      enabled: true
+      poll-interval-seconds: 60        # 1분마다 폴링 (데모용 짧게)
+      ghcr-token: ${GHCR_TOKEN}
+      watches:
+        - image: ghcr.io/silicao3o/exercise-auth
+          tag: latest
+          container-pattern: "exercise-auth"
+          max-unavailable: 1
+        - image: ghcr.io/silicao3o/schedule-diary
+          tag: latest
+          container-pattern: "schedule-diary"
+          max-unavailable: 1
+
+    # ── Health Check Probe (5.2) ──────────────────────────────────
+    health-check:
+      enabled: true
+      period-seconds: 15
+      initial-delay-seconds: 30
+      probes:
+        - container-pattern: "exercise-auth"
+          liveness:
+            type: TCP             # actuator 인증 필요 → TCP 포트 확인으로 대체
+            port: 8080
+            initial-delay-seconds: 30
+            period-seconds: 15
+            failure-threshold: 3
+          readiness:
+            type: TCP
+            port: 8080
+            failure-threshold: 3
+        - container-pattern: "schedule-diary"
+          liveness:
+            type: TCP             # actuator 없음 → TCP 포트 확인
+            port: 8080
+            initial-delay-seconds: 30
+            period-seconds: 15
+            failure-threshold: 3
+
+    # ── Desired State 관리 (5.3) ──────────────────────────────────
+    desired-state:
+      enabled: true
+      reconcile-interval-seconds: 30
+      services:
+        - name: exercise-auth
+          image: ghcr.io/silicao3o/exercise-auth:latest
+          replicas: 1
+          container-name-prefix: exercise-auth
+          env:
+            - "SPRING_PROFILES_ACTIVE=dev"
+            - "SPRING_DATASOURCE_URL=${EXERCISE_DB_URL}"
+            - "SPRING_DATASOURCE_USERNAME=${EXERCISE_DB_USER}"
+            - "SPRING_DATASOURCE_PASSWORD=${EXERCISE_DB_PASS}"
+            - "UPLOADCARE_PUBLIC_KEY=demo"
+            - "UPLOADCARE_SECRET_KEY=demo"
+            - "TZ=Asia/Seoul"
+          ports:
+            - "8081:8080"
+        - name: schedule-diary
+          image: ghcr.io/silicao3o/schedule-diary:latest
+          replicas: 1
+          container-name-prefix: schedule-diary
+          env:
+            - "SPRING_PROFILES_ACTIVE=dev"
+            - "SPRING_DATASOURCE_URL=${DIARY_DB_URL}"
+            - "SPRING_DATASOURCE_USERNAME=${DIARY_DB_USER}"
+            - "SPRING_DATASOURCE_PASSWORD=${DIARY_DB_PASS}"
+            - "KAKAO_REDIRECT_URI=http://localhost:8082/login/oauth2/code/kakao"
+            - "TZ=Asia/Seoul"
+          ports:
+            - "8082:8080"
+
+    # ── 다중 노드 스케줄링 (5.4) — 단일 호스트 데모에서 비활성화 ──
+    nodes:
+      enabled: false
+      # 다중 호스트 환경에서 활성화:
+      # enabled: true
+      # heartbeat-interval-seconds: 30
+      # placement-strategy: LEAST_USED
+      # nodes:
+      #   - name: local-docker
+      #     host: localhost
+      #     port: 2375
+
+    # ── AI 분석 ───────────────────────────────────────────────────
+    ai:
+      enabled: true
+      provider: ANTHROPIC
+      gemini-api-key: ${GEMINI_API_KEY}
+      anthropic-api-key: ${ANTHROPIC_API_KEY}
+      timeout-seconds: 30

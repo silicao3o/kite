@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 설정 - Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .settings-card {
+            background: var(--surface, #1e2130);
+            border: 1px solid var(--border, #2d3250);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .settings-card h3 {
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            color: var(--text-primary, #e2e8f0);
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text-secondary, #94a3b8);
+        }
+        .form-group input[type="password"],
+        .form-group input[type="text"],
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg, #151827);
+            border: 1px solid var(--border, #2d3250);
+            border-radius: 6px;
+            color: var(--text-primary, #e2e8f0);
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group .key-status {
+            font-size: 12px;
+            color: var(--text-secondary, #94a3b8);
+            margin-top: 4px;
+        }
+        .form-group .key-status.set {
+            color: #4ade80;
+        }
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #374151;
+            border-radius: 26px;
+            transition: 0.3s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 4px; bottom: 4px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: #3b82f6;
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+        .toggle-label {
+            font-size: 14px;
+            color: var(--text-primary, #e2e8f0);
+        }
+        .provider-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .provider-option {
+            border: 2px solid var(--border, #2d3250);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            text-align: center;
+        }
+        .provider-option input[type="radio"] {
+            display: none;
+        }
+        .provider-option:has(input:checked) {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .provider-option .provider-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary, #e2e8f0);
+            margin-top: 4px;
+        }
+        .provider-option .provider-desc {
+            font-size: 11px;
+            color: var(--text-secondary, #94a3b8);
+            margin-top: 2px;
+        }
+        .save-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .save-btn:hover {
+            background: #2563eb;
+        }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        .status-indicator.active {
+            background: rgba(74, 222, 128, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+        .status-indicator.inactive {
+            background: rgba(148, 163, 184, 0.1);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-indicator.active .status-dot {
+            background: #4ade80;
+        }
+        .status-indicator.inactive .status-dot {
+            background: #94a3b8;
+        }
+        .alert {
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .alert.success {
+            background: rgba(74, 222, 128, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+        .alert.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                    <a href="/ai-settings" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+                        </svg>
+                        AI 설정
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <h2>AI 설정</h2>
+                    <span th:class="${aiActive} ? 'status-indicator active' : 'status-indicator inactive'">
+                        <span class="status-dot"></span>
+                        <span th:text="${aiActive} ? 'AI 활성' : 'AI 비활성'">AI 비활성</span>
+                    </span>
+                </div>
+                <p>AI 분석 제공자 및 API 키를 관리합니다</p>
+            </div>
+
+            <div id="alert" class="alert"></div>
+
+            <!-- Enable/Disable -->
+            <div class="settings-card">
+                <h3>AI 분석 활성화</h3>
+                <div class="toggle-group">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="enabledToggle" th:checked="${enabled}">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">AI 기반 자동 분석 활성화</span>
+                </div>
+            </div>
+
+            <!-- Provider Selection -->
+            <div class="settings-card">
+                <h3>AI 제공자 선택</h3>
+                <div class="provider-options">
+                    <label class="provider-option">
+                        <input type="radio" name="provider" value="ANTHROPIC"
+                               th:checked="${provider == 'ANTHROPIC'}">
+                        <div class="provider-name">Anthropic</div>
+                        <div class="provider-desc">claude-haiku-4-5</div>
+                    </label>
+                    <label class="provider-option">
+                        <input type="radio" name="provider" value="OPENAI"
+                               th:checked="${provider == 'OPENAI'}">
+                        <div class="provider-name">OpenAI</div>
+                        <div class="provider-desc">gpt-4o-mini</div>
+                    </label>
+                    <label class="provider-option">
+                        <input type="radio" name="provider" value="GEMINI"
+                               th:checked="${provider == 'GEMINI'}">
+                        <div class="provider-name">Google Gemini</div>
+                        <div class="provider-desc">gemini-1.5-flash</div>
+                    </label>
+                    <label class="provider-option">
+                        <input type="radio" name="provider" value="CLAUDE_CODE"
+                               th:checked="${provider == 'CLAUDE_CODE'}">
+                        <div class="provider-name">Claude Code</div>
+                        <div class="provider-desc">CLI (로컬)</div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- API Keys -->
+            <div class="settings-card">
+                <h3>API 키 설정</h3>
+
+                <div class="form-group">
+                    <label>Anthropic API Key</label>
+                    <input type="password" id="anthropicApiKey" placeholder="sk-ant-..." />
+                    <div th:class="${anthropicKeyMasked != ''} ? 'key-status set' : 'key-status'">
+                        <span th:text="${anthropicKeyMasked != ''} ? '현재: ' + ${anthropicKeyMasked} : '미설정'">미설정</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>OpenAI API Key</label>
+                    <input type="password" id="openaiApiKey" placeholder="sk-..." />
+                    <div th:class="${openaiKeyMasked != ''} ? 'key-status set' : 'key-status'">
+                        <span th:text="${openaiKeyMasked != ''} ? '현재: ' + ${openaiKeyMasked} : '미설정'">미설정</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Gemini API Key</label>
+                    <input type="password" id="geminiApiKey" placeholder="AIza..." />
+                    <div th:class="${geminiKeyMasked != ''} ? 'key-status set' : 'key-status'">
+                        <span th:text="${geminiKeyMasked != ''} ? '현재: ' + ${geminiKeyMasked} : '미설정'">미설정</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="save-btn" onclick="saveSettings()">설정 저장</button>
+        </main>
+    </div>
+
+    <script>
+        function saveSettings() {
+            const enabled = document.getElementById('enabledToggle').checked;
+            const provider = document.querySelector('input[name="provider"]:checked')?.value;
+            const anthropicApiKey = document.getElementById('anthropicApiKey').value;
+            const openaiApiKey = document.getElementById('openaiApiKey').value;
+            const geminiApiKey = document.getElementById('geminiApiKey').value;
+
+            const payload = { enabled, provider };
+            if (anthropicApiKey) payload.anthropicApiKey = anthropicApiKey;
+            if (openaiApiKey) payload.openaiApiKey = openaiApiKey;
+            if (geminiApiKey) payload.geminiApiKey = geminiApiKey;
+
+            fetch('/api/ai/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('저장 실패: ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                showAlert('설정이 저장되었습니다.', 'success');
+                // Clear password inputs after save
+                document.getElementById('anthropicApiKey').value = '';
+                document.getElementById('openaiApiKey').value = '';
+                document.getElementById('geminiApiKey').value = '';
+            })
+            .catch(err => {
+                showAlert('저장 실패: ' + err.message, 'error');
+            });
+        }
+
+        function showAlert(message, type) {
+            const alertEl = document.getElementById('alert');
+            alertEl.textContent = message;
+            alertEl.className = 'alert ' + type;
+            alertEl.style.display = 'block';
+            setTimeout(() => { alertEl.style.display = 'none'; }, 3000);
+        }
+    </script>
+</body>
+</html>

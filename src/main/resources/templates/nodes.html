@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Monitor - Nodes</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .node-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .node-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+        .node-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+        .node-name { font-weight: 600; font-size: 1rem; }
+        .node-address { color: var(--text-muted); font-size: .85rem; margin-bottom: .75rem; }
+        .node-metrics { display: flex; gap: 1rem; font-size: .85rem; color: var(--text-muted); }
+        .badge-healthy { background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+        .badge-unhealthy { background: #fee2e2; color: #991b1b; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+        .badge-unknown { background: #f3f4f6; color: #6b7280; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+        .add-node-form { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+        .form-row { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: .3rem; }
+        .form-group label { font-size: .82rem; color: var(--text-muted); }
+        .form-group input { padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: .9rem; width: 180px; }
+        .form-group input[type=number] { width: 90px; }
+        .btn-add { padding: .45rem 1.1rem; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+        .btn-remove { padding: .3rem .75rem; background: transparent; border: 1px solid #f87171; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                </svg>
+            </div>
+            <h1>Docker Monitor</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Workloads</div>
+                <a href="/" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Containers
+                </a>
+                <a href="/nodes" class="nav-item active">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                    Nodes
+                </a>
+                <a href="/healing-logs" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Healing Logs
+                </a>
+                <a href="/approvals" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Approvals
+                </a>
+                <a href="/incidents" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    Incident Reports
+                </a>
+                <a href="/metrics-history" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Metrics History
+                </a>
+                <a href="/ai-settings" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+                    AI 설정
+                </a>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Nodes</h2>
+            <p>원격 Docker 호스트 등록 및 상태 관리</p>
+        </div>
+
+        <!-- 노드 추가 폼 -->
+        <div class="add-node-form">
+            <div style="font-weight:600; margin-bottom:.75rem;">노드 추가</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>이름</label>
+                    <input type="text" id="nodeName" placeholder="vm-b" />
+                </div>
+                <div class="form-group">
+                    <label>호스트 (IP)</label>
+                    <input type="text" id="nodeHost" placeholder="192.168.1.20" />
+                </div>
+                <div class="form-group">
+                    <label>포트</label>
+                    <input type="number" id="nodePort" value="2375" />
+                </div>
+                <button class="btn-add" onclick="addNode()">추가</button>
+            </div>
+            <div id="addError" style="color:#ef4444; font-size:.85rem; margin-top:.5rem; display:none;"></div>
+        </div>
+
+        <!-- 노드 목록 -->
+        <div th:if="${#lists.isEmpty(nodes)}" class="empty-state">
+            <p>등록된 노드가 없습니다.</p>
+            <p style="font-size:.85rem;">위 폼에서 원격 Docker 호스트 IP와 포트를 입력하면 모니터링 대상에 추가됩니다.</p>
+        </div>
+
+        <div class="node-grid" th:unless="${#lists.isEmpty(nodes)}">
+            <div class="node-card" th:each="node : ${nodes}">
+                <div class="node-header">
+                    <span class="node-name" th:text="${node.name}">vm-b</span>
+                    <span th:class="${node.status.name() == 'HEALTHY'} ? 'badge-healthy' : (${node.status.name() == 'UNHEALTHY'} ? 'badge-unhealthy' : 'badge-unknown')"
+                          th:text="${node.status.name()}">UNKNOWN</span>
+                </div>
+                <div class="node-address" th:text="${node.host + ':' + node.port}">192.168.1.20:2375</div>
+                <div class="node-metrics">
+                    <span>CPU: <strong th:text="${#numbers.formatDecimal(node.cpuUsagePercent, 1, 1) + '%'}">0.0%</strong></span>
+                    <span>MEM: <strong th:text="${#numbers.formatDecimal(node.memoryUsagePercent, 1, 1) + '%'}">0.0%</strong></span>
+                    <span>Containers: <strong th:text="${node.runningContainers}">0</strong></span>
+                </div>
+                <div style="margin-top:.75rem; text-align:right;">
+                    <button class="btn-remove" th:data-node-id="${node.id}" onclick="removeNode(this.dataset.nodeId)">제거</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+async function addNode() {
+    const name = document.getElementById('nodeName').value.trim();
+    const host = document.getElementById('nodeHost').value.trim();
+    const port = parseInt(document.getElementById('nodePort').value);
+    const errEl = document.getElementById('addError');
+
+    if (!name || !host) {
+        errEl.textContent = '이름과 호스트를 입력하세요.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/nodes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, host, port})
+        });
+        if (res.ok) {
+            location.reload();
+        } else {
+            errEl.textContent = '노드 추가 실패: ' + res.status;
+            errEl.style.display = 'block';
+        }
+    } catch (e) {
+        errEl.textContent = '오류: ' + e.message;
+        errEl.style.display = 'block';
+    }
+}
+
+async function removeNode(id) {
+    if (!confirm('노드를 제거하시겠습니까?')) return;
+    await fetch('/api/nodes/' + id, {method: 'DELETE'});
+    location.reload();
+}
+</script>
+</body>
+</html>

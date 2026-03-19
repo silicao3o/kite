@@ -1,0 +1,78 @@
+package com.lite_k8s.node;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/nodes")
+@RequiredArgsConstructor
+public class NodeManagementController {
+
+    private final NodeRegistry nodeRegistry;
+
+    @PostMapping
+    public NodeResponse addNode(@RequestBody AddNodeRequest request) {
+        Node node = Node.builder()
+                .id(UUID.randomUUID().toString())
+                .name(request.getName())
+                .host(request.getHost())
+                .port(request.getPort())
+                .status(NodeStatus.UNKNOWN)
+                .build();
+        nodeRegistry.register(node);
+        return NodeResponse.from(node);
+    }
+
+    @DeleteMapping("/{id}")
+    public void removeNode(@PathVariable String id) {
+        nodeRegistry.unregister(id);
+    }
+
+    @GetMapping
+    public List<NodeResponse> listNodes() {
+        return nodeRegistry.findAll().stream()
+                .map(NodeResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    @Getter
+    @Setter
+    public static class AddNodeRequest {
+        private String name;
+        private String host;
+        private int port = 2375;
+    }
+
+    @Getter
+    public static class NodeResponse {
+        private final String id;
+        private final String name;
+        private final String host;
+        private final int port;
+        private final String status;
+
+        private NodeResponse(String id, String name, String host, int port, String status) {
+            this.id = id;
+            this.name = name;
+            this.host = host;
+            this.port = port;
+            this.status = status;
+        }
+
+        static NodeResponse from(Node node) {
+            return new NodeResponse(
+                    node.getId(),
+                    node.getName(),
+                    node.getHost(),
+                    node.getPort(),
+                    node.getStatus().name()
+            );
+        }
+    }
+}

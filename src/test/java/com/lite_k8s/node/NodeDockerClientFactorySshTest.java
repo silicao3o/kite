@@ -1,0 +1,88 @@
+package com.lite_k8s.node;
+
+import com.github.dockerjava.api.DockerClient;
+import com.jcraft.jsch.JSchException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class NodeDockerClientFactorySshTest {
+
+    @Mock
+    private SshTunnelManager tunnelManager;
+
+    private NodeDockerClientFactory factory;
+
+    @BeforeEach
+    void setUp() {
+        factory = new NodeDockerClientFactory(tunnelManager);
+    }
+
+    @Test
+    @DisplayName("SSH 노드는 터널 포트로 DockerClient를 생성한다")
+    void createClient_SshNode_UsesTunnelPort() throws JSchException {
+        Node sshNode = Node.builder()
+                .id("node-dev")
+                .name("dev")
+                .host("183.102.124.134")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH)
+                .sshPort(22)
+                .sshUser("ubuntu")
+                .sshKeyPath("/root/.ssh/id_rsa")
+                .build();
+
+        when(tunnelManager.allocateLocalPort("node-dev")).thenReturn(20000);
+
+        DockerClient client = factory.createClient(sshNode);
+
+        assertThat(client).isNotNull();
+        verify(tunnelManager).openTunnel(sshNode);
+        verify(tunnelManager).allocateLocalPort("node-dev");
+    }
+
+    @Test
+    @DisplayName("TCP 노드는 tunnelManager를 호출하지 않는다")
+    void createClient_TcpNode_DoesNotUseTunnel() throws JSchException {
+        Node tcpNode = Node.builder()
+                .id("node-gcp")
+                .name("gcp")
+                .host("10.178.0.12")
+                .port(2375)
+                .connectionType(NodeConnectionType.TCP)
+                .build();
+
+        factory.createClient(tcpNode);
+
+        verifyNoInteractions(tunnelManager);
+    }
+
+    @Test
+    @DisplayName("같은 SSH 노드를 두 번 요청하면 터널은 한 번만 연다")
+    void createClient_SshNode_OpensTunnelOnlyOnce() throws JSchException {
+        Node sshNode = Node.builder()
+                .id("node-dev")
+                .name("dev")
+                .host("183.102.124.134")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH)
+                .sshPort(22)
+                .sshUser("ubuntu")
+                .sshKeyPath("/root/.ssh/id_rsa")
+                .build();
+
+        when(tunnelManager.allocateLocalPort("node-dev")).thenReturn(20000);
+
+        factory.createClient(sshNode);
+        factory.createClient(sshNode);
+
+        verify(tunnelManager, times(1)).openTunnel(sshNode);
+    }
+}

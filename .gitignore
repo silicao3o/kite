@@ -1,0 +1,101 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+logs/
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE - Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+# IDE - NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# IDE - VS Code
+.vscode/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+.env.test
+*.env
+application-local.yml
+application-local.properties
+secrets/
+
+# Docker
+docker-compose.override.yml
+
+# Test outputs
+/test-output/
+/surefire-reports/
+
+# Spring Boot
+spring-shell.log
+
+# Misc
+*.swp
+*.swo
+*~
+.project
+*.tmp
+*.bak
+
+# Documentation (private)
+plan.md
+memory.md
+*PRD*.md
+update.md

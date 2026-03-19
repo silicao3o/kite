@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # 시나리오 1: 정상 컨테이너 (수동 stop 테스트용)
+  # docker stop test-normal 명령으로 종료 (Exit Code: 143 - SIGTERM)
+  test-normal:
+    image: alpine:latest
+    container_name: test-normal
+    command: ["sh", "-c", "echo 'Normal container started'; while true; do echo 'Running...'; sleep 5; done"]
+
+  # 시나리오 2: 5초 후 에러로 크래시 (Exit Code: 1)
+  test-crash:
+    image: alpine:latest
+    container_name: test-crash
+    command: ["sh", "-c", "echo 'Crash container started'; sleep 5; echo 'ERROR: Something went wrong!'; exit 1"]
+
+  # 시나리오 3: 계속 재시작되는 컨테이너 (restart policy 없이)
+  # 3초마다 크래시 - 모니터링 서비스에서 중복 방지 테스트
+  test-crashloop:
+    image: alpine:latest
+    container_name: test-crashloop
+    command: ["sh", "-c", "echo 'CrashLoop container started at $(date)'; sleep 3; echo 'FATAL: Application crashed!'; exit 1"]
+    restart: always
+
+  # 시나리오 4: Segmentation Fault (Exit Code: 139)
+  test-segfault:
+    image: alpine:latest
+    container_name: test-segfault
+    command: ["sh", "-c", "echo 'SegFault container started'; sleep 8; kill -SIGSEGV $$"]
+
+  # 시나리오 5: docker kill로 강제 종료될 컨테이너 (Exit Code: 137 - SIGKILL)
+  test-kill:
+    image: alpine:latest
+    container_name: test-kill
+    command: ["sh", "-c", "echo 'Kill test container started'; while true; do echo 'Waiting to be killed...'; sleep 5; done"]
+
+  # 시나리오 6: OOM Killer 테스트 (메모리 제한 + 메모리 폭주)
+  test-oom:
+    image: alpine:latest
+    container_name: test-oom
+    mem_limit: 10m
+    command: ["sh", "-c", "echo 'OOM container started'; sleep 3; echo 'Allocating memory...'; dd if=/dev/zero of=/dev/null bs=1M count=100"]
+
+  # ========== 자가치유 테스트 ==========
+
+  # 시나리오 7: 자가치유 테스트 (yml 규칙 적용 - test-* 패턴)
+  test-healing:
+    image: alpine:latest
+    container_name: test-healing
+    command: ["sh", "-c", "echo 'Self-healing test started'; sleep 10; echo 'Crashing...'; exit 1"]
+    restart: "no"
+
+  # 시나리오 8: 라벨 기반 자가치유 테스트
+  # 첫 번째 기동: 10초 후 크래시 → 자가치유 트리거
+  # 자가치유 재시작 이후: 플래그 파일 감지 후 무한 실행 (계속 UP 유지)
+  web-label-test:
+    image: alpine:latest
+    container_name: web-label-test
+    command:
+      - sh
+      - -c
+      - |
+        FLAG=/data/healed.flag
+        if [ -f "$$FLAG" ]; then
+          echo "[web-label-test] 자가치유 성공! 재시작 #$$(cat $$FLAG)회 - 계속 실행 유지 중..."
+          COUNT=$$(cat $$FLAG)
+          echo $$((COUNT + 1)) > $$FLAG
+          while true; do
+            echo "[web-label-test] 정상 운영 중... ($$(date '+%H:%M:%S')) - 재시작 횟수: $$COUNT"
+            sleep 10
+          done
+        else
+          echo "[web-label-test] 최초 기동 - 10초 후 크래시하여 자가치유를 트리거합니다..."
+          echo 1 > $$FLAG
+          sleep 10
+          echo "[web-label-test] 의도적 크래시! (자가치유 대기 중)"
+          exit 1
+        fi
+    restart: "no"
+    volumes:
+      - web-label-test-data:/data
+    labels:
+      self-healing.enabled: "true"
+      self-healing.max-restarts: "3"
+
+  # 시나리오 9: 자가치유 비활성화 테스트 (라벨로 명시적 비활성화)
+  test-no-heal:
+    image: alpine:latest
+    container_name: test-no-heal
+    command: ["sh", "-c", "echo 'No healing test'; sleep 10; exit 1"]
+    restart: "no"
+    labels:
+      self-healing.enabled: "false"
+
+volumes:
+  web-label-test-data:

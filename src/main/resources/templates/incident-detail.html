@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Detail - Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <a href="/incidents" style="text-decoration:none; color:inherit;">← Back to Incidents</a>
+                <h2 th:text="${report.summary}">장애 요약</h2>
+                <span class="status-badge"
+                      th:classappend="${report.status.name() == 'OPEN'} ? 'exited' : (${report.status.name() == 'ANALYZING'} ? 'paused' : 'running')"
+                      th:text="${report.status}">OPEN</span>
+            </div>
+
+            <!-- Basic Info -->
+            <div class="table-card">
+                <div class="table-header"><h3>Incident Information</h3></div>
+                <div style="padding: 16px;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr>
+                            <td style="padding:8px; font-weight:600; width:160px;">Container</td>
+                            <td th:text="${report.containerName}" style="padding:8px;">web-server</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; font-weight:600;">Container ID</td>
+                            <td th:text="${report.containerId}" style="padding:8px;">abc123</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; font-weight:600;">Occurred</td>
+                            <td th:text="${#temporals.format(report.createdAt, 'yyyy-MM-dd HH:mm:ss')}" style="padding:8px;">2024-01-01 12:00:00</td>
+                        </tr>
+                        <tr th:if="${report.closedAt != null}">
+                            <td style="padding:8px; font-weight:600;">Closed</td>
+                            <td th:text="${#temporals.format(report.closedAt, 'yyyy-MM-dd HH:mm:ss')}" style="padding:8px;">2024-01-01 12:10:00</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Root Cause -->
+            <div class="table-card" th:if="${report.rootCause != null}">
+                <div class="table-header"><h3>Root Cause Analysis</h3></div>
+                <div style="padding: 16px;">
+                    <p th:text="${report.rootCause}" style="white-space:pre-wrap; line-height:1.6;">근본 원인</p>
+                </div>
+            </div>
+
+            <!-- Suggestions -->
+            <div class="table-card" th:if="${!report.suggestions.isEmpty()}">
+                <div class="table-header"><h3>Prevention Suggestions</h3></div>
+                <div style="padding: 16px;">
+                    <ul style="margin:0; padding-left:20px; line-height:1.8;">
+                        <li th:each="suggestion : ${report.suggestions}" th:text="${suggestion}">제안 사항</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="table-card" th:if="${!report.timeline.isEmpty()}">
+                <div class="table-header"><h3>Timeline</h3></div>
+                <div style="padding: 16px;">
+                    <ul style="margin:0; padding-left:20px; line-height:1.8;">
+                        <li th:each="entry : ${report.timeline}" th:text="${entry}">타임라인 항목</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

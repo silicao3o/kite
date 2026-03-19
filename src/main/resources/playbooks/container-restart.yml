@@ -1,0 +1,16 @@
+name: container-restart
+description: 컨테이너 비정상 종료 시 재시작
+riskLevel: LOW
+trigger:
+  event: container.die
+  conditions:
+    exitCode: "1"
+actions:
+  - name: wait-before-restart
+    type: delay
+    params:
+      seconds: "5"
+  - name: restart-container
+    type: container.restart
+    params:
+      containerId: "{{containerId}}"

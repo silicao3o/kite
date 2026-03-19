@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${container.name} + ' - Docker Monitor'">Container - Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <div class="detail-header">
+                <a href="/" class="back-button">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <div class="detail-title">
+                    <h2 th:text="${container.name}">container-name</h2>
+                    <div class="subtitle" th:text="${container.id}">container-id</div>
+                </div>
+                <span class="status-badge"
+                      th:classappend="${container.statusClass}"
+                      th:text="${container.state}">running</span>
+            </div>
+
+            <!-- Info Cards -->
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>Container Info</h4>
+                    <div class="info-row">
+                        <span class="info-label">Name</span>
+                        <span class="info-value" th:text="${container.name}">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Image</span>
+                        <span class="info-value" th:text="${container.image}">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value" th:text="${container.status}">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Created</span>
+                        <span class="info-value" th:text="${#temporals.format(container.created, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h4>Labels</h4>
+                    <div th:if="${container.labels == null or container.labels.isEmpty()}" class="info-row">
+                        <span class="info-label">No labels</span>
+                    </div>
+                    <div th:each="entry : ${container.labels}" class="info-row">
+                        <span class="info-label" th:text="${entry.key}">key</span>
+                        <span class="info-value" th:text="${entry.value}">value</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Self Healing Info -->
+            <div class="info-card" th:if="${container.healingEnabled}">
+                <h4>Self Healing</h4>
+                <div class="info-row">
+                    <span class="info-label">Status</span>
+                    <span class="info-value">
+                        <span class="status-badge running">Enabled</span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Max Restarts</span>
+                    <span class="info-value" th:text="${container.maxRestarts}">3</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Current Restarts</span>
+                    <span class="info-value" th:text="${container.restartCount}">0</span>
+                </div>
+            </div>
+
+            <!-- Healing History -->
+            <div class="table-card" th:if="${!healingEvents.isEmpty()}">
+                <div class="table-header">
+                    <h3>Self Healing History</h3>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Status</th>
+                                <th>Restart #</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="event : ${healingEvents}">
+                                <td th:text="${#temporals.format(event.timestamp, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01 12:00:00</td>
+                                <td>
+                                    <span class="status-badge"
+                                          th:classappend="${event.success} ? 'running' : 'exited'"
+                                          th:text="${event.success} ? 'SUCCESS' : 'FAILED'">SUCCESS</span>
+                                </td>
+                                <td th:text="${event.restartCount}">1</td>
+                                <td th:text="${event.message}">Message</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="logs-card">
+                <div class="logs-header">
+                    <h3>Container Logs</h3>
+                    <button class="refresh-btn" onclick="refreshLogs()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+
+                <!-- Log Search -->
+                <div class="log-search">
+                    <div class="search-row">
+                        <input type="text" id="searchKeyword" placeholder="Search keyword..." class="search-input">
+                        <select id="logLevel" class="search-select" multiple>
+                            <option value="ERROR">ERROR</option>
+                            <option value="WARN">WARN</option>
+                            <option value="INFO">INFO</option>
+                            <option value="DEBUG">DEBUG</option>
+                        </select>
+                        <button class="search-btn" onclick="searchLogs()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="M21 21l-4.35-4.35"/>
+                            </svg>
+                            Search
+                        </button>
+                        <button class="clear-btn" onclick="clearSearch()">Clear</button>
+                    </div>
+                    <div class="search-row time-range-row">
+                        <label class="time-label">From:</label>
+                        <input type="datetime-local" id="fromTime" class="time-input">
+                        <label class="time-label">To:</label>
+                        <input type="datetime-local" id="toTime" class="time-input">
+                        <button class="preset-btn" onclick="setTimePreset('1h')">1h</button>
+                        <button class="preset-btn" onclick="setTimePreset('6h')">6h</button>
+                        <button class="preset-btn" onclick="setTimePreset('24h')">24h</button>
+                    </div>
+                    <div id="searchInfo" class="search-info" style="display: none;">
+                        <span id="searchResultCount">0</span> results found
+                    </div>
+                </div>
+
+                <div class="logs-content">
+                    <pre id="logs" th:utext="${logs}">Loading logs...</pre>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script th:inline="javascript">
+        const containerId = [[${container.id}]];
+        let originalLogs = document.getElementById('logs').innerHTML;
+
+        function refreshLogs() {
+            fetch('/api/containers/' + containerId + '/logs')
+                .then(response => response.text())
+                .then(logs => {
+                    document.getElementById('logs').textContent = logs;
+                    originalLogs = logs;
+                    clearSearch();
+                })
+                .catch(err => {
+                    console.error('Failed to refresh logs:', err);
+                });
+        }
+
+        function searchLogs() {
+            const keyword = document.getElementById('searchKeyword').value;
+            const levelSelect = document.getElementById('logLevel');
+            const selectedLevels = Array.from(levelSelect.selectedOptions).map(opt => opt.value);
+            const fromTime = document.getElementById('fromTime').value;
+            const toTime = document.getElementById('toTime').value;
+
+            const params = new URLSearchParams();
+            if (keyword) params.append('keyword', keyword);
+            selectedLevels.forEach(level => params.append('levels', level));
+            if (fromTime) params.append('from', fromTime);
+            if (toTime) params.append('to', toTime);
+
+            fetch('/api/containers/' + containerId + '/logs/search?' + params.toString())
+                .then(response => response.json())
+                .then(result => {
+                    displaySearchResults(result);
+                })
+                .catch(err => {
+                    console.error('Search failed:', err);
+                });
+        }
+
+        function setTimePreset(preset) {
+            const now = new Date();
+            let fromDate = new Date();
+
+            switch(preset) {
+                case '1h':
+                    fromDate.setHours(now.getHours() - 1);
+                    break;
+                case '6h':
+                    fromDate.setHours(now.getHours() - 6);
+                    break;
+                case '24h':
+                    fromDate.setDate(now.getDate() - 1);
+                    break;
+            }
+
+            document.getElementById('fromTime').value = formatDateTime(fromDate);
+            document.getElementById('toTime').value = formatDateTime(now);
+            searchLogs();
+        }
+
+        function formatDateTime(date) {
+            return date.toISOString().slice(0, 16);
+        }
+
+        function displaySearchResults(result) {
+            const logsEl = document.getElementById('logs');
+            const searchInfo = document.getElementById('searchInfo');
+            const resultCount = document.getElementById('searchResultCount');
+
+            if (result.entries.length === 0) {
+                logsEl.innerHTML = '<span class="no-results">No matching logs found</span>';
+            } else {
+                const html = result.entries.map(entry => {
+                    const levelClass = 'log-level-' + entry.level.toLowerCase();
+                    return `<span class="${levelClass}">${entry.highlightedMessage}</span>`;
+                }).join('\n');
+                logsEl.innerHTML = html;
+            }
+
+            resultCount.textContent = result.totalCount;
+            searchInfo.style.display = 'block';
+        }
+
+        function clearSearch() {
+            document.getElementById('searchKeyword').value = '';
+            document.getElementById('logLevel').selectedIndex = -1;
+            document.getElementById('fromTime').value = '';
+            document.getElementById('toTime').value = '';
+            document.getElementById('logs').innerHTML = originalLogs;
+            document.getElementById('searchInfo').style.display = 'none';
+        }
+
+        // Enter key to search
+        document.getElementById('searchKeyword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchLogs();
+            }
+        });
+    </script>
+</body>
+</html>

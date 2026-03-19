@@ -1,0 +1,178 @@
+# ──────────────────────────────────────────────────────────────────
+#  Docker Monitor 실제 테스트 스택 (Phase 1~5 전체 검증용)
+#
+#  앱 구성:
+#    - monitor        : Docker Monitor (포트 8080)
+#    - exercise-auth  : 운동 기록 앱 (포트 8081) — GHCR 이미지
+#    - schedule-diary : 다이어리 앱 (포트 8082) — GHCR 이미지
+#    - mailhog        : 이메일 캡처 (SMTP 1025 / Web 8025)
+#
+#  사전 준비:
+#    1. scripts/ghcr-setup.sh 로 이미지 빌드 & 푸시
+#    2. GHCR 이미지 pull 권한 확인 (public or login 필요)
+#
+#  실행:
+#    docker compose -f docker-compose.test.yml --env-file .env.test up --build
+#
+#  대시보드:
+#    http://localhost:8080   - Docker Monitor
+#    http://localhost:8025   - Mailhog (이메일 확인)
+#    http://localhost:8081   - exercise-auth
+#    http://localhost:8082   - schedule-diary
+# ──────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Docker Monitor ────────────────────────────────────────────
+  monitor:
+    build:
+      context: ../Downloads/lite-k8s
+      dockerfile: Dockerfile
+    container_name: docker-monitor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Phase 5 기능 활성화 설정 오버라이드
+      - ./docker/test-config/application.yml:/app/config/application.yml:ro
+    environment:
+      # ── SMTP (Mailhog) ──────────────────────────────────────────
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      MAIL_USERNAME: monitor@demo.local
+      MAIL_PASSWORD: ""
+      MAIL_FROM: monitor@demo.local
+      ALERT_EMAIL: silicao3o@daquv.com
+
+      # ── 메트릭 ──────────────────────────────────────────────────
+      METRICS_ENABLED: "true"
+      METRICS_COLLECTION_INTERVAL: "10"    # 10초 (데모용)
+      CPU_THRESHOLD_PERCENT: "60"
+      MEMORY_THRESHOLD_PERCENT: "80"
+
+      # ── 알림 중복 방지 ───────────────────────────────────────────
+      DEDUP_ENABLED: "true"
+      DEDUP_WINDOW_SECONDS: "30"
+
+      # ── 자가치유 ────────────────────────────────────────────────
+      SELF_HEALING_ENABLED: "true"
+      SELF_HEALING_RESET_WINDOW: "5"       # 5분 (데모용 짧게)
+
+      # ── 보안 (데모: 비활성화) ────────────────────────────────────
+      SECURITY_ENABLED: "false"
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD: admin
+
+      # ── AI 분석 ─────────────────────────────────────────────────
+      AI_ENABLED: "true"
+      AI_PROVIDER: ANTHROPIC
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_TIMEOUT: "30"
+
+      # ── GHCR (Phase 5.1) ─────────────────────────────────────────
+      IMAGE_WATCH_ENABLED: "true"
+      IMAGE_WATCH_INTERVAL: "60"
+      GHCR_TOKEN: ${GHCR_TOKEN}
+
+      # ── Health Check (Phase 5.2) ─────────────────────────────────
+      HEALTH_CHECK_ENABLED: "true"
+      HEALTH_CHECK_PERIOD: "15"
+      HEALTH_CHECK_INITIAL_DELAY: "30"
+
+      # ── Desired State (Phase 5.3) ────────────────────────────────
+      DESIRED_STATE_ENABLED: "true"
+      DESIRED_STATE_INTERVAL: "30"
+
+      # ── 다중 노드 (Phase 5.4) — 단일 호스트 비활성화 ─────────────
+      NODES_ENABLED: "true"
+
+      # ── DB 정보 (test-config/application.yml 에서 참조) ──────────
+      EXERCISE_DB_URL: ${EXERCISE_DB_URL}
+      EXERCISE_DB_USER: ${EXERCISE_DB_USER}
+      EXERCISE_DB_PASS: ${EXERCISE_DB_PASS}
+      DIARY_DB_URL: ${DIARY_DB_URL}
+      DIARY_DB_USER: ${DIARY_DB_USER}
+      DIARY_DB_PASS: ${DIARY_DB_PASS}
+
+    depends_on:
+      mailhog:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - test-net
+    labels:
+      self-healing.enabled: "false"   # 모니터 자신은 자가치유 제외
+
+  # ── exercise-auth ─────────────────────────────────────────────
+  exercise-auth:
+    image: ghcr.io/silicao3o/exercise-auth:latest
+    container_name: exercise-auth
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: ${EXERCISE_DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${EXERCISE_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${EXERCISE_DB_PASS}
+      UPLOADCARE_PUBLIC_KEY: demo
+      UPLOADCARE_SECRET_KEY: demo
+      OTEL_SDK_DISABLED: "true"
+      TZ: Asia/Seoul
+    restart: unless-stopped
+    networks:
+      - test-net
+    mem_limit: 512m
+    labels:
+      # 자가치유 (Phase 2)
+      self-healing.enabled: "true"
+      self-healing.max-restarts: "5"
+      self-healing.restart-delay-seconds: "5"
+      # 서비스 중요도 (Safety Gate용)
+      service.criticality: "HIGH"
+
+  # ── schedule-diary ────────────────────────────────────────────
+  schedule-diary:
+    image: ghcr.io/silicao3o/schedule-diary:latest
+    container_name: schedule-diary
+    ports:
+      - "8082:8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${DIARY_DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${DIARY_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DIARY_DB_PASS}
+      KAKAO_CLIENT_ID: 2b0e2842adcacfeb9731a68eb4b42048
+      KAKAO_CLIENT_SECRET: dNryttl23s5vP8CMeIrTU26NRL2METOw
+      KAKAO_REDIRECT_URI: http://localhost:8082/login/oauth2/code/kakao
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TZ: Asia/Seoul
+    restart: unless-stopped
+    networks:
+      - test-net
+    mem_limit: 384m
+    labels:
+      # 자가치유 (Phase 2)
+      self-healing.enabled: "true"
+      self-healing.max-restarts: "5"
+      self-healing.restart-delay-seconds: "5"
+      # 서비스 중요도 (Safety Gate용)
+      service.criticality: "NORMAL"
+
+  # ── Mailhog ───────────────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: demo-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+    networks:
+      - test-net
+    labels:
+      self-healing.enabled: "false"
+
+networks:
+  test-net:
+    driver: bridge

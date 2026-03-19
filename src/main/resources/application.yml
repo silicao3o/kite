@@ -69,12 +69,12 @@ docker:
     filter:
       # 모니터링 제외할 컨테이너 이름 패턴 (정규식)
       exclude-names:
-        # - ".*-temp"
-        # - "test-.*"
+      # - ".*-temp"
+      # - "test-.*"
       # 모니터링 제외할 이미지 이름 패턴 (정규식)
       exclude-images:
-        # - "busybox.*"
-        # - "alpine.*"
+      # - "busybox.*"
+      # - "alpine.*"
       # 모니터링할 컨테이너 이름 패턴 (정규식, 비어있으면 모두 포함)
       include-names: []
       # 모니터링할 이미지 이름 패턴 (정규식, 비어있으면 모두 포함)
