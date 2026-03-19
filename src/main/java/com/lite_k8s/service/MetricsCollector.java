@@ -27,11 +27,15 @@ public class MetricsCollector {
     private final DockerClient dockerClient;
 
     public Optional<ContainerMetrics> collectMetrics(String containerId, String containerName) {
+        return collectMetrics(containerId, containerName, dockerClient);
+    }
+
+    public Optional<ContainerMetrics> collectMetrics(String containerId, String containerName, DockerClient client) {
         try {
             AtomicReference<Statistics> statsRef = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
 
-            dockerClient.statsCmd(containerId)
+            client.statsCmd(containerId)
                     .withNoStream(true)
                     .exec(new ResultCallback.Adapter<Statistics>() {
                         @Override

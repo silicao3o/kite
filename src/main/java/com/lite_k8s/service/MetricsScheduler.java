@@ -4,6 +4,10 @@ import com.lite_k8s.config.MonitorProperties;
 import com.lite_k8s.metrics.MetricsHistoryService;
 import com.lite_k8s.model.ContainerInfo;
 import com.lite_k8s.model.ContainerMetrics;
+import com.lite_k8s.node.Node;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
+import com.github.dockerjava.api.DockerClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +27,9 @@ public class MetricsScheduler {
     private final MetricsCollector metricsCollector;
     private final MonitorProperties monitorProperties;
     private final MetricsHistoryService metricsHistoryService;
+    private final NodeRegistry nodeRegistry;
+    private final NodeDockerClientFactory nodeClientFactory;
+    private final DockerClient localDockerClient;
 
     private final Map<String, ContainerMetrics> metricsCache = new ConcurrentHashMap<>();
     private volatile List<ContainerInfo> containerCache = List.of();
@@ -47,7 +54,8 @@ public class MetricsScheduler {
     }
 
     private void collectAndCacheMetrics(ContainerInfo container) {
-        metricsCollector.collectMetrics(container.getId(), container.getName())
+        DockerClient client = resolveClient(container.getNodeId());
+        metricsCollector.collectMetrics(container.getId(), container.getName(), client)
                 .ifPresent(metrics -> {
                     metricsCache.put(container.getId(), metrics);
                     metricsHistoryService.record(metrics);
@@ -56,6 +64,13 @@ public class MetricsScheduler {
                             String.format("%.1f", metrics.getCpuPercent()),
                             String.format("%.1f", metrics.getMemoryPercent()));
                 });
+    }
+
+    private DockerClient resolveClient(String nodeId) {
+        if (nodeId == null) return localDockerClient;
+        return nodeRegistry.findById(nodeId)
+                .map(nodeClientFactory::createClient)
+                .orElse(localDockerClient);
     }
 
     public List<ContainerInfo> getCachedContainers() {

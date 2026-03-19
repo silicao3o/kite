@@ -5,6 +5,9 @@ import com.lite_k8s.metrics.MetricsHistoryService;
 import com.lite_k8s.metrics.MetricsHistoryRepository;
 import com.lite_k8s.model.ContainerInfo;
 import com.lite_k8s.model.ContainerMetrics;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
+import com.github.dockerjava.api.DockerClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,15 @@ class MetricsSchedulerTest {
     @Mock
     private MetricsCollector metricsCollector;
 
+    @Mock
+    private NodeRegistry nodeRegistry;
+
+    @Mock
+    private NodeDockerClientFactory nodeClientFactory;
+
+    @Mock
+    private DockerClient localDockerClient;
+
     private MonitorProperties monitorProperties;
     private MetricsScheduler metricsScheduler;
 
@@ -35,7 +47,8 @@ class MetricsSchedulerTest {
     void setUp() {
         monitorProperties = new MonitorProperties();
         MetricsHistoryService historyService = new MetricsHistoryService(new MetricsHistoryRepository());
-        metricsScheduler = new MetricsScheduler(dockerService, metricsCollector, monitorProperties, historyService);
+        metricsScheduler = new MetricsScheduler(dockerService, metricsCollector, monitorProperties, historyService,
+                nodeRegistry, nodeClientFactory, localDockerClient);
     }
 
     @Test
@@ -47,17 +60,17 @@ class MetricsSchedulerTest {
         ContainerInfo container3 = createContainer("c3", "container-3", "exited");
 
         when(dockerService.listContainers(true)).thenReturn(List.of(container1, container2, container3));
-        when(metricsCollector.collectMetrics(anyString(), anyString()))
+        when(metricsCollector.collectMetrics(anyString(), anyString(), any(DockerClient.class)))
                 .thenReturn(Optional.of(createMockMetrics()));
 
         // when
         metricsScheduler.collectMetrics();
 
         // then
-        verify(metricsCollector, times(2)).collectMetrics(anyString(), anyString());
-        verify(metricsCollector).collectMetrics("c1", "container-1");
-        verify(metricsCollector).collectMetrics("c2", "container-2");
-        verify(metricsCollector, never()).collectMetrics("c3", "container-3");
+        verify(metricsCollector, times(2)).collectMetrics(anyString(), anyString(), any(DockerClient.class));
+        verify(metricsCollector).collectMetrics(eq("c1"), eq("container-1"), any(DockerClient.class));
+        verify(metricsCollector).collectMetrics(eq("c2"), eq("container-2"), any(DockerClient.class));
+        verify(metricsCollector, never()).collectMetrics(eq("c3"), eq("container-3"), any(DockerClient.class));
     }
 
     @Test
@@ -71,7 +84,7 @@ class MetricsSchedulerTest {
 
         // then
         verify(dockerService, never()).listContainers(anyBoolean());
-        verify(metricsCollector, never()).collectMetrics(anyString(), anyString());
+        verify(metricsCollector, never()).collectMetrics(anyString(), anyString(), any(DockerClient.class));
     }
 
     @Test
@@ -82,7 +95,7 @@ class MetricsSchedulerTest {
         ContainerMetrics metrics = createMockMetrics();
 
         when(dockerService.listContainers(true)).thenReturn(List.of(container));
-        when(metricsCollector.collectMetrics("c1", "container-1")).thenReturn(Optional.of(metrics));
+        when(metricsCollector.collectMetrics(eq("c1"), eq("container-1"), any(DockerClient.class))).thenReturn(Optional.of(metrics));
 
         // when
         metricsScheduler.collectMetrics();
