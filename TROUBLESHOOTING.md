@@ -176,3 +176,25 @@ DOCKER_MONITOR_NODES_NODES_0_NAME=gcp-vm1
 DOCKER_MONITOR_NODES_NODES_0_HOST=10.178.0.15
 DOCKER_MONITOR_NODES_NODES_0_PORT=2375
 ```
+
+---
+
+## 9. 삭제된 컨테이너 로그 조회 시 ERROR 로그
+
+**발생일**: 2026-03-19
+**증상**:
+```
+ERROR c.g.d.a.async.ResultCallbackTemplate - Error during callback
+ERROR com.lite_k8s.service.DockerService - 로그 조회 실패: <container_id>
+com.github.dockerjava.api.exception.NotFoundException: Status 404
+```
+
+**원인**: `getContainerLogs()`가 삭제된 컨테이너의 로그를 조회할 때 NotFoundException을 ERROR로 처리
+
+**수정**: NotFoundException은 DEBUG로 스킵
+```java
+} catch (NotFoundException e) {
+    log.debug("로그 조회 스킵 — 컨테이너 없음: {}", containerId);
+    return "";
+}
+```
