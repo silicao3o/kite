@@ -37,6 +37,9 @@ public class NodeDockerClientFactory {
             try {
                 tunnelManager.openTunnel(node);
             } catch (JSchException e) {
+                log.error("SSH 터널 연결 실패 [{}] user={} host={}:{} keyPath={} — {}",
+                        node.getName(), node.getSshUser(), node.getHost(), node.getSshPort(),
+                        node.getSshKeyPath(), e.getMessage());
                 throw new RuntimeException("SSH 터널 연결 실패: " + node.getId(), e);
             }
             int localPort = tunnelManager.allocateLocalPort(node.getId());
