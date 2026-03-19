@@ -5,6 +5,7 @@ import com.lite_k8s.model.ContainerInfo;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import com.github.dockerjava.api.exception.NotFoundException;
 import com.lite_k8s.util.DockerContainerNames;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -151,6 +152,9 @@ public class DockerService {
         try {
             InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
             return toContainerInfo(inspection);
+        } catch (NotFoundException e) {
+            log.debug("컨테이너 없음: {}", containerId);
+            return null;
         } catch (Exception e) {
             log.error("컨테이너 조회 실패: {}", containerId, e);
             return null;

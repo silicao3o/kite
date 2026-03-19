@@ -3,6 +3,7 @@ package com.lite_k8s.service;
 import com.lite_k8s.model.ContainerMetrics;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
+import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.CpuStatsConfig;
 import com.github.dockerjava.api.model.MemoryStatsConfig;
 import com.github.dockerjava.api.model.Statistics;
@@ -46,7 +47,11 @@ public class MetricsCollector {
 
                         @Override
                         public void onError(Throwable throwable) {
-                            log.error("Stats 수집 에러: {}", containerId, throwable);
+                            if (throwable instanceof NotFoundException) {
+                                log.debug("Stats 수집 스킵 — 컨테이너 없음: {}", containerId);
+                            } else {
+                                log.error("Stats 수집 에러: {}", containerId, throwable);
+                            }
                             latch.countDown();
                         }
                     });
@@ -63,6 +68,9 @@ public class MetricsCollector {
 
             return Optional.of(buildMetrics(containerId, containerName, stats));
 
+        } catch (NotFoundException e) {
+            log.debug("메트릭 수집 스킵 — 컨테이너 없음: {}", containerId);
+            return Optional.empty();
         } catch (Exception e) {
             log.error("메트릭 수집 실패: {}", containerId, e);
             return Optional.empty();
