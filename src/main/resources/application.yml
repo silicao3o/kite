@@ -130,12 +130,28 @@ docker:
       nodes: []
       # 예시:
       # nodes:
-      #   - name: server-1
-      #     host: 192.168.1.10
+      #   # GCP 내부망 노드 (TCP 직접 연결)
+      #   - name: gcp-vm-1
+      #     host: <GCP-INTERNAL-IP>          # GCP 내부 IP
       #     port: 2375
-      #   - name: server-2
-      #     host: 192.168.1.11
+      #     connection-type: TCP
+      #
+      #   # 온프레미스 노드 (SSH 터널 경유)
+      #   - name: onprem-dev
+      #     host: <온프레미스 공인 IP>
+      #     port: 2375                 # Docker 데몬 포트 (터널 목적지)
+      #     connection-type: SSH
+      #     ssh-port: 22
+      #     ssh-user: ubuntu
+      #     ssh-key-path: /root/.ssh/id_rsa
+      #
+      #   - name: onprem-res
+      #     host: <온프레미스 공인 IP>
       #     port: 2375
+      #     connection-type: SSH
+      #     ssh-port: 2222             # 비표준 SSH 포트
+      #     ssh-user: ubuntu
+      #     ssh-key-path: /root/.ssh/id_rsa
 
     # Desired State 관리 설정
     desired-state:
