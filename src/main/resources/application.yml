@@ -219,5 +219,6 @@ logging:
     root: INFO
     com.example.dockermonitor: DEBUG
     com.github.dockerjava: WARN
+    com.github.dockerjava.api.async.ResultCallbackTemplate: OFF
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
