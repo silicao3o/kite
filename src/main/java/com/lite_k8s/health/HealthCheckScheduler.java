@@ -72,9 +72,13 @@ public class HealthCheckScheduler {
         if (!nodes.isEmpty()) {
             // 멀티 노드 모드: 노드별 컨테이너 조회
             for (Node node : nodes) {
-                DockerClient client = nodeClientFactory.createClient(node);
-                List<Container> running = client.listContainersCmd().withShowAll(false).exec();
-                runProbesOnContainers(running, client);
+                try {
+                    DockerClient client = nodeClientFactory.createClient(node);
+                    List<Container> running = client.listContainersCmd().withShowAll(false).exec();
+                    runProbesOnContainers(running, client);
+                } catch (Exception e) {
+                    log.warn("[HealthCheck] 노드 {} 연결 실패, 스킵: {}", node.getName(), e.getMessage());
+                }
             }
         } else {
             // 로컬 단일 모드 (기존 동작)

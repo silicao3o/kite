@@ -138,7 +138,7 @@
                           th:text="${node.status.name()}">UNKNOWN</span>
                 </div>
                 <div class="node-address">
-                    <span th:text="${node.host + ':' + node.port}">192.168.1.20:2375</span>
+                    <span>*.*.*.*:[[${node.port}]]</span>
                     <span th:if="${node.connectionType.name() == 'SSH'}"
                           style="margin-left:.5rem; background:#ede9fe; color:#6d28d9; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH</span>
                     <span th:if="${node.connectionType.name() == 'TCP'}"
