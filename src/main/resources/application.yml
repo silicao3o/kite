@@ -144,7 +144,39 @@ docker:
       #     ssh-port: 22
       #     ssh-user: ubuntu
       #     ssh-key-path: /root/.ssh/id_rsa
+        # ── GCP (내부 IP, 같은 VPC) ────────────────────────────────
+        - name: chat-quvi
+          host: 10.178.0.12
+          port: 2375
 
+        - name: gcp-operia
+          host: 10.178.0.15
+          port: 2375
+
+        - name: mssql-dev
+          host: 10.178.0.9
+          port: 2375
+
+        - name: oracle-dev
+          host: 10.178.0.14
+          port: 2375
+
+        - name: psql-dev
+          host: 10.178.0.11
+          port: 2375
+
+        - name: webcash-qv
+          host: 10.178.0.10
+          port: 2375
+
+        # ── 온프레미스 (외부 IP, 방화벽에서 34.50.29.47만 허용) ───
+        # - name: dev
+        #   host: 183.102.124.134
+        #   port: 2375
+
+        # - name: res
+        #   host: 183.102.124.146
+        #   port: 2375
     # Desired State 관리 설정
     desired-state:
       # 활성화 여부
