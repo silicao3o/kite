@@ -150,16 +150,31 @@ public class DockerService {
     }
 
     public ContainerInfo getContainer(String containerId) {
+        // 로컬에서 먼저 조회
         try {
             InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
             return toContainerInfo(inspection);
-        } catch (NotFoundException e) {
-            log.debug("컨테이너 없음: {}", containerId);
-            return null;
+        } catch (NotFoundException ignored) {
+            // 로컬에 없으면 등록된 노드에서 탐색
         } catch (Exception e) {
-            log.error("컨테이너 조회 실패: {}", containerId, e);
-            return null;
+            log.error("컨테이너 조회 실패 (local): {}", containerId, e);
         }
+
+        // 등록된 노드에서 탐색
+        for (Node node : nodeRegistry.findAll()) {
+            try {
+                DockerClient client = nodeClientFactory.createClient(node);
+                InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
+                return toContainerInfo(inspection);
+            } catch (NotFoundException ignored) {
+                // 해당 노드에 없음, 다음 노드 시도
+            } catch (Exception e) {
+                log.warn("[멀티노드] {} 컨테이너 상세 조회 실패: {}", node.getName(), e.getMessage());
+            }
+        }
+
+        log.debug("컨테이너 없음 (전체 노드 탐색): {}", containerId);
+        return null;
     }
 
     private ContainerInfo toContainerInfo(Container container, String nodeId, String nodeName) {
