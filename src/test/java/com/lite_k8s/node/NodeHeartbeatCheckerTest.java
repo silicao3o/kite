@@ -1,8 +1,11 @@
 package com.lite_k8s.node;
 
+import com.lite_k8s.service.MetricsCollector;
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.InfoCmd;
 import com.github.dockerjava.api.command.ListContainersCmd;
 import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.Info;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -26,14 +30,20 @@ class NodeHeartbeatCheckerTest {
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory clientFactory;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private MetricsCollector metricsCollector;
     @Mock private DockerClient nodeDockerClient;
     @Mock private ListContainersCmd listContainersCmd;
+    @Mock private InfoCmd infoCmd;
+    @Mock private Info dockerInfo;
 
     private NodeHeartbeatChecker checker;
 
     @BeforeEach
     void setUp() {
-        checker = new NodeHeartbeatChecker(nodeRegistry, clientFactory, eventPublisher);
+        checker = new NodeHeartbeatChecker(nodeRegistry, clientFactory, eventPublisher, metricsCollector);
+        when(nodeDockerClient.infoCmd()).thenReturn(infoCmd);
+        when(infoCmd.exec()).thenReturn(dockerInfo);
+        when(dockerInfo.getMemTotal()).thenReturn(8L * 1024 * 1024 * 1024); // 8GB
     }
 
     @Test
@@ -49,6 +59,7 @@ class NodeHeartbeatCheckerTest {
 
         checker.checkHeartbeats();
 
+        verify(nodeRegistry).updateMetrics(eq("n1"), eq(0.0), eq(0.0), eq(0));
         verify(nodeRegistry).updateStatus("n1", NodeStatus.HEALTHY);
         verify(eventPublisher, never()).publishEvent(any(NodeFailureEvent.class));
     }
