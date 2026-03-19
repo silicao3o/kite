@@ -141,7 +141,8 @@ public class DockerService {
                         .map(c -> toContainerInfo(c, node.getId(), node.getName()))
                         .forEach(result::add);
             } catch (Exception e) {
-                log.warn("[멀티노드] {} 컨테이너 조회 실패: {}", node.getName(), e.getMessage());
+                log.warn("[멀티노드] {} ({}:{}) 컨테이너 조회 실패: {}",
+                        node.getName(), node.getHost(), node.getPort(), e.getMessage());
             }
         }
 
