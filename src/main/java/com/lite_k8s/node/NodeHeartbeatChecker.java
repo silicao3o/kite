@@ -37,10 +37,12 @@ public class NodeHeartbeatChecker {
     private void checkNode(Node node) {
         try {
             DockerClient client = clientFactory.createClient(node);
-            client.listContainersCmd().withShowAll(false).exec();
+            List<com.github.dockerjava.api.model.Container> running =
+                    client.listContainersCmd().withShowAll(false).exec();
 
+            node.setRunningContainers(running.size());
             nodeRegistry.updateStatus(node.getId(), NodeStatus.HEALTHY);
-            log.debug("[Heartbeat] {} → HEALTHY", node.getName());
+            log.debug("[Heartbeat] {} → HEALTHY (컨테이너 {}개)", node.getName(), running.size());
 
         } catch (Exception e) {
             boolean wasHealthy = NodeStatus.HEALTHY.equals(node.getStatus());
