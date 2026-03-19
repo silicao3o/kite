@@ -1,0 +1,218 @@
+# ──────────────────────────────────────────────────────────────────
+#  Docker Monitor 데모 스택
+#  서비스 구성:
+#    - monitor     : Docker Monitor (포트 8080)
+#    - demo-api    : 샘플 Spring Boot API (포트 8081)
+#    - postgres    : PostgreSQL 15 (포트 5432)
+#    - mysql       : MySQL 8.0 (포트 3306)
+#    - mailhog     : 이메일 캡처 서버 (SMTP 1025 / Web UI 8025)
+#
+#  실행 (반드시 전체 스택 한번에 실행):
+#    docker compose -f docker-compose.demo.yml up --build
+#    ⚠️  특정 서비스만 단독 실행 금지 (네트워크/DNS 미구성으로 연결 실패)
+#
+#  대시보드:
+#    http://localhost:8080   - Docker Monitor
+#    http://localhost:8025   - Mailhog (이메일 확인)
+#    http://localhost:8081   - Demo API
+#
+#  AI 기능 활성화 방법:
+#    환경변수 파일 .env 생성 후 API 키 입력:
+#      AI_ENABLED=true
+#      AI_PROVIDER=ANTHROPIC
+#      ANTHROPIC_API_KEY=sk-ant-...
+# ──────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Docker Monitor ────────────────────────────────────────────
+  monitor:
+    build:
+      context: ../Downloads/lite-k8s
+      dockerfile: Dockerfile
+    container_name: docker-monitor
+    ports:
+      - "8080:8080"
+    volumes:
+      # Docker 소켓 마운트 (컨테이너 이벤트 감지 필수)
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # ── SMTP (Mailhog) ──────────────────────────────────────────
+      MAIL_USERNAME: monitor@demo.local
+      MAIL_PASSWORD: dummy
+      MAIL_FROM: monitor@demo.local
+      ALERT_EMAIL: admin@demo.local
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+
+      # ── 서버 정보 ────────────────────────────────────────────────
+      SERVER_NAME: Demo-Server
+      LOG_TAIL_LINES: "50"
+
+      # ── 메트릭 수집 ──────────────────────────────────────────────
+      METRICS_ENABLED: "true"
+      METRICS_COLLECTION_INTERVAL: "10"   # 데모용 짧게 (기본 15초)
+      CPU_THRESHOLD_PERCENT: "80"
+      MEMORY_THRESHOLD_PERCENT: "90"
+
+      # ── 자가치유 ────────────────────────────────────────────────
+      SELF_HEALING_ENABLED: "true"
+      SELF_HEALING_RESET_WINDOW: "30"
+
+      # ── 알림 중복 방지 ───────────────────────────────────────────
+      DEDUP_ENABLED: "true"
+      DEDUP_WINDOW_SECONDS: "60"
+
+      # ── 재연결 ──────────────────────────────────────────────────
+      RECONNECT_INITIAL_DELAY: "5000"
+      RECONNECT_MAX_DELAY: "300000"
+      RECONNECT_MULTIPLIER: "2.0"
+      RECONNECT_MAX_RETRIES: "10"
+
+      # ── JWT 인증 (데모: 비활성화) ─────────────────────────────────
+      SECURITY_ENABLED: "false"
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD: admin
+
+      # ── AI 분석 설정 ─────────────────────────────────────────────
+      # AI 기능 활성화하려면 AI_ENABLED=true 및 API 키 입력
+      AI_ENABLED: "false"
+      AI_PROVIDER: ANTHROPIC               # ANTHROPIC | OPENAI | GEMINI
+      ANTHROPIC_API_KEY: ""                # sk-ant-...
+      OPENAI_API_KEY: ""                   # sk-...
+      GEMINI_API_KEY: ""                   # AIza...
+      AI_TIMEOUT: "30"
+
+      # ── GHCR 이미지 자동 업데이트 (5.1) ──────────────────────────
+      IMAGE_WATCH_ENABLED: "false"
+      IMAGE_WATCH_INTERVAL: "300"          # 폴링 주기 (초)
+      GHCR_TOKEN: ""                       # ghp_... (private 이미지용)
+
+      # ── Health Check Probe (5.2) ──────────────────────────────────
+      HEALTH_CHECK_ENABLED: "false"
+      HEALTH_CHECK_PERIOD: "15"            # 전체 probe 실행 주기 (초)
+      HEALTH_CHECK_INITIAL_DELAY: "30"     # 첫 probe 전 대기 (초)
+
+      # ── Desired State 관리 (5.3) ──────────────────────────────────
+      DESIRED_STATE_ENABLED: "false"
+      DESIRED_STATE_INTERVAL: "30"         # Reconcile 주기 (초)
+
+      # ── 다중 노드 스케줄링 (5.4) ──────────────────────────────────
+      NODES_ENABLED: "false"
+      NODES_PLACEMENT_STRATEGY: LEAST_USED # LEAST_USED | ROUND_ROBIN
+      NODES_HEARTBEAT_INTERVAL: "30"       # Heartbeat 체크 주기 (초)
+
+    depends_on:
+      mailhog:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - demo-net
+    labels:
+      self-healing.enabled: "false"  # 모니터 자신은 자가치유 제외
+
+  # ── Demo Spring Boot API ──────────────────────────────────────
+  demo-api:
+    build:
+      context: demo
+      dockerfile: demo/Dockerfile
+    container_name: demo-api
+    ports:
+      - "8081:8081"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: demo
+      DB_USER: demo
+      DB_PASSWORD: demo123
+      SERVER_PORT: 8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - demo-net
+    mem_limit: 384m
+    labels:
+      # 자가치유 설정
+      self-healing.enabled: "true"
+      self-healing.max-restarts: "5"
+      self-healing.restart-delay-seconds: "10"
+      # 서비스 중요도
+      service.criticality: "HIGH"
+
+  # ── PostgreSQL ────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: demo-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - demo-net
+    labels:
+      self-healing.enabled: "false"
+      service.criticality: "CRITICAL"
+
+  # ── MySQL ─────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: demo-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: analytics
+      MYSQL_USER: analytics
+      MYSQL_PASSWORD: analytics123
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "analytics", "-panalytics123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - demo-net
+    labels:
+      self-healing.enabled: "false"
+      service.criticality: "CRITICAL"
+
+  # ── Mailhog (이메일 캡처) ────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: demo-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    restart: unless-stopped
+    networks:
+      - demo-net
+    labels:
+      self-healing.enabled: "false"
+
+# ── 네트워크 ──────────────────────────────────────────────────────
+networks:
+  demo-net:
+    driver: bridge
+
+# ── 볼륨 ─────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+  mysql-data:

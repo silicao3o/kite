@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics History - Docker Monitor</title>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Metrics History</h2>
+                <p>Resource usage trends and incident timeline</p>
+            </div>
+
+            <!-- Healing Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Total Healing</div>
+                    <div class="value" th:text="${healingStats.totalCount}">0</div>
+                </div>
+                <div class="stat-card" th:classappend="${healingStats.successRate >= 80} ? 'running' : 'exited'">
+                    <div class="label">Success Rate</div>
+                    <div class="value" th:text="${#numbers.formatDecimal(healingStats.successRate, 1, 1)} + '%'">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Success</div>
+                    <div class="value" th:text="${healingStats.successCount}">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Failed</div>
+                    <div class="value" th:text="${healingStats.failureCount}">0</div>
+                </div>
+            </div>
+
+            <!-- Auto-refresh indicator -->
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; color:#6c7086; font-size:13px;">
+                <span id="refreshIndicator" style="width:8px;height:8px;border-radius:50%;background:#a6e3a1;display:inline-block;"></span>
+                <span>Auto-refreshing every 30 seconds</span>
+                <span id="nextRefreshCountdown" style="margin-left:4px;color:#89b4fa;"></span>
+            </div>
+
+            <!-- Gauge Panel -->
+            <div class="table-card" id="gaugePanel">
+                <div class="table-header">
+                    <h3>Current Resource Usage</h3>
+                </div>
+                <div id="gaugeGrid" style="display:flex; flex-wrap:wrap; gap:16px; padding:16px;"></div>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="table-card" th:if="${!containers.isEmpty()}">
+                <div class="table-header">
+                    <h3>Resource Usage Trend</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <select id="containerSelect" onchange="loadChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
+                            <option th:each="c : ${containers}" th:value="${c}" th:text="${c}"></option>
+                        </select>
+                        <select id="hoursSelect" onchange="onPresetChange()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
+                            <option value="24" th:selected="${hours == 24}">Last 24h</option>
+                            <option value="168" th:selected="${hours == 168}">Last 7 days</option>
+                            <option value="custom">Custom range...</option>
+                        </select>
+                        <div id="customRangePanel" style="display:none; gap:6px; align-items:center;">
+                            <input type="datetime-local" id="fromDate" onchange="loadChart()"
+                                   style="padding:5px 8px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4; font-size:13px;">
+                            <span style="color:#6c7086;">~</span>
+                            <input type="datetime-local" id="toDate" onchange="loadChart()"
+                                   style="padding:5px 8px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4; font-size:13px;">
+                        </div>
+                        <button onclick="downloadCsv()" class="refresh-btn">Export CSV</button>
+                    </div>
+                </div>
+                <div style="padding:16px;">
+                    <canvas id="metricsChart" height="80"></canvas>
+                </div>
+            </div>
+
+            <div class="table-card" th:if="${containers.isEmpty()}">
+                <div class="empty-state" style="padding:32px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <h3>No metrics history yet</h3>
+                    <p>Metrics will be recorded as containers run.</p>
+                </div>
+            </div>
+
+            <!-- Aggregation Chart -->
+            <div class="table-card" th:if="${!containers.isEmpty()}">
+                <div class="table-header">
+                    <h3>Hourly Aggregation</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <select id="aggContainerSelect" onchange="loadAggChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
+                            <option th:each="c : ${containers}" th:value="${c}" th:text="${c}"></option>
+                        </select>
+                        <select id="aggTypeSelect" onchange="loadAggChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
+                            <option value="avg">Average</option>
+                            <option value="max">Maximum</option>
+                        </select>
+                        <select id="aggHoursSelect" onchange="loadAggChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
+                            <option value="24">Last 24h</option>
+                            <option value="168">Last 7 days</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="padding:16px;">
+                    <canvas id="aggChart" height="80"></canvas>
+                </div>
+                <div id="containerStatsBox" style="display:flex; gap:24px; padding:0 16px 16px; flex-wrap:wrap;"></div>
+            </div>
+
+            <!-- Incident Timeline -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Incident Timeline (Last 7 days)</h3>
+                </div>
+                <div class="table-container">
+                    <table th:if="${!timeline.isEmpty()}">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Container</th>
+                                <th>Summary</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="entry : ${timeline}">
+                                <td th:text="${#temporals.format(entry.occurredAt, 'MM-dd HH:mm')}">01-01 12:00</td>
+                                <td><span class="container-name" th:text="${entry.containerName}">container</span></td>
+                                <td th:text="${entry.summary}">요약</td>
+                                <td>
+                                    <span class="status-badge"
+                                          th:classappend="${entry.status == 'CLOSED'} ? 'running' : (${entry.status == 'ANALYZING'} ? 'paused' : 'exited')"
+                                          th:text="${entry.status}">OPEN</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div th:if="${timeline.isEmpty()}" class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        <h3>No incidents in the last 7 days</h3>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script th:inline="javascript">
+        let chart = null;
+
+        function onPresetChange() {
+            const hoursSelect = document.getElementById('hoursSelect');
+            const panel = document.getElementById('customRangePanel');
+            if (hoursSelect.value === 'custom') {
+                panel.style.display = 'flex';
+                // 기본값: 지난 24시간
+                const now = new Date();
+                const yesterday = new Date(now - 24 * 60 * 60 * 1000);
+                document.getElementById('toDate').value = toLocalDateTimeInput(now);
+                document.getElementById('fromDate').value = toLocalDateTimeInput(yesterday);
+            } else {
+                panel.style.display = 'none';
+                loadChart();
+            }
+        }
+
+        function toLocalDateTimeInput(date) {
+            return date.toISOString().slice(0, 16);
+        }
+
+        function loadChart() {
+            const container = document.getElementById('containerSelect')?.value;
+            const hoursVal = document.getElementById('hoursSelect')?.value || '24';
+            if (!container) return;
+
+            let fetchUrl;
+            if (hoursVal === 'custom') {
+                const from = document.getElementById('fromDate')?.value;
+                const to = document.getElementById('toDate')?.value;
+                if (!from || !to) return;
+                fetchUrl = `/api/metrics-history/range?container=${encodeURIComponent(container)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+            } else {
+                fetchUrl = `/api/metrics-history?container=${encodeURIComponent(container)}&hours=${hoursVal}`;
+            }
+
+            fetch(fetchUrl)
+                .then(r => r.json())
+                .then(data => {
+                    const labels = data.map(d => new Date(d.collectedAt).toLocaleTimeString());
+                    const cpuData = data.map(d => d.cpuPercent.toFixed(1));
+                    const memData = data.map(d => d.memoryPercent.toFixed(1));
+
+                    if (chart) chart.destroy();
+                    const ctx = document.getElementById('metricsChart').getContext('2d');
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels,
+                            datasets: [
+                                {
+                                    label: 'CPU %',
+                                    data: cpuData,
+                                    borderColor: '#89b4fa',
+                                    backgroundColor: 'rgba(137,180,250,0.1)',
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Memory %',
+                                    data: memData,
+                                    borderColor: '#a6e3a1',
+                                    backgroundColor: 'rgba(166,227,161,0.1)',
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: { min: 0, max: 100, ticks: { color: '#cdd6f4' }, grid: { color: '#313244' } },
+                                x: { ticks: { color: '#cdd6f4', maxTicksLimit: 10 }, grid: { color: '#313244' } }
+                            },
+                            plugins: { legend: { labels: { color: '#cdd6f4' } } }
+                        }
+                    });
+                });
+        }
+
+        function downloadCsv() {
+            const container = document.getElementById('containerSelect')?.value;
+            const hours = document.getElementById('hoursSelect')?.value || 24;
+            if (!container) return;
+            window.location.href = `/api/metrics-history/csv?container=${encodeURIComponent(container)}&hours=${hours}`;
+        }
+
+        function loadGauges() {
+            fetch('/api/gauges')
+                .then(r => r.json())
+                .then(gauges => {
+                    const grid = document.getElementById('gaugeGrid');
+                    if (!grid) return;
+                    grid.innerHTML = gauges.map(g => `
+                        <div style="background:#1e1e2e; border:1px solid #313244; border-radius:8px; padding:16px; min-width:180px; flex:1;">
+                            <div style="font-weight:600; color:#cdd6f4; margin-bottom:12px;">${g.containerName}</div>
+                            <div style="margin-bottom:8px;">
+                                <div style="display:flex; justify-content:space-between; color:#89b4fa; font-size:13px; margin-bottom:4px;">
+                                    <span>CPU</span><span>${g.cpuPercent.toFixed(1)}%</span>
+                                </div>
+                                <div style="background:#313244; border-radius:4px; height:6px;">
+                                    <div style="background:#89b4fa; border-radius:4px; height:6px; width:${Math.min(g.cpuPercent,100).toFixed(1)}%;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; color:#a6e3a1; font-size:13px; margin-bottom:4px;">
+                                    <span>Memory</span><span>${g.memoryPercent.toFixed(1)}%</span>
+                                </div>
+                                <div style="background:#313244; border-radius:4px; height:6px;">
+                                    <div style="background:#a6e3a1; border-radius:4px; height:6px; width:${Math.min(g.memoryPercent,100).toFixed(1)}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') || '<p style="color:#6c7086; padding:8px;">No running containers</p>';
+                })
+                .catch(() => {});
+        }
+
+        let aggChart = null;
+
+        function loadAggChart() {
+            const container = document.getElementById('aggContainerSelect')?.value;
+            const type = document.getElementById('aggTypeSelect')?.value || 'avg';
+            const hours = parseInt(document.getElementById('aggHoursSelect')?.value || '24');
+            if (!container) return;
+
+            const to = new Date();
+            const from = new Date(to - hours * 60 * 60 * 1000);
+            const toStr = from.toISOString().slice(0, 19);
+            const fromStr = new Date(to - hours * 60 * 60 * 1000).toISOString().slice(0, 19);
+            const endpoint = type === 'avg' ? 'hourly-avg' : 'hourly-max';
+
+            const cpuKey = type === 'avg' ? 'avgCpu' : 'maxCpu';
+            const memKey = type === 'avg' ? 'avgMemory' : 'maxMemory';
+            const label = type === 'avg' ? 'Average' : 'Maximum';
+
+            fetch(`/api/metrics-aggregation/${endpoint}?container=${encodeURIComponent(container)}&from=${encodeURIComponent(new Date(to - hours * 60 * 60 * 1000).toISOString().slice(0,19))}&to=${encodeURIComponent(to.toISOString().slice(0,19))}`)
+                .then(r => r.json())
+                .then(data => {
+                    const labels = data.map(d => new Date(d.hour).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+                    const cpuData = data.map(d => d[cpuKey].toFixed(1));
+                    const memData = data.map(d => d[memKey].toFixed(1));
+
+                    if (aggChart) aggChart.destroy();
+                    const ctx = document.getElementById('aggChart')?.getContext('2d');
+                    if (!ctx) return;
+                    aggChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [
+                                { label: `CPU ${label} %`, data: cpuData, backgroundColor: 'rgba(137,180,250,0.6)', borderColor: '#89b4fa', borderWidth: 1 },
+                                { label: `Memory ${label} %`, data: memData, backgroundColor: 'rgba(166,227,161,0.6)', borderColor: '#a6e3a1', borderWidth: 1 }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: { min: 0, max: 100, ticks: { color: '#cdd6f4' }, grid: { color: '#313244' } },
+                                x: { ticks: { color: '#cdd6f4' }, grid: { color: '#313244' } }
+                            },
+                            plugins: { legend: { labels: { color: '#cdd6f4' } } }
+                        }
+                    });
+                }).catch(() => {});
+
+            // 컨테이너 통계
+            fetch(`/api/metrics-aggregation/stats?container=${encodeURIComponent(container)}&hours=${hours}`)
+                .then(r => r.json())
+                .then(stats => {
+                    const box = document.getElementById('containerStatsBox');
+                    if (!box || !stats.sampleCount) return;
+                    box.innerHTML = `
+                        <div style="color:#6c7086; font-size:13px;">
+                            <span style="color:#cdd6f4; font-weight:600;">${stats.containerName}</span> · ${stats.sampleCount} samples
+                        </div>
+                        <div style="color:#89b4fa; font-size:13px;">CPU: avg ${stats.avgCpu.toFixed(1)}% / max ${stats.maxCpu.toFixed(1)}% / min ${stats.minCpu.toFixed(1)}%</div>
+                        <div style="color:#a6e3a1; font-size:13px;">Mem: avg ${stats.avgMemory.toFixed(1)}% / max ${stats.maxMemory.toFixed(1)}% / min ${stats.minMemory.toFixed(1)}%</div>
+                    `;
+                }).catch(() => {});
+        }
+
+        let countdown = 30;
+        function updateCountdown() {
+            const el = document.getElementById('nextRefreshCountdown');
+            if (el) el.textContent = `(next in ${countdown}s)`;
+            countdown--;
+            if (countdown < 0) {
+                countdown = 30;
+                loadChart();
+                loadGauges();
+                loadAggChart();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            loadChart();
+            loadGauges();
+            loadAggChart();
+            setInterval(updateCountdown, 1000);
+        });
+    </script>
+</body>
+</html>

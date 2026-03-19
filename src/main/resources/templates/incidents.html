@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Reports - Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                    <a href="/ai-settings" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+                        </svg>
+                        AI 설정
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Incident Reports</h2>
+                <p>AI post-mortem analysis reports</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Total Incidents</div>
+                    <div class="value" th:text="${reports.size()}">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Open</div>
+                    <div class="value" th:text="${openCount}">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Analyzing</div>
+                    <div class="value" th:text="${analyzingCount}">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Closed</div>
+                    <div class="value" th:text="${closedCount}">0</div>
+                </div>
+            </div>
+
+            <!-- Reports Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Incident Reports</h3>
+                    <button onclick="location.reload()" class="refresh-btn">Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table th:if="${!reports.isEmpty()}">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Container</th>
+                                <th>Summary</th>
+                                <th>Status</th>
+                                <th>Root Cause</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="report : ${reports}">
+                                <td th:text="${#temporals.format(report.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01 12:00:00</td>
+                                <td>
+                                    <span class="container-name" th:text="${report.containerName}">container-name</span>
+                                </td>
+                                <td th:text="${report.summary}">장애 요약</td>
+                                <td>
+                                    <span class="status-badge"
+                                          th:classappend="${report.status.name() == 'OPEN'} ? 'exited' : (${report.status.name() == 'ANALYZING'} ? 'paused' : 'running')"
+                                          th:text="${report.status}">OPEN</span>
+                                </td>
+                                <td th:text="${report.rootCause != null ? report.rootCause : '-'}">-</td>
+                                <td>
+                                    <a th:href="@{/incidents/{id}(id=${report.id})}" class="action-btn">Details</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div th:if="${reports.isEmpty()}" class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        <h3>No incident reports</h3>
+                        <p>Incident reports will appear here when containers fail.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

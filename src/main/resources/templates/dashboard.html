@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/nodes" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+                        </svg>
+                        Nodes
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Approvals
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                    <a href="/ai-settings" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+                        </svg>
+                        AI 설정
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Containers</h2>
+                <p>Docker container overview and management</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Total Containers</div>
+                    <div class="value" th:text="${totalCount}">0</div>
+                </div>
+                <div class="stat-card running">
+                    <div class="label">Running</div>
+                    <div class="value" th:text="${runningCount}">0</div>
+                </div>
+                <div class="stat-card stopped">
+                    <div class="label">Stopped</div>
+                    <div class="value" th:text="${stoppedCount}">0</div>
+                </div>
+                <div class="stat-card" th:classappend="${healingEnabled} ? 'healing' : ''">
+                    <div class="label">Self Healing</div>
+                    <div class="value" th:text="${healingEnabled} ? 'ON' : 'OFF'">OFF</div>
+                </div>
+            </div>
+
+            <!-- Container Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Container List</h3>
+                    <div class="table-actions">
+                        <label class="filter-toggle">
+                            <input type="checkbox"
+                                   th:checked="${showAll}"
+                                   onchange="window.location.href='/?showAll=' + this.checked">
+                            Show All
+                        </label>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table th:if="${!containers.isEmpty()}">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Image</th>
+                                <th>Status</th>
+                                <th>CPU</th>
+                                <th>Memory</th>
+                                <th>Healing</th>
+                                <th>Container ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="container : ${containers}" th:data-container-id="${container.id}">
+                                <td th:title="${container.name}">
+                                    <a th:href="@{/containers/{id}(id=${container.id})}"
+                                       class="container-link"
+                                       th:text="${container.name}">container-name</a>
+                                </td>
+                                <td th:title="${container.image}" th:text="${container.image}">image:tag</td>
+                                <td>
+                                    <span class="status-badge"
+                                          th:classappend="${container.statusClass}"
+                                          th:text="${container.state}">running</span>
+                                </td>
+                                <td class="cpu-cell">
+                                    <span th:if="${container.state == 'running'}"
+                                          class="metric-value"
+                                          th:classappend="${container.cpuPercent > 80} ? ' warning' : ''"
+                                          th:text="${container.cpuDisplay}">0.0%</span>
+                                    <span th:unless="${container.state == 'running'}" class="metric-value muted">-</span>
+                                </td>
+                                <td>
+                                    <div th:if="${container.state == 'running'}" class="memory-cell">
+                                        <span class="metric-value"
+                                              th:classappend="${container.memoryPercent > 80} ? ' warning' : ''"
+                                              th:text="${container.memoryPercentDisplay}">0.0%</span>
+                                        <span class="metric-detail" th:text="${container.memoryDisplay}">0 MB / 0 MB</span>
+                                    </div>
+                                    <span th:unless="${container.state == 'running'}" class="metric-value muted">-</span>
+                                </td>
+                                <td>
+                                    <span th:if="${container.healingEnabled}" class="healing-badge enabled"
+                                          th:text="${container.restartCount} + '/' + ${container.maxRestarts}">0/3</span>
+                                    <span th:unless="${container.healingEnabled}" class="healing-badge disabled">-</span>
+                                </td>
+                                <td>
+                                    <span class="container-id" th:text="${container.shortId}">abc123</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div th:if="${containers.isEmpty()}" class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M9 9h6M9 12h6M9 15h4"/>
+                        </svg>
+                        <h3>No containers found</h3>
+                        <p>No Docker containers are currently available.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // WebSocket 실시간 갱신
+        let ws;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/containers';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket 연결됨');
+                reconnectAttempts = 0;
+                showConnectionStatus(true);
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'update' || data.type === 'initial') {
+                    updateDashboard(data.containers);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket 연결 종료');
+                showConnectionStatus(false);
+                attemptReconnect();
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket 오류:', error);
+            };
+        }
+
+        function attemptReconnect() {
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                console.log('재연결 시도 ' + reconnectAttempts + '/' + maxReconnectAttempts);
+                setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+            }
+        }
+
+        function showConnectionStatus(connected) {
+            // 연결 상태 표시 (선택적)
+            const statusEl = document.getElementById('ws-status');
+            if (statusEl) {
+                statusEl.textContent = connected ? 'Live' : 'Offline';
+                statusEl.className = connected ? 'ws-status connected' : 'ws-status disconnected';
+            }
+        }
+
+        function updateDashboard(containers) {
+            // 통계 업데이트
+            const runningCount = containers.filter(c => c.state === 'running').length;
+            const stoppedCount = containers.filter(c => c.state === 'exited').length;
+
+            const runningEl = document.querySelector('.stat-card:nth-child(2) .stat-value');
+            const stoppedEl = document.querySelector('.stat-card:nth-child(3) .stat-value');
+            const totalEl = document.querySelector('.stat-card:nth-child(1) .stat-value');
+
+            if (totalEl) totalEl.textContent = containers.length;
+            if (runningEl) runningEl.textContent = runningCount;
+            if (stoppedEl) stoppedEl.textContent = stoppedCount;
+
+            // 테이블 업데이트
+            const tbody = document.querySelector('table tbody');
+            if (!tbody) return;
+
+            containers.forEach(container => {
+                const row = document.querySelector(`tr[data-container-id="${container.id}"]`);
+                if (row) {
+                    // CPU 업데이트
+                    const cpuCell = row.querySelector('.cpu-cell');
+                    if (cpuCell && container.state === 'running') {
+                        cpuCell.textContent = container.cpuPercent.toFixed(1) + '%';
+                        cpuCell.className = 'cpu-cell metric-value' +
+                            (container.cpuPercent > 80 ? ' danger' : container.cpuPercent > 50 ? ' warning' : '');
+                    }
+
+                    // 메모리 업데이트
+                    const memoryCell = row.querySelector('.memory-cell');
+                    if (memoryCell && container.state === 'running') {
+                        const memDisplay = memoryCell.querySelector('.metric-value');
+                        if (memDisplay) {
+                            memDisplay.textContent = container.memoryPercent.toFixed(1) + '%';
+                            memDisplay.className = 'metric-value' +
+                                (container.memoryPercent > 90 ? ' danger' : container.memoryPercent > 70 ? ' warning' : '');
+                        }
+                    }
+
+                    // 상태 업데이트
+                    const statusBadge = row.querySelector('.status-badge');
+                    if (statusBadge) {
+                        statusBadge.textContent = container.state;
+                        statusBadge.className = 'status-badge ' + container.state;
+                    }
+                }
+            });
+        }
+
+        // 페이지 로드 시 WebSocket 연결
+        document.addEventListener('DOMContentLoaded', connectWebSocket);
+    </script>
+</body>
+</html>

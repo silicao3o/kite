@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approvals - Docker Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .risk-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .risk-badge.low { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+        .risk-badge.medium { background: rgba(241, 196, 15, 0.15); color: #f1c40f; }
+        .risk-badge.high { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
+        .risk-badge.critical { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+
+        .approval-status.pending { background: rgba(52, 152, 219, 0.15); color: #3498db; }
+        .approval-status.approved { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+        .approval-status.rejected { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+        .approval-status.expired { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
+
+        .action-btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            margin-right: 8px;
+            transition: all 0.2s;
+        }
+        .action-btn.approve {
+            background: #2ecc71;
+            color: white;
+        }
+        .action-btn.approve:hover {
+            background: #27ae60;
+        }
+        .action-btn.reject {
+            background: #e74c3c;
+            color: white;
+        }
+        .action-btn.reject:hover {
+            background: #c0392b;
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .expires-at {
+            font-size: 11px;
+            color: #95a5a6;
+        }
+        .expires-at.urgent {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .pending-alert {
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(52, 152, 219, 0.1));
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .pending-alert svg {
+            width: 24px;
+            height: 24px;
+            color: #e74c3c;
+        }
+        .pending-alert-text {
+            flex: 1;
+        }
+        .pending-alert-text h4 {
+            margin: 0 0 4px;
+            color: #e74c3c;
+        }
+        .pending-alert-text p {
+            margin: 0;
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>Docker Monitor</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/approvals" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 11l3 3L22 4"/>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                        Approvals
+                        <span th:if="${pendingCount > 0}" class="badge" th:text="${pendingCount}">0</span>
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Approval Requests</h2>
+                <p>High-risk actions require manual approval</p>
+            </div>
+
+            <!-- Pending Alert -->
+            <div th:if="${pendingCount > 0}" class="pending-alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div class="pending-alert-text">
+                    <h4 th:text="${pendingCount} + ' pending approval(s)'">N pending approval(s)</h4>
+                    <p>These actions require your review before execution. They will expire after 5 minutes.</p>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card" th:classappend="${pendingCount > 0} ? 'warning' : ''">
+                    <div class="label">Pending</div>
+                    <div class="value" th:text="${pendingCount}">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Total Requests</div>
+                    <div class="value" th:text="${allApprovals.size()}">0</div>
+                </div>
+            </div>
+
+            <!-- Pending Approvals Table -->
+            <div class="table-card" th:if="${!pendingApprovals.isEmpty()}">
+                <div class="table-header">
+                    <h3>Pending Approvals</h3>
+                    <button onclick="location.reload()" class="refresh-btn">Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Playbook</th>
+                                <th>Container</th>
+                                <th>Risk Level</th>
+                                <th>Requested At</th>
+                                <th>Expires In</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="approval : ${pendingApprovals}">
+                                <td th:text="${approval.playbookName}">playbook-name</td>
+                                <td>
+                                    <span class="container-name" th:text="${approval.containerName}">container-name</span>
+                                </td>
+                                <td>
+                                    <span class="risk-badge"
+                                          th:classappend="${approval.riskLevel.name().toLowerCase()}"
+                                          th:text="${approval.riskLevel}">HIGH</span>
+                                </td>
+                                <td th:text="${#temporals.format(approval.requestedAt, 'HH:mm:ss')}">12:00:00</td>
+                                <td>
+                                    <span class="expires-at" th:text="${#temporals.format(approval.expiresAt, 'HH:mm:ss')}">12:05:00</span>
+                                </td>
+                                <td>
+                                    <button class="action-btn approve"
+                                            th:onclick="'approveRequest(\'' + ${approval.id} + '\')'">
+                                        Approve
+                                    </button>
+                                    <button class="action-btn reject"
+                                            th:onclick="'rejectRequest(\'' + ${approval.id} + '\')'">
+                                        Reject
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- All Approvals History -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Approval History</h3>
+                </div>
+                <div class="table-container">
+                    <table th:if="${!allApprovals.isEmpty()}">
+                        <thead>
+                            <tr>
+                                <th>Playbook</th>
+                                <th>Container</th>
+                                <th>Risk</th>
+                                <th>Status</th>
+                                <th>Requested At</th>
+                                <th>Resolved At</th>
+                                <th>By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="approval : ${allApprovals}">
+                                <td th:text="${approval.playbookName}">playbook-name</td>
+                                <td th:text="${approval.containerName}">container-name</td>
+                                <td>
+                                    <span class="risk-badge"
+                                          th:classappend="${approval.riskLevel.name().toLowerCase()}"
+                                          th:text="${approval.riskLevel}">HIGH</span>
+                                </td>
+                                <td>
+                                    <span class="status-badge approval-status"
+                                          th:classappend="${approval.status.name().toLowerCase()}"
+                                          th:text="${approval.status}">PENDING</span>
+                                </td>
+                                <td th:text="${#temporals.format(approval.requestedAt, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01 12:00:00</td>
+                                <td th:text="${approval.resolvedAt != null} ? ${#temporals.format(approval.resolvedAt, 'yyyy-MM-dd HH:mm:ss')} : '-'">-</td>
+                                <td th:text="${approval.approvedBy != null} ? ${approval.approvedBy} : '-'">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div th:if="${allApprovals.isEmpty()}" class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 11l3 3L22 4"/>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                        <h3>No approval requests</h3>
+                        <p>No high-risk actions have been requested yet.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function approveRequest(id) {
+            try {
+                const response = await fetch(`/api/approvals/${id}/approve`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Failed: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function rejectRequest(id) {
+            try {
+                const response = await fetch(`/api/approvals/${id}/reject`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Failed: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Auto-refresh every 10 seconds if there are pending approvals
+        const pendingCount = parseInt(document.querySelector('.stat-card .value')?.textContent || '0');
+        if (pendingCount > 0) {
+            setTimeout(() => location.reload(), 10000);
+        }
+    </script>
+</body>
+</html>

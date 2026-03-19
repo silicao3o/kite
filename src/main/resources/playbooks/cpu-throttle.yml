@@ -1,0 +1,13 @@
+name: cpu-throttle
+description: CPU 사용률 임계치 초과 시 알림
+riskLevel: LOW
+trigger:
+  event: metrics.cpu.high
+  conditions:
+    threshold: "80"
+actions:
+  - name: send-alert
+    type: email
+    params:
+      subject: "CPU Alert: {{containerName}}"
+      body: "컨테이너 {{containerName}}의 CPU 사용률이 {{cpuUsage}}%로 임계치를 초과했습니다."

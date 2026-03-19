@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: docker-monitor-test
+
+  mail:
+    host: localhost
+    port: 25
+    username: test
+    password: test
+
+docker:
+  host: unix:///var/run/docker.sock
+  monitor:
+    log-tail-lines: 10
+    server-name: Test-Server
+    notification:
+      email:
+        to: test@example.com
+        from: docker-monitor@test.com
+    security:
+      enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.example.dockermonitor: DEBUG

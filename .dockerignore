@@ -1,0 +1,12 @@
+target/
+.git/
+*.md
+*.log
+app.log
+memory.md
+plan.md
+test-containers/
+demo/
+docker/
+.idea/
+*.iml
