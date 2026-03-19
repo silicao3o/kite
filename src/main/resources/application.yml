@@ -121,7 +121,7 @@ docker:
     # 다중 노드 스케줄링 설정
     nodes:
       # 활성화 여부
-      enabled: ${NODES_ENABLED:false}
+      enabled: ${NODES_ENABLED:true}
       # Heartbeat 체크 주기 (초)
       heartbeat-interval-seconds: ${NODES_HEARTBEAT_INTERVAL:30}
       # 배치 전략: LEAST_USED | ROUND_ROBIN
@@ -130,12 +130,6 @@ docker:
       nodes: []
       # 예시:
       # nodes:
-      #   # GCP 내부망 노드 (TCP 직접 연결)
-      #   - name: gcp-vm-1
-      #     host: <GCP-INTERNAL-IP>          # GCP 내부 IP
-      #     port: 2375
-      #     connection-type: TCP
-      #
       #   # 온프레미스 노드 (SSH 터널 경유)
       #   - name: onprem-dev
       #     host: <온프레미스 공인 IP>
@@ -152,6 +146,40 @@ docker:
       #     ssh-port: 2222             # 비표준 SSH 포트
       #     ssh-user: ubuntu
       #     ssh-key-path: /root/.ssh/id_rsa
+
+        # ── GCP (내부 IP, 같은 VPC) ────────────────────────────────
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        - name: <NODE-NAME>
+          host: <GCP-INTERNAL-IP>
+          port: 2375
+
+        # ── 온프레미스 (외부 IP, 방화벽에서 <GCP-EXTERNAL-IP>만 허용) ───
+        # - name: dev
+        #   host: <ONPREM-IP>
+        #   port: 2375
+
+        # - name: res
+        #   host: <ONPREM-IP>
+        #   port: 2375
 
     # Desired State 관리 설정
     desired-state:
