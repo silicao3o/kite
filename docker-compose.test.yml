@@ -35,7 +35,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Phase 5 기능 활성화 설정 오버라이드
       - ./docker/test-config/application.yml:/app/config/application.yml:ro
-      - ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro
+      - ~/.ssh/id_rsa_monitor:/root/.ssh/id_rsa_monitor:ro
     environment:
       # ── SMTP (Mailhog) ──────────────────────────────────────────
       SPRING_MAIL_HOST: mailhog
