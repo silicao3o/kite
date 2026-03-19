@@ -81,37 +81,58 @@ public class DockerService {
     }
 
     public String getContainerLogs(String containerId) {
+        // 로컬에서 먼저 조회
         try {
-            List<String> logs = new ArrayList<>();
-
-            LogContainerResultCallback callback = new LogContainerResultCallback() {
-                @Override
-                public void onNext(Frame frame) {
-                    logs.add(new String(frame.getPayload()).trim());
-                }
-            };
-
-            dockerClient.logContainerCmd(containerId)
-                    .withStdOut(true)
-                    .withStdErr(true)
-                    .withTail(logTailLines)
-                    .withTimestamps(true)
-                    .exec(callback)
-                    .awaitCompletion(10, TimeUnit.SECONDS);
-
-            return String.join("\n", logs);
-
+            return fetchLogs(dockerClient, containerId);
+        } catch (NotFoundException ignored) {
+            // 로컬에 없으면 노드 탐색
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("로그 조회 중단: {}", containerId);
             return "로그 조회 중단";
-        } catch (NotFoundException e) {
-            log.debug("로그 조회 스킵 — 컨테이너 없음: {}", containerId);
-            return "";
         } catch (Exception e) {
-            log.error("로그 조회 실패: {}", containerId, e);
-            return "로그 조회 실패: " + e.getMessage();
+            log.error("로그 조회 실패 (local): {}", containerId, e);
         }
+
+        // 등록된 노드에서 탐색
+        if (nodeRegistry != null) {
+            for (Node node : nodeRegistry.findAll()) {
+                try {
+                    DockerClient client = nodeClientFactory.createClient(node);
+                    return fetchLogs(client, containerId);
+                } catch (NotFoundException ignored) {
+                    // 해당 노드에 없음, 다음 노드 시도
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return "로그 조회 중단";
+                } catch (Exception e) {
+                    log.warn("[멀티노드] {} 로그 조회 실패: {}", node.getName(), e.getMessage());
+                }
+            }
+        }
+
+        log.debug("로그 조회 스킵 — 컨테이너 없음: {}", containerId);
+        return "";
+    }
+
+    private String fetchLogs(DockerClient client, String containerId) throws InterruptedException {
+        List<String> logs = new ArrayList<>();
+
+        LogContainerResultCallback callback = new LogContainerResultCallback() {
+            @Override
+            public void onNext(Frame frame) {
+                logs.add(new String(frame.getPayload()).trim());
+            }
+        };
+
+        client.logContainerCmd(containerId)
+                .withStdOut(true)
+                .withStdErr(true)
+                .withTail(logTailLines)
+                .withTimestamps(true)
+                .exec(callback)
+                .awaitCompletion(10, TimeUnit.SECONDS);
+
+        return String.join("\n", logs);
     }
 
     private LocalDateTime parseDockerTime(String dockerTime) {
@@ -136,6 +157,7 @@ public class DockerService {
                 .forEach(result::add);
 
         // 등록된 노드 컨테이너
+        if (nodeRegistry == null) return result;
         for (Node node : nodeRegistry.findAll()) {
             try {
                 DockerClient client = nodeClientFactory.createClient(node);
@@ -164,15 +186,17 @@ public class DockerService {
         }
 
         // 등록된 노드에서 탐색
-        for (Node node : nodeRegistry.findAll()) {
-            try {
-                DockerClient client = nodeClientFactory.createClient(node);
-                InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
-                return toContainerInfo(inspection);
-            } catch (NotFoundException ignored) {
-                // 해당 노드에 없음, 다음 노드 시도
-            } catch (Exception e) {
-                log.warn("[멀티노드] {} 컨테이너 상세 조회 실패: {}", node.getName(), e.getMessage());
+        if (nodeRegistry != null) {
+            for (Node node : nodeRegistry.findAll()) {
+                try {
+                    DockerClient client = nodeClientFactory.createClient(node);
+                    InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
+                    return toContainerInfo(inspection);
+                } catch (NotFoundException ignored) {
+                    // 해당 노드에 없음, 다음 노드 시도
+                } catch (Exception e) {
+                    log.warn("[멀티노드] {} 컨테이너 상세 조회 실패: {}", node.getName(), e.getMessage());
+                }
             }
         }
 
