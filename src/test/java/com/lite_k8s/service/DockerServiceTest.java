@@ -47,7 +47,7 @@ class DockerServiceTest {
 
     @BeforeEach
     void setUp() {
-        dockerService = new DockerService(dockerClient);
+        dockerService = new DockerService(dockerClient, null, null);
         ReflectionTestUtils.setField(dockerService, "logTailLines", 50);
     }
 
