@@ -127,7 +127,7 @@ docker:
       # 배치 전략: LEAST_USED | ROUND_ROBIN
       placement-strategy: ${NODES_PLACEMENT_STRATEGY:LEAST_USED}
       # 관리할 노드 목록
-      nodes:
+      nodes: []
       # 예시:
       # nodes:
       #   # GCP 내부망 노드 (TCP 직접 연결)

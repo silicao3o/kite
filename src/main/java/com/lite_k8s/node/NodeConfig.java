@@ -19,18 +19,28 @@ public class NodeConfig {
     @PostConstruct
     public void registerNodes() {
         if (!properties.isEnabled()) return;
+        if (properties.getNodes() == null || properties.getNodes().isEmpty()) return;
 
         for (NodeProperties.NodeConfig cfg : properties.getNodes()) {
+            NodeConnectionType connectionType = "SSH".equalsIgnoreCase(cfg.getConnectionType())
+                    ? NodeConnectionType.SSH : NodeConnectionType.TCP;
+
             Node node = Node.builder()
                     .id(UUID.randomUUID().toString())
                     .name(cfg.getName())
                     .host(cfg.getHost())
                     .port(cfg.getPort())
+                    .connectionType(connectionType)
+                    .sshPort(cfg.getSshPort())
+                    .sshUser(cfg.getSshUser())
+                    .sshKeyPath(cfg.getSshKeyPath())
                     .status(NodeStatus.UNKNOWN)
                     .build();
             registry.register(node);
+            log.info("노드 등록 (startup): {} ({}://{}:{})",
+                    cfg.getName(), cfg.getConnectionType(), cfg.getHost(), cfg.getPort());
         }
-        log.info("{}개 노드 등록 완료", properties.getNodes().size());
+        log.info("총 {}개 노드 등록 완료", properties.getNodes().size());
     }
 
     @Bean
