@@ -18,11 +18,18 @@ public class NodeManagementController {
 
     @PostMapping
     public NodeResponse addNode(@RequestBody AddNodeRequest request) {
+        NodeConnectionType connectionType = "SSH".equalsIgnoreCase(request.getConnectionType())
+                ? NodeConnectionType.SSH : NodeConnectionType.TCP;
+
         Node node = Node.builder()
                 .id(UUID.randomUUID().toString())
                 .name(request.getName())
                 .host(request.getHost())
                 .port(request.getPort())
+                .connectionType(connectionType)
+                .sshPort(request.getSshPort())
+                .sshUser(request.getSshUser())
+                .sshKeyPath(request.getSshKeyPath())
                 .status(NodeStatus.UNKNOWN)
                 .build();
         nodeRegistry.register(node);
@@ -47,6 +54,10 @@ public class NodeManagementController {
         private String name;
         private String host;
         private int port = 2375;
+        private String connectionType = "TCP";
+        private int sshPort = 22;
+        private String sshUser;
+        private String sshKeyPath;
     }
 
     @Getter
@@ -55,13 +66,15 @@ public class NodeManagementController {
         private final String name;
         private final String host;
         private final int port;
+        private final String connectionType;
         private final String status;
 
-        private NodeResponse(String id, String name, String host, int port, String status) {
+        private NodeResponse(String id, String name, String host, int port, String connectionType, String status) {
             this.id = id;
             this.name = name;
             this.host = host;
             this.port = port;
+            this.connectionType = connectionType;
             this.status = status;
         }
 
@@ -71,6 +84,7 @@ public class NodeManagementController {
                     node.getName(),
                     node.getHost(),
                     node.getPort(),
+                    node.getConnectionType().name(),
                     node.getStatus().name()
             );
         }

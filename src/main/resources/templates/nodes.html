@@ -96,7 +96,30 @@
                     <label>포트</label>
                     <input type="number" id="nodePort" value="2375" />
                 </div>
+                <div class="form-group">
+                    <label>연결 방식</label>
+                    <select id="connectionType" onchange="toggleSshFields()" style="padding:.45rem .7rem; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-size:.9rem;">
+                        <option value="TCP">TCP</option>
+                        <option value="SSH">SSH 터널</option>
+                    </select>
+                </div>
                 <button class="btn-add" onclick="addNode()">추가</button>
+            </div>
+            <div id="sshFields" style="display:none; margin-top:.75rem;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SSH 포트</label>
+                        <input type="number" id="sshPort" value="22" />
+                    </div>
+                    <div class="form-group">
+                        <label>SSH 유저</label>
+                        <input type="text" id="sshUser" placeholder="ubuntu" style="width:130px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>SSH 키 경로 (서버 내부)</label>
+                        <input type="text" id="sshKeyPath" placeholder="/root/.ssh/id_rsa" style="width:220px;" />
+                    </div>
+                </div>
             </div>
             <div id="addError" style="color:#ef4444; font-size:.85rem; margin-top:.5rem; display:none;"></div>
         </div>
@@ -114,7 +137,13 @@
                     <span th:class="${node.status.name() == 'HEALTHY'} ? 'badge-healthy' : (${node.status.name() == 'UNHEALTHY'} ? 'badge-unhealthy' : 'badge-unknown')"
                           th:text="${node.status.name()}">UNKNOWN</span>
                 </div>
-                <div class="node-address" th:text="${node.host + ':' + node.port}">192.168.1.20:2375</div>
+                <div class="node-address">
+                    <span th:text="${node.host + ':' + node.port}">192.168.1.20:2375</span>
+                    <span th:if="${node.connectionType.name() == 'SSH'}"
+                          style="margin-left:.5rem; background:#ede9fe; color:#6d28d9; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH</span>
+                    <span th:if="${node.connectionType.name() == 'TCP'}"
+                          style="margin-left:.5rem; background:#dbeafe; color:#1d4ed8; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">TCP</span>
+                </div>
                 <div class="node-metrics">
                     <span>CPU: <strong th:text="${#numbers.formatDecimal(node.cpuUsagePercent, 1, 1) + '%'}">0.0%</strong></span>
                     <span>MEM: <strong th:text="${#numbers.formatDecimal(node.memoryUsagePercent, 1, 1) + '%'}">0.0%</strong></span>
@@ -129,10 +158,16 @@
 </div>
 
 <script>
+function toggleSshFields() {
+    const isSsh = document.getElementById('connectionType').value === 'SSH';
+    document.getElementById('sshFields').style.display = isSsh ? 'block' : 'none';
+}
+
 async function addNode() {
     const name = document.getElementById('nodeName').value.trim();
     const host = document.getElementById('nodeHost').value.trim();
     const port = parseInt(document.getElementById('nodePort').value);
+    const connectionType = document.getElementById('connectionType').value;
     const errEl = document.getElementById('addError');
 
     if (!name || !host) {
@@ -141,11 +176,27 @@ async function addNode() {
         return;
     }
 
+    const body = {name, host, port, connectionType};
+
+    if (connectionType === 'SSH') {
+        const sshUser = document.getElementById('sshUser').value.trim();
+        const sshKeyPath = document.getElementById('sshKeyPath').value.trim();
+        if (!sshUser || !sshKeyPath) {
+            errEl.textContent = 'SSH 유저와 키 경로를 입력하세요.';
+            errEl.style.display = 'block';
+            return;
+        }
+        body.sshPort = parseInt(document.getElementById('sshPort').value);
+        body.sshUser = sshUser;
+        body.sshKeyPath = sshKeyPath;
+    }
+
+    errEl.style.display = 'none';
     try {
         const res = await fetch('/api/nodes', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name, host, port})
+            body: JSON.stringify(body)
         });
         if (res.ok) {
             location.reload();
