@@ -26,7 +26,7 @@ services:
   # ── Docker Monitor ────────────────────────────────────────────
   monitor:
     build:
-      context: ../Downloads/lite-k8s
+      context: .
       dockerfile: Dockerfile
     container_name: docker-monitor
     ports:
