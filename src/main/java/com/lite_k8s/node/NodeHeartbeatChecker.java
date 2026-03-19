@@ -1,6 +1,10 @@
 package com.lite_k8s.node;
 
+import com.lite_k8s.model.ContainerMetrics;
+import com.lite_k8s.service.MetricsCollector;
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.Info;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -8,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 노드 Heartbeat 감지
@@ -22,6 +27,7 @@ public class NodeHeartbeatChecker {
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory clientFactory;
     private final ApplicationEventPublisher eventPublisher;
+    private final MetricsCollector metricsCollector;
 
     @Scheduled(fixedDelayString =
             "#{${docker.monitor.nodes.heartbeat-interval-seconds:30} * 1000}")
@@ -37,12 +43,28 @@ public class NodeHeartbeatChecker {
     private void checkNode(Node node) {
         try {
             DockerClient client = clientFactory.createClient(node);
-            List<com.github.dockerjava.api.model.Container> running =
-                    client.listContainersCmd().withShowAll(false).exec();
+            List<Container> running = client.listContainersCmd().withShowAll(false).exec();
 
-            node.setRunningContainers(running.size());
+            double totalCpu = 0.0;
+            long totalMemUsage = 0L;
+            for (Container c : running) {
+                Optional<ContainerMetrics> m = metricsCollector.collectMetrics(c.getId(),
+                        c.getNames() != null && c.getNames().length > 0 ? c.getNames()[0] : c.getId(),
+                        client);
+                if (m.isPresent()) {
+                    totalCpu += m.get().getCpuPercent();
+                    totalMemUsage += m.get().getMemoryUsage();
+                }
+            }
+
+            Info info = client.infoCmd().exec();
+            long memTotal = info.getMemTotal() != null ? info.getMemTotal() : 1L;
+            double memPercent = memTotal > 0 ? (totalMemUsage * 100.0 / memTotal) : 0.0;
+
+            nodeRegistry.updateMetrics(node.getId(), totalCpu, memPercent, running.size());
             nodeRegistry.updateStatus(node.getId(), NodeStatus.HEALTHY);
-            log.debug("[Heartbeat] {} → HEALTHY (컨테이너 {}개)", node.getName(), running.size());
+            log.debug("[Heartbeat] {} → HEALTHY (컨테이너 {}개, CPU {:.1f}%, MEM {:.1f}%)",
+                    node.getName(), running.size(), totalCpu, memPercent);
 
         } catch (Exception e) {
             boolean wasHealthy = NodeStatus.HEALTHY.equals(node.getStatus());
