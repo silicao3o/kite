@@ -24,10 +24,11 @@
 16. [Desired State 관리 (5.3)](#desired-state-관리)
 17. [다중 노드 스케줄링 (5.4)](#다중-노드-스케줄링)
 18. [배포 전략 (5.5)](#배포-전략)
-19. [알림 설정](#알림-설정)
-20. [API 레퍼런스](#api-레퍼런스)
-21. [WebSocket 사용법](#websocket-사용법)
-22. [트러블슈팅](#트러블슈팅)
+19. [멀티 노드 통합 모니터링 (Phase 6)](#멀티-노드-통합-모니터링-phase-6)
+20. [알림 설정](#알림-설정)
+21. [API 레퍼런스](#api-레퍼런스)
+22. [WebSocket 사용법](#websocket-사용법)
+23. [트러블슈팅](#트러블슈팅)
 
 ---
 
@@ -208,6 +209,9 @@ docker:
 | `OPENAI_API_KEY` | OpenAI API 키 | - |
 | `GEMINI_API_KEY` | Google Gemini API 키 | - |
 | `GHCR_TOKEN` | GitHub Container Registry 토큰 | - |
+| `NODES_ENABLED` | 노드 기능 활성화 | `true` |
+| `NODES_HEARTBEAT_INTERVAL` | Heartbeat 주기 (초) | `30` |
+| `NODES_PLACEMENT_STRATEGY` | 배치 전략 | `LEAST_USED` |
 
 ---
 
@@ -226,6 +230,7 @@ docker:
 | `/suggestions` | AI 패턴 제안 목록 |
 | `/metrics-history` | 메트릭 히스토리 & 집계 대시보드 |
 | `/ai-settings` | AI 프로바이더 및 API 키 설정 |
+| `/nodes` | 노드 목록 및 SSH/TCP 등록 |
 | `/login` | 로그인 (인증 활성화 시) |
 
 ### 실시간 갱신
@@ -953,6 +958,138 @@ docker:
 
 ---
 
+## 멀티 노드 통합 모니터링 (Phase 6)
+
+### 개요
+
+원격 VM의 Docker 호스트를 등록하면 로컬과 동일하게 컨테이너 모니터링, 메트릭 수집, 자가치유, 헬스체크가 동작합니다.
+
+- TCP 직접 연결 (GCP 내부 IP 등)
+- SSH 터널 연결 (온프레미스, 외부망 서버)
+
+### application.yml 설정
+
+```yaml
+docker:
+  monitor:
+    nodes:
+      enabled: true
+      heartbeat-interval-seconds: 30
+      placement-strategy: LEAST_USED   # LEAST_USED | ROUND_ROBIN
+      nodes:
+        # GCP 내부망 — TCP 직접 연결
+        - name: gcp-vm-1
+          host: 10.178.0.15
+          port: 2375
+          connection-type: TCP
+
+        # 온프레미스 — SSH 터널 경유
+        - name: onprem-dev
+          host: 
+          port: 2375
+          connection-type: SSH
+          ssh-port: 22
+          ssh-user: ubuntu
+          ssh-key-path: /root/.ssh/id_rsa  # 서버(컨테이너) 내부 경로
+```
+
+### 환경변수 방식 (docker-compose)
+
+```env
+NODES_ENABLED=true
+DOCKER_MONITOR_NODES_NODES_0_NAME=gcp-vm-1
+DOCKER_MONITOR_NODES_NODES_0_HOST=10.178.0.15
+DOCKER_MONITOR_NODES_NODES_0_PORT=2375
+DOCKER_MONITOR_NODES_NODES_0_CONNECTION_TYPE=TCP
+
+DOCKER_MONITOR_NODES_NODES_1_NAME=onprem-dev
+DOCKER_MONITOR_NODES_NODES_1_HOST=
+DOCKER_MONITOR_NODES_NODES_1_PORT=2375
+DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE=SSH
+DOCKER_MONITOR_NODES_NODES_1_SSH_PORT=22
+DOCKER_MONITOR_NODES_NODES_1_SSH_USER=ubuntu
+DOCKER_MONITOR_NODES_NODES_1_SSH_KEY_PATH=/root/.ssh/id_rsa
+```
+
+### SSH 터널 사전 조건
+
+1. docker-monitor 컨테이너에 SSH 비밀키 마운트:
+```yaml
+volumes:
+  - ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro
+```
+2. 대상 VM의 `~/.ssh/authorized_keys`에 공개키 등록
+3. 대상 VM의 Docker 소켓 접근 가능 (`/var/run/docker.sock`)
+4. 대상 VM에서 Docker TCP 오픈 불필요 — SSH만 열려 있으면 됨
+
+### SSH 터널 동작 구조
+
+```
+docker-monitor 서버
+  │ JSch SSH 터널
+  └── ssh ubuntu@:22
+        localhost:12375 → /var/run/docker.sock
+
+NodeDockerClientFactory → tcp://localhost:12375 (터널 경유)
+```
+
+### 런타임 노드 등록 (UI / API)
+
+**대시보드 `/nodes` 페이지:**
+- 연결 방식 선택 드롭다운 (TCP / SSH 터널)
+- SSH 선택 시 SSH 포트, SSH 유저, SSH 키 경로 입력 필드 노출
+- 노드 카드에 TCP(파란 배지) / SSH(보라 배지) 표시
+
+**API:**
+```bash
+# TCP 노드 추가
+curl -X POST http://localhost:8080/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"name":"gcp-vm-1","host":"10.178.0.15","port":2375,"connectionType":"TCP"}'
+
+# SSH 터널 노드 추가
+curl -X POST http://localhost:8080/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"name":"onprem-dev","host":"","port":2375,"connectionType":"SSH","sshPort":22,"sshUser":"ubuntu","sshKeyPath":"/root/.ssh/id_rsa"}'
+
+# 노드 목록
+curl http://localhost:8080/api/nodes
+
+# 노드 제거
+curl -X DELETE http://localhost:8080/api/nodes/{id}
+```
+
+### 원격 노드 컨테이너 모니터링
+
+노드 등록 후 자동으로:
+- 컨테이너 탭에 원격 컨테이너 표시 (Node 컬럼에 배지)
+- 원격 컨테이너 상세 조회 및 로그 조회 지원
+- 원격 컨테이너 CPU/메모리 메트릭 15초마다 수집
+- Heartbeat(30초)마다 노드 전체 CPU/메모리 집계 업데이트
+- 노드 장애 시 `NodeFailureEvent` 발행 → 컨테이너 자동 마이그레이션
+
+### 배치 전략
+
+| 전략 | 설명 |
+|------|------|
+| `LEAST_USED` | 컨테이너 stats 합산 CPU+메모리가 가장 낮은 노드 선택 |
+| `ROUND_ROBIN` | 노드를 순서대로 순환 배치 |
+
+### 노드가 UNHEALTHY로 감지되는 경우
+
+TCP 노드:
+```bash
+# Docker 원격 API 활성화 필요
+# /etc/docker/daemon.json
+{"hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}
+```
+
+SSH 노드:
+- SSH 연결 실패 시 UNHEALTHY 마크
+- 비밀키 경로 및 authorized_keys 확인
+
+---
+
 ## 배포 전략
 
 4가지 배포 전략을 지원합니다. `DeploymentSpec`을 구성하여 프로그래매틱하게 사용하거나, 향후 API/대시보드에서 트리거할 수 있습니다.
@@ -1135,6 +1272,14 @@ docker:
 | GET | `/api/ai/settings` | 현재 AI 설정 조회 |
 | POST | `/api/ai/settings` | AI 설정 변경 (런타임) |
 
+### 노드
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/nodes` | 노드 목록 및 상태 |
+| POST | `/api/nodes` | 노드 추가 (TCP/SSH) |
+| DELETE | `/api/nodes/{id}` | 노드 제거 |
+
 ---
 
 ## WebSocket 사용법
@@ -1230,12 +1375,22 @@ docker.monitor.ai.timeout-seconds: 120  # 늘려보기
 
 ### 노드가 UNHEALTHY로 감지됨
 
+**TCP 노드:**
 1. 원격 노드의 Docker API가 열려 있는지 확인:
 ```bash
 curl http://{node-host}:2375/version
 ```
 2. 방화벽에서 2375 포트 허용 확인
 3. `NodeProperties`의 host/port 설정 확인
+
+**SSH 노드:**
+1. SSH 연결 가능 여부 확인:
+```bash
+ssh -i /path/to/id_rsa ubuntu@{node-host}
+```
+2. docker-monitor 컨테이너에 SSH 키 마운트 확인 (`~/.ssh/id_rsa:/root/.ssh/id_rsa:ro`)
+3. 대상 VM의 `~/.ssh/authorized_keys`에 공개키 등록 확인
+4. `sshUser`, `sshPort`, `sshKeyPath` 설정 확인
 
 ### 자가치유가 동작하지 않음
 
@@ -1280,8 +1435,8 @@ docker.monitor.metrics.retention:
 ## 버전 정보
 
 - **현재 버전**: 1.0.0
-- **테스트 케이스**: 430개
-- **구현 진행률**: 100% (Phase 1~5 완료)
+- **테스트 케이스**: 460개
+- **구현 진행률**: 100% (Phase 1~6 완료)
 
 ### 완료된 Phase
 
@@ -1296,8 +1451,13 @@ docker.monitor.metrics.retention:
   - 5.4 다중 노드 스케줄링 + 자동 마이그레이션
   - 5.5 배포 전략 4종 (RollingUpdate/Recreate/BlueGreen/Canary)
 - ✅ AI 멀티 프로바이더 (Anthropic / OpenAI / Gemini)
+- ✅ Phase 6: 멀티 노드 통합 모니터링
+  - 원격 노드 컨테이너 통합 표시 (로컬 + 원격)
+  - 원격 노드 컨테이너 메트릭 수집
+  - SSH 터널 연결 (JSch 기반)
+  - 런타임 노드 등록 (UI/API, TCP/SSH)
+  - TCP/SSH 배지 표시
 
 ### 예정된 Phase
 
-- Phase 6: 고도화 (서비스 그룹 관리, 다중 망 에이전트, SSH 실행, 알림 채널 확장)
 - Phase 7: GCP 통합
