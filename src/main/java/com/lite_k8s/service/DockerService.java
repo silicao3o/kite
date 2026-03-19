@@ -105,6 +105,9 @@ public class DockerService {
             Thread.currentThread().interrupt();
             log.warn("로그 조회 중단: {}", containerId);
             return "로그 조회 중단";
+        } catch (NotFoundException e) {
+            log.debug("로그 조회 스킵 — 컨테이너 없음: {}", containerId);
+            return "";
         } catch (Exception e) {
             log.error("로그 조회 실패: {}", containerId, e);
             return "로그 조회 실패: " + e.getMessage();
