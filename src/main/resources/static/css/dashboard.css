@@ -830,3 +830,19 @@ mark {
     border-color: var(--accent-blue);
     color: white;
 }
+
+.node-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+}
+.node-badge-local {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+.node-badge-remote {
+    background: #d1fae5;
+    color: #065f46;
+}

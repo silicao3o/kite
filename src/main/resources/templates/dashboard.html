@@ -122,6 +122,7 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>Node</th>
                                 <th>Image</th>
                                 <th>Status</th>
                                 <th>CPU</th>
@@ -136,6 +137,11 @@
                                     <a th:href="@{/containers/{id}(id=${container.id})}"
                                        class="container-link"
                                        th:text="${container.name}">container-name</a>
+                                </td>
+                                <td>
+                                    <span th:text="${container.nodeName}"
+                                          th:classappend="${container.nodeName == 'local'} ? 'node-badge-local' : 'node-badge-remote'"
+                                          class="node-badge">local</span>
                                 </td>
                                 <td th:title="${container.image}" th:text="${container.image}">image:tag</td>
                                 <td>

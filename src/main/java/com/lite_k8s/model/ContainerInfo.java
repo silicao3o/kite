@@ -20,6 +20,10 @@ public class ContainerInfo {
     private List<PortMapping> ports;
     private Map<String, String> labels;
 
+    // 노드 정보 (null = local)
+    private String nodeId;
+    private String nodeName;
+
     // 자가치유 관련 필드
     private boolean healingEnabled;
     private int restartCount;

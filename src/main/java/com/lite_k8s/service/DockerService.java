@@ -2,6 +2,9 @@ package com.lite_k8s.service;
 
 import com.lite_k8s.model.ContainerDeathEvent;
 import com.lite_k8s.model.ContainerInfo;
+import com.lite_k8s.node.Node;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.DockerContainerNames;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -23,13 +26,20 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DockerService {
 
     private final DockerClient dockerClient;
+    private final NodeRegistry nodeRegistry;
+    private final NodeDockerClientFactory nodeClientFactory;
 
     @Value("${docker.monitor.log-tail-lines:50}")
     private int logTailLines;
+
+    public DockerService(DockerClient dockerClient, NodeRegistry nodeRegistry, NodeDockerClientFactory nodeClientFactory) {
+        this.dockerClient = dockerClient;
+        this.nodeRegistry = nodeRegistry;
+        this.nodeClientFactory = nodeClientFactory;
+    }
 
     public ContainerDeathEvent buildDeathEvent(String containerId, String action) {
         try {
@@ -113,13 +123,28 @@ public class DockerService {
     }
 
     public List<ContainerInfo> listContainers(boolean showAll) {
-        List<Container> containers = dockerClient.listContainersCmd()
-                .withShowAll(showAll)
-                .exec();
+        List<ContainerInfo> result = new ArrayList<>();
 
-        return containers.stream()
-                .map(this::toContainerInfo)
-                .toList();
+        // 로컬 컨테이너
+        dockerClient.listContainersCmd().withShowAll(showAll).exec()
+                .stream()
+                .map(c -> toContainerInfo(c, null, "local"))
+                .forEach(result::add);
+
+        // 등록된 노드 컨테이너
+        for (Node node : nodeRegistry.findAll()) {
+            try {
+                DockerClient client = nodeClientFactory.createClient(node);
+                client.listContainersCmd().withShowAll(showAll).exec()
+                        .stream()
+                        .map(c -> toContainerInfo(c, node.getId(), node.getName()))
+                        .forEach(result::add);
+            } catch (Exception e) {
+                log.warn("[멀티노드] {} 컨테이너 조회 실패: {}", node.getName(), e.getMessage());
+            }
+        }
+
+        return result;
     }
 
     public ContainerInfo getContainer(String containerId) {
@@ -132,7 +157,7 @@ public class DockerService {
         }
     }
 
-    private ContainerInfo toContainerInfo(Container container) {
+    private ContainerInfo toContainerInfo(Container container, String nodeId, String nodeName) {
         String name = DockerContainerNames.extractName(container, "unknown");
 
         List<ContainerInfo.PortMapping> ports = new ArrayList<>();
@@ -158,6 +183,8 @@ public class DockerService {
                         ZoneId.systemDefault()))
                 .ports(ports)
                 .labels(container.getLabels())
+                .nodeId(nodeId)
+                .nodeName(nodeName)
                 .build();
     }
 
