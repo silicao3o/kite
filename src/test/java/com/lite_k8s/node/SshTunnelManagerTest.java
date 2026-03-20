@@ -14,7 +14,7 @@ class SshTunnelManagerTest {
 
     @BeforeEach
     void setUp() {
-        tunnelManager = new SshTunnelManager();
+        tunnelManager = new SshTunnelManager(new NodeProperties());
     }
 
     @AfterEach
@@ -62,5 +62,41 @@ class SshTunnelManagerTest {
         assertThatThrownBy(() -> tunnelManager.openTunnel(tcpNode))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("TCP");
+    }
+
+    @Test
+    @DisplayName("SSH_PROXY가 아닌 노드에 openProxyTunnel 호출 시 예외")
+    void openProxyTunnel_WhenNotSshProxyNode_ShouldThrowException() {
+        Node sshNode = Node.builder()
+                .id("node-dev")
+                .name("dev")
+                .host("192.168.1.10")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH)
+                .build();
+
+        assertThatThrownBy(() -> tunnelManager.openProxyTunnel(sshNode))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SSH_PROXY");
+    }
+
+    @Test
+    @DisplayName("proxy 설정 없이 SSH_PROXY 노드에 openProxyTunnel 호출 시 예외")
+    void openProxyTunnel_WhenNoProxyConfig_ShouldThrowException() {
+        NodeProperties properties = new NodeProperties();
+        // proxy는 기본적으로 null
+        SshTunnelManager manager = new SshTunnelManager(properties);
+
+        Node proxyNode = Node.builder()
+                .id("node-proxy")
+                .name("on-prem")
+                .host("192.168.1.10")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH_PROXY)
+                .build();
+
+        assertThatThrownBy(() -> manager.openProxyTunnel(proxyNode))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("proxy");
     }
 }
