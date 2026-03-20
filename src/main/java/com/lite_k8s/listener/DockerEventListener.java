@@ -145,7 +145,9 @@ public class DockerEventListener {
 
     private void handleEvent(Event event, String nodeId) {
         String action = event.getAction();
-        String containerId = event.getId();
+        String containerId = event.getId() != null
+                ? event.getId()
+                : (event.getActor() != null ? event.getActor().getId() : null);
 
         log.debug("Docker 이벤트 수신: action={}, containerId={}", action, containerId);
 
