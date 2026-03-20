@@ -3,19 +3,27 @@ package com.lite_k8s.incident;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@DataJpaTest
 class IncidentReportRepositoryTest {
+
+    @Autowired
+    private IncidentReportJpaRepository jpaRepository;
 
     private IncidentReportRepository repository;
 
     @BeforeEach
     void setUp() {
-        repository = new IncidentReportRepository();
+        jpaRepository.deleteAll();
+        repository = new IncidentReportRepository(jpaRepository);
     }
 
     @Test
@@ -38,7 +46,9 @@ class IncidentReportRepositoryTest {
     void shouldFindAllOrderByCreatedAtDesc() {
         // given
         IncidentReport older = createReport("web-1", "첫 번째 장애");
+        older.setCreatedAt(LocalDateTime.now().minusMinutes(1));
         IncidentReport newer = createReport("web-2", "두 번째 장애");
+        newer.setCreatedAt(LocalDateTime.now());
         repository.save(older);
         repository.save(newer);
 

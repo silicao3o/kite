@@ -1,8 +1,10 @@
 package com.lite_k8s.audit;
 
 import com.lite_k8s.playbook.RiskLevel;
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,10 +14,14 @@ import java.util.UUID;
  *
  * 모든 AI 조치의 의도, 실행, 결과를 기록
  */
+@Entity
+@Table(name = "audit_logs")
 @Data
+@NoArgsConstructor
 public class AuditLog {
 
     // 기본 정보
+    @Id
     private String id;
     private LocalDateTime timestamp;
 
@@ -34,6 +40,7 @@ public class AuditLog {
     private String reasoning;
 
     // 위험도
+    @Enumerated(EnumType.STRING)
     private RiskLevel riskLevel;
 
     // 승인 관련
@@ -42,6 +49,7 @@ public class AuditLog {
     private boolean approved;
 
     // 실행 결과
+    @Enumerated(EnumType.STRING)
     private ExecutionResult executionResult;
     private String resultMessage;
     private LocalDateTime completedAt;

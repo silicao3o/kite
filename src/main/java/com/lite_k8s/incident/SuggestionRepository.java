@@ -1,41 +1,34 @@
 package com.lite_k8s.incident;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @Repository
+@RequiredArgsConstructor
 public class SuggestionRepository {
 
-    private final Map<String, Suggestion> store = new ConcurrentHashMap<>();
+    private final SuggestionJpaRepository jpa;
 
     public void save(Suggestion suggestion) {
-        store.put(suggestion.getId(), suggestion);
+        jpa.save(suggestion);
     }
 
     public Optional<Suggestion> findById(String id) {
-        return Optional.ofNullable(store.get(id));
+        return jpa.findById(id);
     }
 
     public List<Suggestion> findAll() {
-        return store.values().stream()
-                .sorted(Comparator.comparing(Suggestion::getCreatedAt).reversed())
-                .collect(Collectors.toList());
+        return jpa.findAllByOrderByCreatedAtDesc();
     }
 
     public List<Suggestion> findByStatus(Suggestion.Status status) {
-        return store.values().stream()
-                .filter(s -> s.getStatus() == status)
-                .sorted(Comparator.comparing(Suggestion::getCreatedAt).reversed())
-                .collect(Collectors.toList());
+        return jpa.findByStatusOrderByCreatedAtDesc(status);
     }
 
     public void clear() {
-        store.clear();
+        jpa.deleteAll();
     }
 }

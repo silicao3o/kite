@@ -112,8 +112,14 @@ services:
       DIARY_DB_USER: ${DIARY_DB_USER}
       DIARY_DB_PASS: ${DIARY_DB_PASS}
 
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docker_monitor
+      SPRING_DATASOURCE_USERNAME: docker_monitor
+      SPRING_DATASOURCE_PASSWORD: docker_monitor
     depends_on:
       mailhog:
+        condition: service_started
+      postgres:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -175,6 +181,24 @@ services:
       # 서비스 중요도 (Safety Gate용)
       service.criticality: "NORMAL"
 
+  # ── PostgreSQL ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: docker-monitor-postgres
+    environment:
+      POSTGRES_DB: docker_monitor
+      POSTGRES_USER: docker_monitor
+      POSTGRES_PASSWORD: docker_monitor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - test-net
+    labels:
+      self-healing.enabled: "false"
+
   # ── Mailhog ───────────────────────────────────────────────────
   mailhog:
     image: mailhog/mailhog:latest
@@ -191,3 +215,6 @@ services:
 networks:
   test-net:
     driver: bridge
+
+volumes:
+  postgres_data:

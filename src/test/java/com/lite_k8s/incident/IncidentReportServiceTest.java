@@ -6,24 +6,62 @@ import com.lite_k8s.model.ContainerDeathEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class IncidentReportServiceTest {
+
+    @Mock
+    private IncidentReportJpaRepository mockJpa;
+
+    @Mock
+    private AiClientSelector aiClientSelector;
 
     private IncidentReportService service;
     private IncidentReportRepository repository;
-    private AiClientSelector aiClientSelector;
+
+    // In-memory store to simulate JPA behavior
+    private final List<IncidentReport> store = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        repository = new IncidentReportRepository();
-        aiClientSelector = mock(AiClientSelector.class);
+        store.clear();
+
+        when(mockJpa.save(any(IncidentReport.class))).thenAnswer(inv -> {
+            IncidentReport report = inv.getArgument(0);
+            store.removeIf(r -> r.getId().equals(report.getId()));
+            store.add(report);
+            return report;
+        });
+
+        when(mockJpa.findById(anyString())).thenAnswer(inv -> {
+            String id = inv.getArgument(0);
+            return store.stream().filter(r -> r.getId().equals(id)).findFirst();
+        });
+
+        when(mockJpa.findByContainerNameOrderByCreatedAtDesc(anyString())).thenAnswer(inv -> {
+            String containerName = inv.getArgument(0);
+            return store.stream()
+                    .filter(r -> r.getContainerName().equals(containerName))
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+        });
+
+        repository = new IncidentReportRepository(mockJpa);
         service = new IncidentReportService(repository, aiClientSelector);
     }
 

@@ -283,19 +283,19 @@
                         <input type="radio" name="provider" value="ANTHROPIC"
                                th:checked="${provider == 'ANTHROPIC'}">
                         <div class="provider-name">Anthropic</div>
-                        <div class="provider-desc">claude-haiku-4-5</div>
+                        <div class="provider-desc" th:text="${anthropicModel}">claude-haiku-4-5-20251001</div>
                     </label>
                     <label class="provider-option">
                         <input type="radio" name="provider" value="OPENAI"
                                th:checked="${provider == 'OPENAI'}">
                         <div class="provider-name">OpenAI</div>
-                        <div class="provider-desc">gpt-4o-mini</div>
+                        <div class="provider-desc" th:text="${openaiModel}">gpt-4o-mini</div>
                     </label>
                     <label class="provider-option">
                         <input type="radio" name="provider" value="GEMINI"
                                th:checked="${provider == 'GEMINI'}">
                         <div class="provider-name">Google Gemini</div>
-                        <div class="provider-desc">gemini-1.5-flash</div>
+                        <div class="provider-desc" th:text="${geminiModel}">gemini-2.0-flash</div>
                     </label>
                     <label class="provider-option">
                         <input type="radio" name="provider" value="CLAUDE_CODE"
@@ -317,6 +317,10 @@
                         <span th:text="${anthropicKeyMasked != ''} ? '현재: ' + ${anthropicKeyMasked} : '미설정'">미설정</span>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>Anthropic 모델</label>
+                    <input type="text" id="anthropicModel" th:value="${anthropicModel}" placeholder="claude-haiku-4-5-20251001" />
+                </div>
 
                 <div class="form-group">
                     <label>OpenAI API Key</label>
@@ -325,6 +329,10 @@
                         <span th:text="${openaiKeyMasked != ''} ? '현재: ' + ${openaiKeyMasked} : '미설정'">미설정</span>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>OpenAI 모델</label>
+                    <input type="text" id="openaiModel" th:value="${openaiModel}" placeholder="gpt-4o-mini" />
+                </div>
 
                 <div class="form-group">
                     <label>Gemini API Key</label>
@@ -332,6 +340,10 @@
                     <div th:class="${geminiKeyMasked != ''} ? 'key-status set' : 'key-status'">
                         <span th:text="${geminiKeyMasked != ''} ? '현재: ' + ${geminiKeyMasked} : '미설정'">미설정</span>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Gemini 모델</label>
+                    <input type="text" id="geminiModel" th:value="${geminiModel}" placeholder="gemini-2.0-flash" />
                 </div>
             </div>
 
@@ -346,11 +358,17 @@
             const anthropicApiKey = document.getElementById('anthropicApiKey').value;
             const openaiApiKey = document.getElementById('openaiApiKey').value;
             const geminiApiKey = document.getElementById('geminiApiKey').value;
+            const anthropicModel = document.getElementById('anthropicModel').value;
+            const openaiModel = document.getElementById('openaiModel').value;
+            const geminiModel = document.getElementById('geminiModel').value;
 
             const payload = { enabled, provider };
             if (anthropicApiKey) payload.anthropicApiKey = anthropicApiKey;
             if (openaiApiKey) payload.openaiApiKey = openaiApiKey;
             if (geminiApiKey) payload.geminiApiKey = geminiApiKey;
+            if (anthropicModel) payload.anthropicModel = anthropicModel;
+            if (openaiModel) payload.openaiModel = openaiModel;
+            if (geminiModel) payload.geminiModel = geminiModel;
 
             fetch('/api/ai/settings', {
                 method: 'POST',

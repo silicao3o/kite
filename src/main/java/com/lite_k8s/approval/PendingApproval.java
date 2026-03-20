@@ -1,6 +1,7 @@
 package com.lite_k8s.approval;
 
 import com.lite_k8s.playbook.RiskLevel;
+import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -9,15 +10,20 @@ import java.util.UUID;
 /**
  * 승인 대기 중인 Playbook 실행 요청
  */
+@Entity
+@Table(name = "pending_approvals")
 @Data
 public class PendingApproval {
 
     private static final int EXPIRY_MINUTES = 5;
 
+    @Id
     private String id;
     private String playbookName;
     private String containerName;
+    @Enumerated(EnumType.STRING)
     private RiskLevel riskLevel;
+    @Enumerated(EnumType.STRING)
     private ApprovalStatus status;
     private LocalDateTime requestedAt;
     private LocalDateTime expiresAt;

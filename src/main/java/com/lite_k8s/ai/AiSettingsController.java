@@ -24,6 +24,9 @@ public class AiSettingsController {
         model.addAttribute("anthropicKeyMasked", maskKey(aiSettingsService.getAnthropicApiKey()));
         model.addAttribute("openaiKeyMasked", maskKey(aiSettingsService.getOpenaiApiKey()));
         model.addAttribute("geminiKeyMasked", maskKey(aiSettingsService.getGeminiApiKey()));
+        model.addAttribute("anthropicModel", aiSettingsService.getAnthropicModel());
+        model.addAttribute("openaiModel", aiSettingsService.getOpenaiModel());
+        model.addAttribute("geminiModel", aiSettingsService.getGeminiModel());
         model.addAttribute("aiActive", aiSettingsService.isEnabled());
         return "ai-settings";
     }
@@ -46,6 +49,15 @@ public class AiSettingsController {
         if (request.geminiApiKey() != null && !request.geminiApiKey().isEmpty()) {
             aiSettingsService.setGeminiApiKey(request.geminiApiKey());
         }
+        if (request.anthropicModel() != null && !request.anthropicModel().isEmpty()) {
+            aiSettingsService.setAnthropicModel(request.anthropicModel());
+        }
+        if (request.openaiModel() != null && !request.openaiModel().isEmpty()) {
+            aiSettingsService.setOpenaiModel(request.openaiModel());
+        }
+        if (request.geminiModel() != null && !request.geminiModel().isEmpty()) {
+            aiSettingsService.setGeminiModel(request.geminiModel());
+        }
 
         log.info("AI settings updated: enabled={}, provider={}", aiSettingsService.isRawEnabled(), aiSettingsService.getProvider());
 
@@ -65,7 +77,10 @@ public class AiSettingsController {
                 aiSettingsService.getProvider(),
                 maskKey(aiSettingsService.getAnthropicApiKey()),
                 maskKey(aiSettingsService.getOpenaiApiKey()),
-                maskKey(aiSettingsService.getGeminiApiKey())
+                maskKey(aiSettingsService.getGeminiApiKey()),
+                aiSettingsService.getAnthropicModel(),
+                aiSettingsService.getOpenaiModel(),
+                aiSettingsService.getGeminiModel()
         );
     }
 
@@ -84,7 +99,10 @@ public class AiSettingsController {
             String provider,
             String anthropicApiKey,
             String openaiApiKey,
-            String geminiApiKey
+            String geminiApiKey,
+            String anthropicModel,
+            String openaiModel,
+            String geminiModel
     ) {}
 
     public record AiSettingsResponse(
@@ -92,6 +110,9 @@ public class AiSettingsController {
             String provider,
             String anthropicApiKeyMasked,
             String openaiApiKeyMasked,
-            String geminiApiKeyMasked
+            String geminiApiKeyMasked,
+            String anthropicModel,
+            String openaiModel,
+            String geminiModel
     ) {}
 }

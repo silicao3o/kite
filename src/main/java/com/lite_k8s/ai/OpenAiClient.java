@@ -23,7 +23,6 @@ import java.time.Duration;
 public class OpenAiClient implements AiClient {
 
     private static final String API_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String MODEL = "gpt-4o-mini";
 
     private final AiSettingsService aiSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -77,7 +76,7 @@ public class OpenAiClient implements AiClient {
         String escapedPrompt = objectMapper.writeValueAsString(prompt);
         return String.format(
                 "{\"model\":\"%s\",\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":%s}]}",
-                MODEL, escapedPrompt
+                aiSettingsService.getOpenaiModel(), escapedPrompt
         );
     }
 

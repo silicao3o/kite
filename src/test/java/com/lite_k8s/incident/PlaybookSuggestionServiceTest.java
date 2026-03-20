@@ -5,23 +5,54 @@ import com.lite_k8s.ai.ClaudeResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class PlaybookSuggestionServiceTest {
+
+    @Mock
+    private SuggestionJpaRepository mockJpa;
+
+    @Mock
+    private ClaudeCodeClient claudeCodeClient;
 
     private SuggestionService suggestionService;
     private SuggestionRepository repository;
-    private ClaudeCodeClient claudeCodeClient;
+
+    // In-memory store
+    private final List<Suggestion> store = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        repository = new SuggestionRepository();
-        claudeCodeClient = mock(ClaudeCodeClient.class);
+        store.clear();
+
+        when(mockJpa.save(any(Suggestion.class))).thenAnswer(inv -> {
+            Suggestion suggestion = inv.getArgument(0);
+            store.removeIf(s -> s.getId().equals(suggestion.getId()));
+            store.add(suggestion);
+            return suggestion;
+        });
+
+        when(mockJpa.findById(anyString())).thenAnswer(inv -> {
+            String id = inv.getArgument(0);
+            return store.stream().filter(s -> s.getId().equals(id)).findFirst();
+        });
+
+        repository = new SuggestionRepository(mockJpa);
         suggestionService = new SuggestionService(repository, claudeCodeClient);
     }
 

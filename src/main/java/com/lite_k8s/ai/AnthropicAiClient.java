@@ -23,7 +23,6 @@ import java.time.Duration;
 public class AnthropicAiClient implements AiClient {
 
     private static final String API_URL = "https://api.anthropic.com/v1/messages";
-    private static final String MODEL = "claude-haiku-4-5-20251001";
 
     private final AiSettingsService aiSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -78,7 +77,7 @@ public class AnthropicAiClient implements AiClient {
         String escapedPrompt = objectMapper.writeValueAsString(prompt);
         return String.format(
                 "{\"model\":\"%s\",\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":%s}]}",
-                MODEL, escapedPrompt
+                aiSettingsService.getAnthropicModel(), escapedPrompt
         );
     }
 
