@@ -964,8 +964,13 @@ docker:
 
 원격 VM의 Docker 호스트를 등록하면 로컬과 동일하게 컨테이너 모니터링, 메트릭 수집, 자가치유, 헬스체크가 동작합니다.
 
-- TCP 직접 연결 (GCP 내부 IP 등)
-- SSH 터널 연결 (온프레미스, 외부망 서버)
+**3가지 연결 방식:**
+
+| 방식 | 설명 | 사용 케이스 |
+|------|------|------------|
+| `TCP` | Docker API 직접 연결 | GCP 내부망 VM |
+| `SSH` | SSH 터널 경유 (docker-monitor → 대상 VM) | 외부망 서버, 온프레미스 |
+| `SSH_PROXY` | CP 점프 호스트 경유 (docker-monitor → CP → 대상 VM) | CP만 외부 접근 가능한 환경 |
 
 ### application.yml 설정
 
@@ -976,6 +981,14 @@ docker:
       enabled: true
       heartbeat-interval-seconds: 30
       placement-strategy: LEAST_USED   # LEAST_USED | ROUND_ROBIN
+
+      # SSH_PROXY 연결 시 사용할 CP(점프 호스트) 설정
+      proxy:
+        host: cp.internal             # CP 호스트
+        port: 22
+        user: ubuntu
+        key-path: /root/.ssh/id_rsa
+
       nodes:
         # GCP 내부망 — TCP 직접 연결
         - name: gcp-vm-1
@@ -983,15 +996,37 @@ docker:
           port: 2375
           connection-type: TCP
 
-        # 온프레미스 — SSH 터널 경유
+        # 온프레미스 — SSH 터널 직접 연결
         - name: onprem-dev
           host: 
           port: 2375
           connection-type: SSH
           ssh-port: 22
           ssh-user: ubuntu
-          ssh-key-path: /root/.ssh/id_rsa  # 서버(컨테이너) 내부 경로
+          ssh-key-path: /root/.ssh/id_rsa
+
+        # CP 경유 — SSH_PROXY 연결
+        - name: onprem-res
+          host: 192.168.1.10
+          port: 2375
+          connection-type: SSH_PROXY   # proxy 설정 필수
 ```
+
+### SSH_PROXY 동작 구조
+
+```
+docker-monitor (GCP)
+  │
+  ├── CP SSH 세션 1개 (공유)
+  │     ├── 포워딩 룰: localhost:20000 → onprem-res-1:2375
+  │     └── 포워딩 룰: localhost:20001 → onprem-res-2:2375
+  │
+  ├── DockerClient(onprem-res-1) → tcp://localhost:20000
+  └── DockerClient(onprem-res-2) → tcp://localhost:20001
+```
+
+> CP SSH 세션은 SSH_PROXY 노드가 여러 개여도 **1개만 유지**됩니다.
+> 마지막 SSH_PROXY 노드가 제거되면 CP 세션도 자동으로 끊어집니다.
 
 ### 환경변수 방식 (docker-compose)
 
@@ -1009,9 +1044,14 @@ DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE=SSH
 DOCKER_MONITOR_NODES_NODES_1_SSH_PORT=22
 DOCKER_MONITOR_NODES_NODES_1_SSH_USER=ubuntu
 DOCKER_MONITOR_NODES_NODES_1_SSH_KEY_PATH=/root/.ssh/id_rsa
+
+DOCKER_MONITOR_NODES_NODES_2_NAME=onprem-res
+DOCKER_MONITOR_NODES_NODES_2_HOST=192.168.1.10
+DOCKER_MONITOR_NODES_NODES_2_PORT=2375
+DOCKER_MONITOR_NODES_NODES_2_CONNECTION_TYPE=SSH_PROXY
 ```
 
-### SSH 터널 사전 조건
+### SSH / SSH_PROXY 사전 조건
 
 1. docker-monitor 컨테이너에 SSH 비밀키 마운트:
 ```yaml
@@ -1028,17 +1068,17 @@ volumes:
 docker-monitor 서버
   │ JSch SSH 터널
   └── ssh ubuntu@:22
-        localhost:12375 → /var/run/docker.sock
+        localhost:20000 → /var/run/docker.sock (Docker API)
 
-NodeDockerClientFactory → tcp://localhost:12375 (터널 경유)
+NodeDockerClientFactory → tcp://localhost:20000 (터널 경유)
 ```
 
 ### 런타임 노드 등록 (UI / API)
 
 **대시보드 `/nodes` 페이지:**
-- 연결 방식 선택 드롭다운 (TCP / SSH 터널)
+- 연결 방식 선택 드롭다운 (TCP / SSH / SSH_PROXY)
 - SSH 선택 시 SSH 포트, SSH 유저, SSH 키 경로 입력 필드 노출
-- 노드 카드에 TCP(파란 배지) / SSH(보라 배지) 표시
+- 노드 카드에 TCP(파란 배지) / SSH(보라 배지) / SSH_PROXY(주황 배지) 표시
 
 **API:**
 ```bash
@@ -1051,6 +1091,11 @@ curl -X POST http://localhost:8080/api/nodes \
 curl -X POST http://localhost:8080/api/nodes \
   -H "Content-Type: application/json" \
   -d '{"name":"onprem-dev","host":"","port":2375,"connectionType":"SSH","sshPort":22,"sshUser":"ubuntu","sshKeyPath":"/root/.ssh/id_rsa"}'
+
+# SSH_PROXY 노드 추가 (proxy 설정이 application.yml에 있어야 함)
+curl -X POST http://localhost:8080/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"name":"onprem-res","host":"192.168.1.10","port":2375,"connectionType":"SSH_PROXY"}'
 
 # 노드 목록
 curl http://localhost:8080/api/nodes
@@ -1435,8 +1480,8 @@ docker.monitor.metrics.retention:
 ## 버전 정보
 
 - **현재 버전**: 1.0.0
-- **테스트 케이스**: 460개
-- **구현 진행률**: 100% (Phase 1~6 완료)
+- **테스트 케이스**: 473개
+- **구현 진행률**: Phase 1~6 완료, Phase 7 진행 중 (30%)
 
 ### 완료된 Phase
 
@@ -1455,9 +1500,16 @@ docker.monitor.metrics.retention:
   - 원격 노드 컨테이너 통합 표시 (로컬 + 원격)
   - 원격 노드 컨테이너 메트릭 수집
   - SSH 터널 연결 (JSch 기반)
-  - 런타임 노드 등록 (UI/API, TCP/SSH)
+  - 런타임 노드 등록 (UI/API, TCP/SSH/SSH_PROXY)
   - TCP/SSH 배지 표시
+- 🔄 Phase 7: 고도화 (진행 중 30%)
+  - ✅ 7.1 SSH 터널 — 온프레미스 연결
+  - ✅ 7.1-B 멀티 노드 로컬 클라이언트 누락 수정
+  - ✅ 7.1-C SSH_PROXY — CP 경유 연결 (CP 세션 1개 공유)
+  - 7.2 서비스 그룹 관리
+  - 7.3~7.5 GCP VM 모니터링
 
 ### 예정된 Phase
 
-- Phase 7: GCP 통합
+- Phase 7 (잔여): 서비스 그룹 관리, GCP VM 모니터링·조치, VM-컨테이너 연관 뷰
+- Phase 9: 알림 채널 확장 (Slack, Discord)
