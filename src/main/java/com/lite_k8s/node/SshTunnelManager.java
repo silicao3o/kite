@@ -32,6 +32,7 @@ public class SshTunnelManager {
 
     private final AtomicInteger portCounter = new AtomicInteger(PORT_RANGE_START);
 
+    @org.springframework.beans.factory.annotation.Autowired
     public SshTunnelManager(NodeProperties properties) {
         this(properties, (user, host, port, keyPath) -> {
             JSch jsch = new JSch();
