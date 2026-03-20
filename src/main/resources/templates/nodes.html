@@ -101,6 +101,7 @@
                     <select id="connectionType" onchange="toggleSshFields()" style="padding:.45rem .7rem; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-size:.9rem;">
                         <option value="TCP">TCP</option>
                         <option value="SSH">SSH 터널</option>
+                        <option value="SSH_PROXY">SSH Proxy (CP 경유)</option>
                     </select>
                 </div>
                 <button class="btn-add" onclick="addNode()">추가</button>
@@ -143,6 +144,8 @@
                           style="margin-left:.5rem; background:#ede9fe; color:#6d28d9; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH</span>
                     <span th:if="${node.connectionType.name() == 'TCP'}"
                           style="margin-left:.5rem; background:#dbeafe; color:#1d4ed8; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">TCP</span>
+                    <span th:if="${node.connectionType.name() == 'SSH_PROXY'}"
+                          style="margin-left:.5rem; background:#fef3c7; color:#92400e; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH_PROXY</span>
                 </div>
                 <div class="node-metrics">
                     <span>CPU: <strong th:text="${#numbers.formatDecimal(node.cpuUsagePercent, 1, 1) + '%'}">0.0%</strong></span>
@@ -159,7 +162,7 @@
 
 <script>
 function toggleSshFields() {
-    const isSsh = document.getElementById('connectionType').value === 'SSH';
+    const val = document.getElementById('connectionType').value; const isSsh = val === 'SSH';
     document.getElementById('sshFields').style.display = isSsh ? 'block' : 'none';
 }
 

@@ -31,7 +31,9 @@ public class ContainerFactory {
      * @return 생성된 컨테이너 ID, 실패 시 null
      */
     public String create(DesiredStateProperties.ServiceSpec spec, int index) {
-        String containerName = spec.getContainerNamePrefix() + "-" + index;
+        String containerName = (index == 0)
+                ? spec.getContainerNamePrefix()
+                : spec.getContainerNamePrefix() + "-" + index;
         try {
             HostConfig hostConfig = buildHostConfig(spec);
 

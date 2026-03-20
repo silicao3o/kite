@@ -11,10 +11,6 @@ import org.springframework.stereotype.Component;
 import java.net.URI;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 노드별 DockerClient 생성 및 캐싱
- * TCP를 통해 원격 Docker 데몬에 연결 (SSH 노드는 터널 경유)
- */
 @Slf4j
 @Component
 public class NodeDockerClientFactory {
@@ -33,7 +29,17 @@ public class NodeDockerClientFactory {
     private DockerClient buildClient(Node node) {
         String dockerHost;
 
-        if (node.isSsh()) {
+        if (node.isSshProxy()) {
+            try {
+                tunnelManager.openProxyTunnel(node);
+            } catch (JSchException e) {
+                log.error("SSH 프록시 터널 연결 실패 [{}] host={} via CP — {}",
+                        node.getName(), node.getHost(), e.getMessage());
+                throw new RuntimeException("SSH 프록시 터널 연결 실패: " + node.getId(), e);
+            }
+            int localPort = tunnelManager.allocateLocalPort(node.getId());
+            dockerHost = "tcp://localhost:" + localPort;
+        } else if (node.isSsh()) {
             try {
                 tunnelManager.openTunnel(node);
             } catch (JSchException e) {
@@ -48,7 +54,7 @@ public class NodeDockerClientFactory {
             dockerHost = "tcp://" + node.getHost() + ":" + node.getPort();
         }
 
-        log.debug("노드 DockerClient 생성: {} ({})", node.getName(), dockerHost);
+        log.info("노드 DockerClient 생성: {} → {}", node.getName(), dockerHost);
 
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
                 .withDockerHost(dockerHost)
@@ -66,5 +72,6 @@ public class NodeDockerClientFactory {
         if (client != null) {
             try { client.close(); } catch (Exception ignored) {}
         }
+        tunnelManager.closeTunnel(nodeId);
     }
 }

@@ -24,6 +24,17 @@ public class NodeRegistry {
         log.info("노드 등록: {} ({}:{})", node.getName(), node.getHost(), node.getPort());
     }
 
+    public boolean registerIfAbsent(Node node) {
+        return jpa.findByName(node.getName()).map(existing -> {
+            runtimeCache.put(existing.getId(), existing);
+            log.info("노드 이미 존재, 스킵: {}", existing.getName());
+            return false;
+        }).orElseGet(() -> {
+            register(node);
+            return true;
+        });
+    }
+
     public void unregister(String nodeId) {
         jpa.deleteById(nodeId);
         Node removed = runtimeCache.remove(nodeId);

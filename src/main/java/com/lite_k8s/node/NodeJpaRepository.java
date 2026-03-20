@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface NodeJpaRepository extends JpaRepository<Node, String> {
     List<Node> findByStatus(NodeStatus status);
+    boolean existsByName(String name);
+    java.util.Optional<Node> findByName(String name);
 }
