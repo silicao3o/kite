@@ -37,6 +37,9 @@ services:
       - ./docker/test-config/application.yml:/app/config/application.yml:ro
       - ~/.ssh/id_rsa_monitor:/root/.ssh/id_rsa_monitor:ro
     environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docker_monitor
+      SPRING_DATASOURCE_USERNAME: docker_monitor
+      SPRING_DATASOURCE_PASSWORD: docker_monitor
       # ── SMTP (Mailhog) ──────────────────────────────────────────
       SPRING_MAIL_HOST: mailhog
       SPRING_MAIL_PORT: 1025
@@ -112,10 +115,6 @@ services:
       DIARY_DB_USER: ${DIARY_DB_USER}
       DIARY_DB_PASS: ${DIARY_DB_PASS}
 
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docker_monitor
-      SPRING_DATASOURCE_USERNAME: docker_monitor
-      SPRING_DATASOURCE_PASSWORD: docker_monitor
     depends_on:
       mailhog:
         condition: service_started
