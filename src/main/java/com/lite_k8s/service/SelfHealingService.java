@@ -66,7 +66,7 @@ public class SelfHealingService {
             }
         }
 
-        boolean success = dockerService.restartContainer(containerId);
+        boolean success = dockerService.restartContainer(containerId, event.getNodeId());
         if (success) {
             restartTracker.recordRestart(containerId);
             log.info("자가치유 완료: {}", event.getContainerName());

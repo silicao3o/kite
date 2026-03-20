@@ -25,9 +25,10 @@ public class ContainerRestartHandler implements ActionHandler {
         }
 
         String containerId = params.get("containerId");
-        log.info("컨테이너 재시작 실행: {}", containerId);
+        String nodeId = context.get("nodeId");
+        log.info("컨테이너 재시작 실행: {} (nodeId={})", containerId, nodeId);
 
-        boolean success = dockerService.restartContainer(containerId);
+        boolean success = dockerService.restartContainer(containerId, nodeId);
         if (success) {
             return ActionResult.success();
         } else {
