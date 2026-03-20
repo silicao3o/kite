@@ -198,3 +198,57 @@ com.github.dockerjava.api.exception.NotFoundException: Status 404
     return "";
 }
 ```
+
+---
+
+## 10. 재시작 시 DB에 등록된 노드 전체 삭제
+
+**발생일**: 2026-03-21
+**증상**: 앱 재시작 후 REST API로 동적 추가했던 노드가 사라짐
+
+**원인**: `NodeConfig.registerNodes()`에서 `deleteAllConfigNodes()`가 `jpa.deleteAll()`을 호출해 DB 전체를 삭제 후 설정 파일 노드만 재등록
+
+**수정**: `deleteAllConfigNodes()` 제거, `registerIfAbsent()` 도입 — name 기준으로 DB에 없을 때만 저장
+```java
+// NodeJpaRepository
+boolean existsByName(String name);
+Optional<Node> findByName(String name);
+
+// NodeRegistry
+public boolean registerIfAbsent(Node node) {
+    return jpa.findByName(node.getName()).map(existing -> {
+        runtimeCache.put(existing.getId(), existing);
+        return false;  // 이미 존재, 스킵
+    }).orElseGet(() -> {
+        register(node);
+        return true;  // 새로 등록
+    });
+}
+```
+
+---
+
+## 11. Desired State 컨테이너 재생성 시 이름에 -1 suffix 붙는 문제
+
+**발생일**: 2026-03-21
+**증상**: `docker-compose`로 생성된 `exercise-auth`가 죽으면 `exercise-auth-1`로 재생성됨
+
+**원인**: `nextAvailableIndex()`가 running 컨테이너 없을 때 `orElse(0) + 1 = 1`을 반환해 index가 항상 1부터 시작
+
+**수정**:
+1. `nextAvailableIndex()` — `orElse(0)` → `orElse(-1)` (빈 상태에서 0 반환)
+2. `ContainerFactory.create()` — index == 0이면 suffix 없이 prefix 그대로 사용
+
+```java
+// StateReconciler
+.orElse(-1) + 1;  // 빈 상태 → 0 반환
+
+// ContainerFactory
+String containerName = (index == 0)
+    ? spec.getContainerNamePrefix()
+    : spec.getContainerNamePrefix() + "-" + index;
+```
+
+**결과**:
+- replicas=1: `exercise-auth` (suffix 없음) ✓
+- replicas=2: `exercise-auth`, `exercise-auth-1` ✓
