@@ -18,6 +18,12 @@ public class NodeRegistry {
     // 런타임 메트릭은 인메모리 유지 (CPU, 메모리, 컨테이너 수, heartbeat — 재시작 후 재수집)
     private final ConcurrentHashMap<String, Node> runtimeCache = new ConcurrentHashMap<>();
 
+    public void deleteAllConfigNodes() {
+        jpa.deleteAll();
+        runtimeCache.clear();
+        log.info("기존 노드 전체 삭제 (설정 재로드)");
+    }
+
     public void register(Node node) {
         jpa.save(node);
         runtimeCache.put(node.getId(), node);
