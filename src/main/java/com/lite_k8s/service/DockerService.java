@@ -239,6 +239,18 @@ public class DockerService {
         return restartContainer(containerId, dockerClient);
     }
 
+    public boolean restartContainer(String containerId, String nodeId) {
+        if (nodeId == null) {
+            return restartContainer(containerId, dockerClient);
+        }
+        return nodeRegistry.findById(nodeId)
+                .map(node -> restartContainer(containerId, nodeClientFactory.createClient(node)))
+                .orElseGet(() -> {
+                    log.warn("노드를 찾을 수 없어 로컬 클라이언트로 재시작 시도: nodeId={}, containerId={}", nodeId, containerId);
+                    return restartContainer(containerId, dockerClient);
+                });
+    }
+
     public boolean restartContainer(String containerId, DockerClient client) {
         try {
             client.startContainerCmd(containerId).exec();

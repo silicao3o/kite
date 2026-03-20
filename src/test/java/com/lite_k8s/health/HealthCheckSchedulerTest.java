@@ -70,7 +70,7 @@ class HealthCheckSchedulerTest {
 
         scheduler.runProbes();
 
-        verify(dockerService, never()).restartContainer(anyString(), any());
+        verify(dockerService, never()).restartContainer(anyString(), any(DockerClient.class));
     }
 
     @Test
@@ -86,7 +86,7 @@ class HealthCheckSchedulerTest {
         scheduler.runProbes();
         scheduler.runProbes();
 
-        verify(dockerService, never()).restartContainer(anyString(), any());
+        verify(dockerService, never()).restartContainer(anyString(), any(DockerClient.class));
     }
 
     @Test

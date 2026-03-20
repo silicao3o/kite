@@ -3,7 +3,7 @@ spring:
     name: docker-monitor
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/docker_monitor}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/docker_monitor}
     username: ${SPRING_DATASOURCE_USERNAME:docker_monitor}
     password: ${SPRING_DATASOURCE_PASSWORD:docker_monitor}
     driver-class-name: org.postgresql.Driver
