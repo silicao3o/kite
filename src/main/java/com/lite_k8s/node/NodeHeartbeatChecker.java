@@ -70,7 +70,7 @@ public class NodeHeartbeatChecker {
             boolean wasHealthy = NodeStatus.HEALTHY.equals(node.getStatus());
 
             nodeRegistry.updateStatus(node.getId(), NodeStatus.UNHEALTHY);
-            log.warn("[Heartbeat] {} → UNHEALTHY: {}", node.getName(), e.getMessage());
+            log.warn("[Heartbeat] {} → UNHEALTHY: {}", node.getName(), e.getMessage(), e);
 
             // 이전에 HEALTHY였을 때만 이벤트 발행 (중복 방지)
             if (wasHealthy) {

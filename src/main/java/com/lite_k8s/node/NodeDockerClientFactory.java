@@ -54,7 +54,7 @@ public class NodeDockerClientFactory {
             dockerHost = "tcp://" + node.getHost() + ":" + node.getPort();
         }
 
-        log.debug("노드 DockerClient 생성: {} ({})", node.getName(), dockerHost);
+        log.info("노드 DockerClient 생성: {} → {}", node.getName(), dockerHost);
 
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
                 .withDockerHost(dockerHost)

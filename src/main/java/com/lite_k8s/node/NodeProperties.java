@@ -24,7 +24,7 @@ public class NodeProperties {
     @Setter
     public static class ProxyConfig {
         private String host;
-        private int port = 22;
+        private Integer port = 22;
         private String user;
         private String keyPath;
     }
@@ -34,9 +34,9 @@ public class NodeProperties {
     public static class NodeConfig {
         private String name;
         private String host;
-        private int port = 2375;
+        private Integer port = 2375;
         private String connectionType = "TCP";
-        private int sshPort = 22;
+        private Integer sshPort = 22;
         private String sshUser;
         private String sshKeyPath;
     }
