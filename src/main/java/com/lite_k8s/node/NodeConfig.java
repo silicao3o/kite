@@ -40,9 +40,11 @@ public class NodeConfig {
                     .sshKeyPath(cfg.getSshKeyPath())
                     .status(NodeStatus.UNKNOWN)
                     .build();
-            registry.register(node);
-            log.info("노드 등록 (startup): {} ({}://{}:{})",
-                    cfg.getName(), cfg.getConnectionType(), cfg.getHost(), cfg.getPort());
+            boolean registered = registry.registerIfAbsent(node);
+            if (registered) {
+                log.info("노드 등록 (startup): {} ({}://{}:{})",
+                        cfg.getName(), cfg.getConnectionType(), cfg.getHost(), cfg.getPort());
+            }
         }
 
         if (properties.getProxy() != null) {
