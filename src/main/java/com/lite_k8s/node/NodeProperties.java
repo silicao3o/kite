@@ -8,22 +8,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 다중 노드 설정
- *
- * 예시:
- * docker.monitor.nodes:
- *   enabled: true
- *   heartbeat-interval-seconds: 30
- *   placement-strategy: LEAST_USED   # LEAST_USED | ROUND_ROBIN
- *   nodes:
- *     - name: server-1
- *       host: 192.168.1.10
- *       port: 2375
- *     - name: server-2
- *       host: 192.168.1.11
- *       port: 2375
- */
 @Getter
 @Setter
 @Component
@@ -33,7 +17,17 @@ public class NodeProperties {
     private boolean enabled = false;
     private int heartbeatIntervalSeconds = 30;
     private String placementStrategy = "LEAST_USED";
+    private ProxyConfig proxy;
     private List<NodeConfig> nodes = new ArrayList<>();
+
+    @Getter
+    @Setter
+    public static class ProxyConfig {
+        private String host;
+        private int port = 22;
+        private String user;
+        private String keyPath;
+    }
 
     @Getter
     @Setter
@@ -41,7 +35,6 @@ public class NodeProperties {
         private String name;
         private String host;
         private int port = 2375;
-        // SSH 터널 설정 (connectionType: SSH 일 때만 사용)
         private String connectionType = "TCP";
         private int sshPort = 22;
         private String sshUser;

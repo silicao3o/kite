@@ -141,6 +141,12 @@ docker:
       heartbeat-interval-seconds: ${NODES_HEARTBEAT_INTERVAL:30}
       # 배치 전략: LEAST_USED | ROUND_ROBIN
       placement-strategy: ${NODES_PLACEMENT_STRATEGY:LEAST_USED}
+      # CP 경유 프록시 설정 (SSH_PROXY 타입 노드에 적용)
+      # proxy:
+      #   host: 10.178.0.3          # control-plane 내부 IP
+      #   port: 22
+      #   user: daquv
+      #   key-path: /root/.ssh/id_rsa
       # 관리할 노드 목록
       nodes: []
       # 예시:
@@ -151,7 +157,7 @@ docker:
       #     port: 2375
       #     connection-type: TCP
       #
-      #   # 온프레미스 노드 (SSH 터널 경유)
+      #   # 온프레미스 노드 (SSH 터널 직접 연결)
       #   - name: onprem-dev
       #     host: <온프레미스 공인 IP>
       #     port: 2375
@@ -159,6 +165,18 @@ docker:
       #     ssh-port: 22
       #     ssh-user: ubuntu
       #     ssh-key-path: /root/.ssh/id_rsa
+      #
+      #   # CP 경유 GCP 노드 (SSH_PROXY)
+      #   - name: 
+      #     host: 
+      #     port: 2375
+      #     connection-type: SSH_PROXY
+      #
+      #   # CP 경유 온프레미스 노드 (SSH_PROXY)
+      #   - name: 
+      #     host: 
+      #     port: 2375
+      #     connection-type: SSH_PROXY
     # Desired State 관리 설정
     desired-state:
       # 활성화 여부
