@@ -5,27 +5,93 @@ import com.lite_k8s.ai.ClaudeResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SuggestionServiceTest {
+
+    @Mock
+    private IncidentReportJpaRepository mockIncidentJpa;
+
+    @Mock
+    private SuggestionJpaRepository mockSuggestionJpa;
+
+    @Mock
+    private ClaudeCodeClient claudeCodeClient;
 
     private SuggestionService service;
     private SuggestionRepository suggestionRepository;
     private IncidentPatternDetector patternDetector;
-    private ClaudeCodeClient claudeCodeClient;
+
+    // In-memory stores
+    private final List<IncidentReport> incidentStore = new ArrayList<>();
+    private final List<Suggestion> suggestionStore = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
-        IncidentReportRepository reportRepository = new IncidentReportRepository();
-        suggestionRepository = new SuggestionRepository();
+        incidentStore.clear();
+        suggestionStore.clear();
+
+        // IncidentReportJpaRepository mock setup
+        when(mockIncidentJpa.save(any(IncidentReport.class))).thenAnswer(inv -> {
+            IncidentReport report = inv.getArgument(0);
+            incidentStore.removeIf(r -> r.getId().equals(report.getId()));
+            incidentStore.add(report);
+            return report;
+        });
+
+        when(mockIncidentJpa.findByContainerNameOrderByCreatedAtDesc(anyString())).thenAnswer(inv -> {
+            String containerName = inv.getArgument(0);
+            return incidentStore.stream()
+                    .filter(r -> r.getContainerName().equals(containerName))
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+        });
+
+        when(mockIncidentJpa.findAllByOrderByCreatedAtDesc()).thenAnswer(inv ->
+                incidentStore.stream()
+                        .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                        .toList()
+        );
+
+        // SuggestionJpaRepository mock setup
+        when(mockSuggestionJpa.save(any(Suggestion.class))).thenAnswer(inv -> {
+            Suggestion suggestion = inv.getArgument(0);
+            suggestionStore.removeIf(s -> s.getId().equals(suggestion.getId()));
+            suggestionStore.add(suggestion);
+            return suggestion;
+        });
+
+        when(mockSuggestionJpa.findById(anyString())).thenAnswer(inv -> {
+            String id = inv.getArgument(0);
+            return suggestionStore.stream().filter(s -> s.getId().equals(id)).findFirst();
+        });
+
+        when(mockSuggestionJpa.findByStatusOrderByCreatedAtDesc(any(Suggestion.Status.class))).thenAnswer(inv -> {
+            Suggestion.Status status = inv.getArgument(0);
+            return suggestionStore.stream()
+                    .filter(s -> s.getStatus() == status)
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+        });
+
+        IncidentReportRepository reportRepository = new IncidentReportRepository(mockIncidentJpa);
+        suggestionRepository = new SuggestionRepository(mockSuggestionJpa);
         patternDetector = new IncidentPatternDetector(reportRepository);
-        claudeCodeClient = mock(ClaudeCodeClient.class);
         service = new SuggestionService(suggestionRepository, claudeCodeClient);
 
         // 반복 패턴 데이터 세팅

@@ -4,19 +4,90 @@ import com.lite_k8s.playbook.RiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Pageable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuditLogServiceTest {
+
+    @Mock
+    private AuditLogJpaRepository mockJpa;
 
     private AuditLogService auditLogService;
     private AuditLogRepository repository;
 
+    // In-memory store to simulate JPA behavior
+    private final List<AuditLog> store = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
-        repository = new AuditLogRepository();
+        store.clear();
+
+        // save() 호출 시 store에 저장
+        when(mockJpa.save(any(AuditLog.class))).thenAnswer(inv -> {
+            AuditLog log = inv.getArgument(0);
+            store.removeIf(l -> l.getId().equals(log.getId()));
+            store.add(log);
+            return log;
+        });
+
+        // findById() 호출 시 store에서 조회
+        when(mockJpa.findById(any(String.class))).thenAnswer(inv -> {
+            String id = inv.getArgument(0);
+            return store.stream().filter(l -> l.getId().equals(id)).findFirst();
+        });
+
+        // findAllByOrderByTimestampDesc() 호출 시 store 반환
+        when(mockJpa.findAllByOrderByTimestampDesc()).thenAnswer(inv ->
+                store.stream()
+                        .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                        .toList()
+        );
+
+        // findAllByOrderByTimestampDesc(Pageable) 호출 시 store에서 limit 적용
+        when(mockJpa.findAllByOrderByTimestampDesc(any(Pageable.class))).thenAnswer(inv -> {
+            Pageable pageable = inv.getArgument(0);
+            return store.stream()
+                    .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                    .limit(pageable.getPageSize())
+                    .toList();
+        });
+
+        // findByContainerIdOrderByTimestampDesc() 호출 시 store에서 필터링
+        when(mockJpa.findByContainerIdOrderByTimestampDesc(any(String.class))).thenAnswer(inv -> {
+            String containerId = inv.getArgument(0);
+            return store.stream()
+                    .filter(l -> l.getContainerId().equals(containerId))
+                    .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                    .toList();
+        });
+
+        // findByExecutionResultOrderByTimestampDesc() 호출 시 store에서 필터링
+        when(mockJpa.findByExecutionResultOrderByTimestampDesc(any(ExecutionResult.class))).thenAnswer(inv -> {
+            ExecutionResult result = inv.getArgument(0);
+            return store.stream()
+                    .filter(l -> l.getExecutionResult() == result)
+                    .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                    .toList();
+        });
+
+        // count() 호출 시 store 크기 반환
+        when(mockJpa.count()).thenAnswer(inv -> (long) store.size());
+
+        repository = new AuditLogRepository(mockJpa);
         auditLogService = new AuditLogService(repository);
     }
 

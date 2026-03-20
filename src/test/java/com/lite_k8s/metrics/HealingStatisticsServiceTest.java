@@ -1,24 +1,56 @@
 package com.lite_k8s.metrics;
 
 import com.lite_k8s.model.HealingEvent;
+import com.lite_k8s.repository.HealingEventJpaRepository;
 import com.lite_k8s.repository.HealingEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class HealingStatisticsServiceTest {
+
+    @Mock
+    private HealingEventJpaRepository mockJpa;
 
     private HealingStatisticsService service;
     private HealingEventRepository repository;
 
+    // In-memory store to simulate JPA behavior
+    private final List<HealingEvent> store = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
-        repository = new HealingEventRepository();
+        store.clear();
+
+        when(mockJpa.save(any(HealingEvent.class))).thenAnswer(inv -> {
+            HealingEvent event = inv.getArgument(0);
+            store.add(event);
+            return event;
+        });
+
+        when(mockJpa.findAllByOrderByTimestampDesc()).thenAnswer(inv ->
+                store.stream()
+                        .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                        .toList()
+        );
+
+        repository = new HealingEventRepository(mockJpa);
         service = new HealingStatisticsService(repository);
     }
 

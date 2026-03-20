@@ -1,74 +1,46 @@
 package com.lite_k8s.approval;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
- * 승인 대기 저장소 (인메모리)
+ * 승인 대기 저장소
  */
 @Repository
+@RequiredArgsConstructor
 public class PendingApprovalRepository {
 
-    private final Map<String, PendingApproval> store = new ConcurrentHashMap<>();
+    private final PendingApprovalJpaRepository jpa;
 
-    /**
-     * 저장
-     */
     public void save(PendingApproval approval) {
-        store.put(approval.getId(), approval);
+        jpa.save(approval);
     }
 
-    /**
-     * ID로 조회
-     */
     public Optional<PendingApproval> findById(String id) {
-        return Optional.ofNullable(store.get(id));
+        return jpa.findById(id);
     }
 
-    /**
-     * 상태별 조회
-     */
     public List<PendingApproval> findByStatus(ApprovalStatus status) {
-        return store.values().stream()
-                .filter(a -> a.getStatus() == status)
-                .collect(Collectors.toList());
+        return jpa.findByStatus(status);
     }
 
-    /**
-     * 전체 조회
-     */
     public List<PendingApproval> findAll() {
-        return List.copyOf(store.values());
+        return jpa.findAll();
     }
 
-    /**
-     * 만료된 PENDING 상태 조회
-     */
     public List<PendingApproval> findExpiredPending() {
-        LocalDateTime now = LocalDateTime.now();
-        return store.values().stream()
-                .filter(a -> a.getStatus() == ApprovalStatus.PENDING)
-                .filter(a -> a.getExpiresAt().isBefore(now))
-                .collect(Collectors.toList());
+        return jpa.findByStatusAndExpiresAtBefore(ApprovalStatus.PENDING, LocalDateTime.now());
     }
 
-    /**
-     * 삭제
-     */
     public void delete(String id) {
-        store.remove(id);
+        jpa.deleteById(id);
     }
 
-    /**
-     * 전체 삭제 (테스트용)
-     */
     public void clear() {
-        store.clear();
+        jpa.deleteAll();
     }
 }

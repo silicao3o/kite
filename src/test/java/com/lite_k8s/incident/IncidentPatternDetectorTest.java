@@ -3,21 +3,61 @@ package com.lite_k8s.incident;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class IncidentPatternDetectorTest {
+
+    @Mock
+    private IncidentReportJpaRepository mockJpa;
 
     private IncidentPatternDetector detector;
     private IncidentReportRepository repository;
 
+    // In-memory store to simulate JPA behavior
+    private final List<IncidentReport> store = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
-        repository = new IncidentReportRepository();
+        store.clear();
+
+        when(mockJpa.save(any(IncidentReport.class))).thenAnswer(inv -> {
+            IncidentReport report = inv.getArgument(0);
+            store.removeIf(r -> r.getId().equals(report.getId()));
+            store.add(report);
+            return report;
+        });
+
+        when(mockJpa.findByContainerNameOrderByCreatedAtDesc(anyString())).thenAnswer(inv -> {
+            String containerName = inv.getArgument(0);
+            return store.stream()
+                    .filter(r -> r.getContainerName().equals(containerName))
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .toList();
+        });
+
+        when(mockJpa.findAllByOrderByCreatedAtDesc()).thenAnswer(inv ->
+                store.stream()
+                        .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                        .toList()
+        );
+
+        repository = new IncidentReportRepository(mockJpa);
         detector = new IncidentPatternDetector(repository);
     }
 

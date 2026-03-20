@@ -1,27 +1,33 @@
 package com.lite_k8s.node;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "nodes")
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Node {
 
+    @Id
     private String id;
     private String name;
     private String host;
     private int port;
 
+    @Enumerated(EnumType.STRING)
     @Builder.Default
     private NodeConnectionType connectionType = NodeConnectionType.TCP;
     private int sshPort;
     private String sshUser;
     private String sshKeyPath;
 
+    @Enumerated(EnumType.STRING)
     @Builder.Default
     private NodeStatus status = NodeStatus.UNKNOWN;
 

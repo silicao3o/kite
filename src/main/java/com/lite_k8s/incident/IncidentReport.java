@@ -1,42 +1,56 @@
 package com.lite_k8s.incident;
 
-import lombok.Builder;
-import lombok.Data;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Entity
+@Table(name = "incident_reports")
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class IncidentReport {
 
     public enum Status {
         OPEN, ANALYZING, CLOSED
     }
 
-    private String id;
+    @Id
+    @Builder.Default
+    private String id = UUID.randomUUID().toString();
+
     private String containerId;
     private String containerName;
-    private String summary;
-    private String rootCause;
-    private List<String> timeline;
-    private List<String> suggestions;
-    private Status status;
-    private LocalDateTime createdAt;
-    private LocalDateTime closedAt;
 
-    @Builder
-    public IncidentReport(String containerId, String containerName, String summary,
-                          String rootCause, List<String> timeline, List<String> suggestions) {
-        this.id = UUID.randomUUID().toString();
-        this.createdAt = LocalDateTime.now();
-        this.status = Status.OPEN;
-        this.containerId = containerId;
-        this.containerName = containerName;
-        this.summary = summary;
-        this.rootCause = rootCause;
-        this.timeline = timeline != null ? timeline : new ArrayList<>();
-        this.suggestions = suggestions != null ? suggestions : new ArrayList<>();
-    }
+    @Column(columnDefinition = "TEXT")
+    private String summary;
+
+    @Column(columnDefinition = "TEXT")
+    private String rootCause;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "incident_timeline", joinColumns = @JoinColumn(name = "incident_id"))
+    @Column(name = "entry", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> timeline = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "incident_suggestions", joinColumns = @JoinColumn(name = "incident_id"))
+    @Column(name = "suggestion", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> suggestions = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Status status = Status.OPEN;
+
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    private LocalDateTime closedAt;
 }

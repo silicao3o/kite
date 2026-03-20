@@ -1,12 +1,17 @@
 package com.lite_k8s.incident;
 
-import lombok.Builder;
-import lombok.Data;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Entity
+@Table(name = "suggestions")
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Suggestion {
 
     public enum Type {
@@ -17,22 +22,24 @@ public class Suggestion {
         PENDING, APPROVED, REJECTED
     }
 
-    private String id;
-    private String containerName;
-    private Type type;
-    private String content;
-    private Status status;
-    private LocalDateTime createdAt;
-    private int patternOccurrenceCount;
+    @Id
+    @Builder.Default
+    private String id = UUID.randomUUID().toString();
 
-    @Builder
-    public Suggestion(String containerName, Type type, String content, int patternOccurrenceCount) {
-        this.id = UUID.randomUUID().toString();
-        this.createdAt = LocalDateTime.now();
-        this.status = Status.PENDING;
-        this.containerName = containerName;
-        this.type = type;
-        this.content = content;
-        this.patternOccurrenceCount = patternOccurrenceCount;
-    }
+    private String containerName;
+
+    @Enumerated(EnumType.STRING)
+    private Type type;
+
+    @Column(columnDefinition = "TEXT")
+    private String content;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Status status = Status.PENDING;
+
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    private int patternOccurrenceCount;
 }

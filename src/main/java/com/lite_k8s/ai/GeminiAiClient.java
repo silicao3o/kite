@@ -23,7 +23,7 @@ import java.time.Duration;
 public class GeminiAiClient implements AiClient {
 
     private static final String API_URL_TEMPLATE =
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s";
+            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
 
     private final AiSettingsService aiSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -35,7 +35,7 @@ public class GeminiAiClient implements AiClient {
     public ClaudeResponse analyzeWithPrompt(String prompt) {
         String apiKey = aiSettingsService.getGeminiApiKey();
         try {
-            String url = String.format(API_URL_TEMPLATE, apiKey);
+            String url = String.format(API_URL_TEMPLATE, aiSettingsService.getGeminiModel(), apiKey);
             String requestBody = buildRequestBody(prompt);
 
             HttpRequest request = HttpRequest.newBuilder()
