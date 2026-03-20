@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -19,13 +20,31 @@ public class SshTunnelManager {
     private static final int PORT_RANGE_END = 30000;
 
     private final NodeProperties properties;
+    private final JSchSessionFactory sessionFactory;
+
     private final Map<String, Integer> nodePortMap = new ConcurrentHashMap<>();
     private final Map<String, Session> activeSessions = new ConcurrentHashMap<>();
-    private final Map<String, Session> proxySessions = new ConcurrentHashMap<>();
+
+    // 공유 CP 세션 — SSH_PROXY 노드 전체가 하나를 재사용
+    private volatile Session sharedCpSession;
+    private final Object cpSessionLock = new Object();
+    private final Set<String> proxyNodeIds = ConcurrentHashMap.newKeySet();
+
     private final AtomicInteger portCounter = new AtomicInteger(PORT_RANGE_START);
 
     public SshTunnelManager(NodeProperties properties) {
+        this(properties, (user, host, port, keyPath) -> {
+            JSch jsch = new JSch();
+            jsch.addIdentity(keyPath);
+            Session session = jsch.getSession(user, host, port);
+            session.setConfig("StrictHostKeyChecking", "no");
+            return session;
+        });
+    }
+
+    public SshTunnelManager(NodeProperties properties, JSchSessionFactory sessionFactory) {
         this.properties = properties;
+        this.sessionFactory = sessionFactory;
     }
 
     public int allocateLocalPort(String nodeId) {
@@ -45,7 +64,7 @@ public class SshTunnelManager {
 
     /**
      * 직접 SSH 터널 (기존 방식)
-     * Kite -> 대상 서버 Docker API
+     * docker-monitor → 대상 서버 Docker API
      */
     public void openTunnel(Node node) throws JSchException {
         if (!node.isSsh()) {
@@ -54,13 +73,8 @@ public class SshTunnelManager {
 
         int localPort = allocateLocalPort(node.getId());
 
-        JSch jsch = new JSch();
-        jsch.addIdentity(node.getSshKeyPath());
-
-        Session session = jsch.getSession(node.getSshUser(), node.getHost(), node.getSshPort());
-        session.setConfig("StrictHostKeyChecking", "no");
+        Session session = sessionFactory.create(node.getSshUser(), node.getHost(), node.getSshPort(), node.getSshKeyPath());
         session.connect(10_000);
-
         session.setPortForwardingL(localPort, "localhost", node.getPort());
 
         activeSessions.put(node.getId(), session);
@@ -68,11 +82,11 @@ public class SshTunnelManager {
     }
 
     /**
-     * CP 경유 SSH 프록시 터널
-     * Kite -> CP(점프 호스트) -> 대상 서버 Docker API
+     * CP 경유 SSH 프록시 터널 — CP 세션 1개 공유
+     * docker-monitor → CP(점프 호스트) → 대상 서버 Docker API
      *
-     * JSch 체이닝: CP 세션에서 대상 호스트로 포트포워딩 후,
-     * 로컬에서 CP의 포워딩 포트로 다시 매핑
+     * CP 세션은 처음 1번만 생성하고 이후 재사용.
+     * 각 VM 노드는 CP 세션에 포트포워딩 룰만 추가.
      */
     public void openProxyTunnel(Node node) throws JSchException {
         if (!node.isSshProxy()) {
@@ -85,53 +99,86 @@ public class SshTunnelManager {
         }
 
         int localPort = allocateLocalPort(node.getId());
+        Session cpSession = getOrCreateCpSession(proxy);
 
-        // Step 1: CP(점프 호스트)에 SSH 연결
-        JSch proxyJsch = new JSch();
-        proxyJsch.addIdentity(proxy.getKeyPath());
+        cpSession.setPortForwardingL(localPort, node.getHost(), node.getPort());
 
-        Session proxySession = proxyJsch.getSession(proxy.getUser(), proxy.getHost(), proxy.getPort());
-        proxySession.setConfig("StrictHostKeyChecking", "no");
-        proxySession.connect(10_000);
-        proxySessions.put(node.getId(), proxySession);
+        activeSessions.put(node.getId(), cpSession);
+        proxyNodeIds.add(node.getId());
 
-        log.info("Proxy SSH session established to CP {}@{}:{}",
-                proxy.getUser(), proxy.getHost(), proxy.getPort());
-
-        // Step 2: CP 세션을 통해 대상 호스트의 Docker API 포트로 포워딩
-        // localPort(Kite) -> CP -> targetHost:targetPort
-        proxySession.setPortForwardingL(localPort, node.getHost(), node.getPort());
-
-        activeSessions.put(node.getId(), proxySession);
-        log.info("SSH proxy tunnel opened for node {} via CP: localhost:{} -> {}:{}",
+        log.info("SSH proxy tunnel opened for node {} via CP: localhost:{} → {}:{}",
                 node.getName(), localPort, node.getHost(), node.getPort());
     }
 
-    public void closeTunnel(String nodeId) {
-        Session session = activeSessions.remove(nodeId);
-        if (session != null && session.isConnected()) {
-            session.disconnect();
+    private Session getOrCreateCpSession(NodeProperties.ProxyConfig proxy) throws JSchException {
+        if (sharedCpSession != null && sharedCpSession.isConnected()) {
+            return sharedCpSession;
         }
-        Session proxySession = proxySessions.remove(nodeId);
-        if (proxySession != null && proxySession.isConnected()) {
-            proxySession.disconnect();
+        synchronized (cpSessionLock) {
+            if (sharedCpSession != null && sharedCpSession.isConnected()) {
+                return sharedCpSession;
+            }
+            log.info("CP SSH 세션 생성: {}@{}:{}", proxy.getUser(), proxy.getHost(), proxy.getPort());
+            Session session = sessionFactory.create(proxy.getUser(), proxy.getHost(), proxy.getPort(), proxy.getKeyPath());
+            session.connect(10_000);
+            sharedCpSession = session;
+            return sharedCpSession;
+        }
+    }
+
+    public void closeTunnel(String nodeId) {
+        if (proxyNodeIds.remove(nodeId)) {
+            closeProxyNodeTunnel(nodeId);
+        } else {
+            Session session = activeSessions.remove(nodeId);
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
         }
         nodePortMap.remove(nodeId);
         log.info("Tunnel closed for node {}", nodeId);
     }
 
+    private void closeProxyNodeTunnel(String nodeId) {
+        Integer localPort = nodePortMap.get(nodeId);
+        activeSessions.remove(nodeId);
+
+        if (localPort != null && sharedCpSession != null) {
+            try {
+                sharedCpSession.delPortForwardingL(localPort);
+            } catch (JSchException e) {
+                log.warn("포트포워딩 룰 제거 실패 (node={}): {}", nodeId, e.getMessage());
+            }
+        }
+
+        if (proxyNodeIds.isEmpty()) {
+            disconnectCpSession();
+        }
+    }
+
+    private void disconnectCpSession() {
+        synchronized (cpSessionLock) {
+            if (sharedCpSession != null) {
+                sharedCpSession.disconnect();
+                sharedCpSession = null;
+                log.info("CP SSH 세션 종료 (프록시 노드 없음)");
+            }
+        }
+    }
+
     public void closeAll() {
-        activeSessions.values().forEach(session -> {
-            if (session.isConnected()) {
+        // 직접 SSH 노드 종료
+        activeSessions.forEach((nodeId, session) -> {
+            if (!proxyNodeIds.contains(nodeId) && session.isConnected()) {
                 session.disconnect();
             }
         });
         activeSessions.clear();
-        proxySessions.values().forEach(session -> {
-            if (session.isConnected()) {
-                session.disconnect();
-            }
-        });
-        proxySessions.clear();
+
+        // 공유 CP 세션 종료
+        proxyNodeIds.clear();
+        disconnectCpSession();
+
+        nodePortMap.clear();
     }
 }
