@@ -51,7 +51,7 @@ public class NodeConfig {
                     properties.getProxy().getHost(),
                     properties.getProxy().getPort());
         }
-        log.info("총 {}개 노드 등록 완료", registry.getAll().size());
+        log.info("총 {}개 노드 등록 완료", registry.findAll().size());
     }
 
     private NodeConnectionType parseConnectionType(String type) {

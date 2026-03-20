@@ -85,4 +85,43 @@ class NodeDockerClientFactorySshTest {
 
         verify(tunnelManager, times(1)).openTunnel(sshNode);
     }
+
+    @Test
+    @DisplayName("SSH_PROXY 노드는 openProxyTunnel을 호출한다")
+    void createClient_SshProxyNode_CallsOpenProxyTunnel() throws JSchException {
+        Node proxyNode = Node.builder()
+                .id("node-onprem")
+                .name("on-prem")
+                .host("192.168.1.10")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH_PROXY)
+                .build();
+
+        when(tunnelManager.allocateLocalPort("node-onprem")).thenReturn(21000);
+
+        DockerClient client = factory.createClient(proxyNode);
+
+        assertThat(client).isNotNull();
+        verify(tunnelManager).openProxyTunnel(proxyNode);
+        verify(tunnelManager, never()).openTunnel(any());
+    }
+
+    @Test
+    @DisplayName("같은 SSH_PROXY 노드를 두 번 요청하면 proxyTunnel은 한 번만 연다")
+    void createClient_SshProxyNode_OpensProxyTunnelOnlyOnce() throws JSchException {
+        Node proxyNode = Node.builder()
+                .id("node-onprem")
+                .name("on-prem")
+                .host("192.168.1.10")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH_PROXY)
+                .build();
+
+        when(tunnelManager.allocateLocalPort("node-onprem")).thenReturn(21000);
+
+        factory.createClient(proxyNode);
+        factory.createClient(proxyNode);
+
+        verify(tunnelManager, times(1)).openProxyTunnel(proxyNode);
+    }
 }
