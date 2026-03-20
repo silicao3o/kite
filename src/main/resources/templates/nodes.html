@@ -162,7 +162,7 @@
 
 <script>
 function toggleSshFields() {
-    const val = document.getElementById('connectionType').value; const isSsh = val === 'SSH' || val === 'SSH_PROXY';
+    const val = document.getElementById('connectionType').value; const isSsh = val === 'SSH';
     document.getElementById('sshFields').style.display = isSsh ? 'block' : 'none';
 }
 
@@ -181,7 +181,7 @@ async function addNode() {
 
     const body = {name, host, port, connectionType};
 
-    if (connectionType === 'SSH' || connectionType === 'SSH_PROXY') {
+    if (connectionType === 'SSH') {
         const sshUser = document.getElementById('sshUser').value.trim();
         const sshKeyPath = document.getElementById('sshKeyPath').value.trim();
         if (!sshUser || !sshKeyPath) {
