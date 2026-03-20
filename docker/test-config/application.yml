@@ -94,17 +94,11 @@ docker:
           ports:
             - "8082:8080"
 
-    # ── 다중 노드 스케줄링 (5.4) — 단일 호스트 데모에서 비활성화 ──
+    # ── 다중 노드 스케줄링 (5.4) ──────────────────────────────────
     nodes:
-      enabled: false
-      # 다중 호스트 환경에서 활성화:
-      # enabled: true
-      # heartbeat-interval-seconds: 30
-      # placement-strategy: LEAST_USED
-      # nodes:
-      #   - name: local-docker
-      #     host: localhost
-      #     port: 2375
+      enabled: ${DOCKER_MONITOR_NODES_ENABLED:false}
+      heartbeat-interval-seconds: 30
+      placement-strategy: LEAST_USED
 
     # ── AI 분석 ───────────────────────────────────────────────────
     ai:
