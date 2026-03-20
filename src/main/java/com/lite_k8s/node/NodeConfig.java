@@ -21,9 +21,6 @@ public class NodeConfig {
         if (!properties.isEnabled()) return;
         if (properties.getNodes() == null || properties.getNodes().isEmpty()) return;
 
-        // 재시작 시 설정 기반 노드 초기화 (중복 방지)
-        registry.deleteAllConfigNodes();
-
         for (NodeProperties.NodeConfig cfg : properties.getNodes()) {
             NodeConnectionType connectionType = parseConnectionType(cfg.getConnectionType());
 
