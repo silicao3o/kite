@@ -95,7 +95,7 @@ public class StateReconciler {
         return existing.stream()
                 .mapToInt(c -> parseIndex(c, spec.getContainerNamePrefix()))
                 .max()
-                .orElse(0) + 1;
+                .orElse(-1) + 1;
     }
 
     private int parseIndex(Container container, String prefix) {
