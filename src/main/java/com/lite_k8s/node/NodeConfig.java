@@ -22,8 +22,12 @@ public class NodeConfig {
         if (properties.getNodes() == null || properties.getNodes().isEmpty()) return;
 
         for (NodeProperties.NodeConfig cfg : properties.getNodes()) {
-            NodeConnectionType connectionType = "SSH".equalsIgnoreCase(cfg.getConnectionType())
-                    ? NodeConnectionType.SSH : NodeConnectionType.TCP;
+            NodeConnectionType connectionType = parseConnectionType(cfg.getConnectionType());
+
+            if (connectionType == NodeConnectionType.SSH_PROXY && properties.getProxy() == null) {
+                log.warn("노드 '{}' 는 SSH_PROXY 타입이지만 proxy 설정이 없습니다. 건너뜁니다.", cfg.getName());
+                continue;
+            }
 
             Node node = Node.builder()
                     .id(UUID.randomUUID().toString())
@@ -40,7 +44,22 @@ public class NodeConfig {
             log.info("노드 등록 (startup): {} ({}://{}:{})",
                     cfg.getName(), cfg.getConnectionType(), cfg.getHost(), cfg.getPort());
         }
-        log.info("총 {}개 노드 등록 완료", properties.getNodes().size());
+
+        if (properties.getProxy() != null) {
+            log.info("프록시(CP) 설정: {}@{}:{}",
+                    properties.getProxy().getUser(),
+                    properties.getProxy().getHost(),
+                    properties.getProxy().getPort());
+        }
+        log.info("총 {}개 노드 등록 완료", registry.getAll().size());
+    }
+
+    private NodeConnectionType parseConnectionType(String type) {
+        return switch (type.toUpperCase()) {
+            case "SSH" -> NodeConnectionType.SSH;
+            case "SSH_PROXY" -> NodeConnectionType.SSH_PROXY;
+            default -> NodeConnectionType.TCP;
+        };
     }
 
     @Bean
