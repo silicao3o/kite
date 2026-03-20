@@ -59,4 +59,34 @@ class NodeConfigSshTest {
 
         assertThat(node.isSsh()).isFalse();
     }
+
+    @Test
+    @DisplayName("SSH_PROXY 타입 Node는 isSshProxy()가 true")
+    void node_SshProxyType_IsSshProxyReturnsTrue() {
+        Node node = Node.builder()
+                .id("node-onprem")
+                .name("on-prem")
+                .host("192.168.1.10")
+                .port(2375)
+                .connectionType(NodeConnectionType.SSH_PROXY)
+                .build();
+
+        assertThat(node.isSshProxy()).isTrue();
+        assertThat(node.isSsh()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SSH/SSH_PROXY 타입 Node는 requiresTunnel()이 true, TCP는 false")
+    void node_RequiresTunnel_OnlyForSshTypes() {
+        Node sshNode = Node.builder().id("1").name("ssh").host("h").port(1)
+                .connectionType(NodeConnectionType.SSH).build();
+        Node proxyNode = Node.builder().id("2").name("proxy").host("h").port(1)
+                .connectionType(NodeConnectionType.SSH_PROXY).build();
+        Node tcpNode = Node.builder().id("3").name("tcp").host("h").port(1)
+                .connectionType(NodeConnectionType.TCP).build();
+
+        assertThat(sshNode.requiresTunnel()).isTrue();
+        assertThat(proxyNode.requiresTunnel()).isTrue();
+        assertThat(tcpNode.requiresTunnel()).isFalse();
+    }
 }

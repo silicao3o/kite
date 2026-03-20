@@ -160,14 +160,17 @@ public class DockerService {
         if (nodeRegistry == null) return result;
         for (Node node : nodeRegistry.findAll()) {
             try {
+                log.info("[멀티노드] {} 컨테이너 조회 시작 ({}:{})", node.getName(), node.getHost(), node.getPort());
                 DockerClient client = nodeClientFactory.createClient(node);
-                client.listContainersCmd().withShowAll(showAll).exec()
+                List<ContainerInfo> nodeContainers = client.listContainersCmd().withShowAll(showAll).exec()
                         .stream()
                         .map(c -> toContainerInfo(c, node.getId(), node.getName()))
-                        .forEach(result::add);
+                        .toList();
+                log.info("[멀티노드] {} 컨테이너 {}개 조회 성공", node.getName(), nodeContainers.size());
+                result.addAll(nodeContainers);
             } catch (Exception e) {
                 log.warn("[멀티노드] {} ({}:{}) 컨테이너 조회 실패: {}",
-                        node.getName(), node.getHost(), node.getPort(), e.getMessage());
+                        node.getName(), node.getHost(), node.getPort(), e.getMessage(), e);
             }
         }
 

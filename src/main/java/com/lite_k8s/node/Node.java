@@ -35,6 +35,14 @@ public class Node {
         return NodeConnectionType.SSH.equals(connectionType);
     }
 
+    public boolean isSshProxy() {
+        return NodeConnectionType.SSH_PROXY.equals(connectionType);
+    }
+
+    public boolean requiresTunnel() {
+        return isSsh() || isSshProxy();
+    }
+
     @Builder.Default
     private double cpuUsagePercent = 0.0;
 

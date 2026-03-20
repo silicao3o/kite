@@ -18,7 +18,8 @@ public class NodeManagementController {
 
     @PostMapping
     public NodeResponse addNode(@RequestBody AddNodeRequest request) {
-        NodeConnectionType connectionType = "SSH".equalsIgnoreCase(request.getConnectionType())
+        NodeConnectionType connectionType = "SSH_PROXY".equalsIgnoreCase(request.getConnectionType())
+                ? NodeConnectionType.SSH_PROXY : "SSH".equalsIgnoreCase(request.getConnectionType())
                 ? NodeConnectionType.SSH : NodeConnectionType.TCP;
 
         Node node = Node.builder()
