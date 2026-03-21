@@ -65,9 +65,9 @@ services:
       SELF_HEALING_RESET_WINDOW: "5"       # 5분 (데모용 짧게)
 
       # ── 보안 (데모: 비활성화) ────────────────────────────────────
-      SECURITY_ENABLED: "false"
+      SECURITY_ENABLED: "true"
       AUTH_USERNAME: admin
-      AUTH_PASSWORD: admin
+      AUTH_PASSWORD: daquv_kite
 
       # ── AI 분석 ─────────────────────────────────────────────────
       AI_ENABLED: "true"
