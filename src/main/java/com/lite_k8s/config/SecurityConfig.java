@@ -41,6 +41,10 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()  // WebSocket은 별도 처리
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, e) ->
+                                response.sendRedirect("/login"))
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
