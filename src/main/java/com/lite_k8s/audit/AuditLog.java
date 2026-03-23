@@ -43,11 +43,6 @@ public class AuditLog {
     @Enumerated(EnumType.STRING)
     private RiskLevel riskLevel;
 
-    // 승인 관련
-    private boolean approvalRequired;
-    private String approvedBy;
-    private boolean approved;
-
     // 실행 결과
     @Enumerated(EnumType.STRING)
     private ExecutionResult executionResult;
@@ -57,7 +52,7 @@ public class AuditLog {
     @Builder
     public AuditLog(String containerName, String containerId, String playbookName,
                     String actionType, String intent, String reasoning,
-                    RiskLevel riskLevel, boolean approvalRequired) {
+                    RiskLevel riskLevel) {
         this.id = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.containerName = containerName;
@@ -67,7 +62,6 @@ public class AuditLog {
         this.intent = intent;
         this.reasoning = reasoning;
         this.riskLevel = riskLevel;
-        this.approvalRequired = approvalRequired;
         this.executionResult = ExecutionResult.PENDING;
     }
 
@@ -98,20 +92,4 @@ public class AuditLog {
         this.completedAt = LocalDateTime.now();
     }
 
-    /**
-     * 타임아웃 기록
-     */
-    public void recordTimeout() {
-        this.executionResult = ExecutionResult.TIMEOUT;
-        this.resultMessage = "승인 대기 타임아웃";
-        this.completedAt = LocalDateTime.now();
-    }
-
-    /**
-     * 승인 정보 기록
-     */
-    public void recordApproval(String approver, boolean approved) {
-        this.approvedBy = approver;
-        this.approved = approved;
-    }
 }
