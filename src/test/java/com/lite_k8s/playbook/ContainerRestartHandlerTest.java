@@ -37,14 +37,14 @@ class ContainerRestartHandlerTest {
                 .build();
         Map<String, String> context = Map.of("containerId", "abc123");
 
-        when(dockerService.restartContainer("abc123")).thenReturn(true);
+        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
 
         // when
         ActionResult result = handler.execute(action, context);
 
         // then
         assertThat(result.isSuccess()).isTrue();
-        verify(dockerService).restartContainer("abc123");
+        verify(dockerService).restartContainer("abc123", (String) null);
     }
 
     @Test
@@ -58,7 +58,7 @@ class ContainerRestartHandlerTest {
                 .build();
         Map<String, String> context = Map.of();
 
-        when(dockerService.restartContainer("abc123")).thenReturn(false);
+        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
 
         // when
         ActionResult result = handler.execute(action, context);

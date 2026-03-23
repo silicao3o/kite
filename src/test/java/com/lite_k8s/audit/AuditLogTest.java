@@ -88,11 +88,11 @@ class AuditLogTest {
                 .build();
 
         // when
-        log.recordBlocked("CRITICAL 위험도 조치 - 수동 승인 필요");
+        log.recordBlocked("CRITICAL 위험도 조치 차단");
 
         // then
         assertThat(log.getExecutionResult()).isEqualTo(ExecutionResult.BLOCKED);
-        assertThat(log.getResultMessage()).contains("수동 승인");
+        assertThat(log.getResultMessage()).contains("CRITICAL");
     }
 
     @Test
@@ -122,48 +122,4 @@ class AuditLogTest {
         assertThat(log.getReasoning()).contains("메모리 limit 상향");
     }
 
-    @Test
-    @DisplayName("승인 정보 기록")
-    void shouldRecordApprovalInfo() {
-        // given
-        AuditLog log = AuditLog.builder()
-                .containerName("db")
-                .containerId("456")
-                .playbookName("restart")
-                .actionType("container.restart")
-                .intent("DB 재시작")
-                .riskLevel(RiskLevel.HIGH)
-                .approvalRequired(true)
-                .build();
-
-        // when
-        log.recordApproval("admin", true);
-
-        // then
-        assertThat(log.isApprovalRequired()).isTrue();
-        assertThat(log.getApprovedBy()).isEqualTo("admin");
-        assertThat(log.isApproved()).isTrue();
-    }
-
-    @Test
-    @DisplayName("타임아웃 기록")
-    void shouldRecordTimeout() {
-        // given
-        AuditLog log = AuditLog.builder()
-                .containerName("web")
-                .containerId("123")
-                .playbookName("restart")
-                .actionType("container.restart")
-                .intent("재시작")
-                .riskLevel(RiskLevel.HIGH)
-                .approvalRequired(true)
-                .build();
-
-        // when
-        log.recordTimeout();
-
-        // then
-        assertThat(log.getExecutionResult()).isEqualTo(ExecutionResult.TIMEOUT);
-        assertThat(log.getResultMessage()).contains("타임아웃");
-    }
 }

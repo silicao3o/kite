@@ -14,7 +14,6 @@ public class AuditStatistics {
     private long successCount;
     private long failureCount;
     private long blockedCount;
-    private long timeoutCount;
     private long pendingCount;
     private double successRate;
 
@@ -24,7 +23,6 @@ public class AuditStatistics {
                 .successCount(0)
                 .failureCount(0)
                 .blockedCount(0)
-                .timeoutCount(0)
                 .pendingCount(0)
                 .successRate(0.0)
                 .build();
