@@ -34,17 +34,11 @@ public class SafetyGateResult {
      */
     private ServiceCriticality serviceCriticality;
 
-    /**
-     * 수동 승인 필요 여부
-     */
-    private boolean requiresApproval;
-
     public static SafetyGateResult allowed(RiskLevel riskLevel, ServiceCriticality criticality) {
         return SafetyGateResult.builder()
                 .allowed(true)
                 .finalRiskLevel(riskLevel)
                 .serviceCriticality(criticality)
-                .requiresApproval(false)
                 .reason("Risk level acceptable")
                 .build();
     }
@@ -54,7 +48,6 @@ public class SafetyGateResult {
                 .allowed(false)
                 .finalRiskLevel(riskLevel)
                 .serviceCriticality(criticality)
-                .requiresApproval(true)
                 .reason(reason)
                 .build();
     }
@@ -64,7 +57,6 @@ public class SafetyGateResult {
                 .allowed(true)
                 .finalRiskLevel(null)
                 .serviceCriticality(null)
-                .requiresApproval(false)
                 .reason("Safety Gate disabled")
                 .build();
     }

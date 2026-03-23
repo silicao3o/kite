@@ -25,7 +25,7 @@ public class AuditLogService {
     public AuditLog logActionStart(String containerName, String containerId,
                                     String playbookName, String actionType,
                                     String intent, String reasoning,
-                                    RiskLevel riskLevel, boolean approvalRequired) {
+                                    RiskLevel riskLevel) {
         AuditLog auditLog = AuditLog.builder()
                 .containerName(containerName)
                 .containerId(containerId)
@@ -34,7 +34,6 @@ public class AuditLogService {
                 .intent(intent)
                 .reasoning(reasoning)
                 .riskLevel(riskLevel)
-                .approvalRequired(approvalRequired)
                 .build();
 
         repository.save(auditLog);
@@ -72,27 +71,6 @@ public class AuditLogService {
         findAndUpdate(logId, auditLog -> {
             auditLog.recordBlocked(reason);
             log.info("Audit log blocked - ID: {}, Reason: {}", logId, reason);
-        });
-    }
-
-    /**
-     * 승인 정보 기록
-     */
-    public void logApproval(String logId, String approver, boolean approved) {
-        findAndUpdate(logId, auditLog -> {
-            auditLog.recordApproval(approver, approved);
-            log.info("Audit log approval - ID: {}, Approver: {}, Approved: {}",
-                    logId, approver, approved);
-        });
-    }
-
-    /**
-     * 타임아웃 기록
-     */
-    public void logTimeout(String logId) {
-        findAndUpdate(logId, auditLog -> {
-            auditLog.recordTimeout();
-            log.info("Audit log timeout - ID: {}", logId);
         });
     }
 
@@ -169,9 +147,6 @@ public class AuditLogService {
         long blockedCount = all.stream()
                 .filter(log -> log.getExecutionResult() == ExecutionResult.BLOCKED)
                 .count();
-        long timeoutCount = all.stream()
-                .filter(log -> log.getExecutionResult() == ExecutionResult.TIMEOUT)
-                .count();
         long pendingCount = all.stream()
                 .filter(log -> log.getExecutionResult() == ExecutionResult.PENDING)
                 .count();
@@ -187,7 +162,6 @@ public class AuditLogService {
                 .successCount(successCount)
                 .failureCount(failureCount)
                 .blockedCount(blockedCount)
-                .timeoutCount(timeoutCount)
                 .pendingCount(pendingCount)
                 .successRate(successRate)
                 .build();

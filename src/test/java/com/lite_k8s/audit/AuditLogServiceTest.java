@@ -102,8 +102,7 @@ class AuditLogServiceTest {
                 "container.restart",
                 "컨테이너 비정상 종료로 인한 자동 재시작",
                 "Exit code 137로 종료됨. OOM Killer에 의한 것으로 추정.",
-                RiskLevel.MEDIUM,
-                false
+                RiskLevel.MEDIUM
         );
 
         // then
@@ -121,7 +120,7 @@ class AuditLogServiceTest {
         // given
         AuditLog log = auditLogService.logActionStart(
                 "web", "123", "restart", "container.restart",
-                "재시작", null, RiskLevel.LOW, false
+                "재시작", null, RiskLevel.LOW
         );
 
         // when
@@ -139,7 +138,7 @@ class AuditLogServiceTest {
         // given
         AuditLog log = auditLogService.logActionStart(
                 "web", "123", "restart", "container.restart",
-                "재시작", null, RiskLevel.LOW, false
+                "재시작", null, RiskLevel.LOW
         );
 
         // when
@@ -157,7 +156,7 @@ class AuditLogServiceTest {
         // given
         AuditLog log = auditLogService.logActionStart(
                 "db", "456", "force-kill", "container.kill",
-                "강제 종료", null, RiskLevel.CRITICAL, true
+                "강제 종료", null, RiskLevel.CRITICAL
         );
 
         // when
@@ -169,48 +168,13 @@ class AuditLogServiceTest {
     }
 
     @Test
-    @DisplayName("승인 정보 기록")
-    void shouldLogApproval() {
-        // given
-        AuditLog log = auditLogService.logActionStart(
-                "db", "456", "restart", "container.restart",
-                "재시작", null, RiskLevel.HIGH, true
-        );
-
-        // when
-        auditLogService.logApproval(log.getId(), "admin", true);
-
-        // then
-        AuditLog updated = repository.findById(log.getId()).get();
-        assertThat(updated.getApprovedBy()).isEqualTo("admin");
-        assertThat(updated.isApproved()).isTrue();
-    }
-
-    @Test
-    @DisplayName("타임아웃 기록")
-    void shouldLogTimeout() {
-        // given
-        AuditLog log = auditLogService.logActionStart(
-                "web", "123", "restart", "container.restart",
-                "재시작", null, RiskLevel.HIGH, true
-        );
-
-        // when
-        auditLogService.logTimeout(log.getId());
-
-        // then
-        AuditLog updated = repository.findById(log.getId()).get();
-        assertThat(updated.getExecutionResult()).isEqualTo(ExecutionResult.TIMEOUT);
-    }
-
-    @Test
     @DisplayName("최근 로그 조회")
     void shouldGetRecentLogs() {
         // given
         for (int i = 0; i < 20; i++) {
             auditLogService.logActionStart(
                     "container-" + i, "id-" + i, "restart", "container.restart",
-                    "재시작", null, RiskLevel.LOW, false
+                    "재시작", null, RiskLevel.LOW
             );
         }
 
@@ -225,9 +189,9 @@ class AuditLogServiceTest {
     @DisplayName("컨테이너별 로그 조회")
     void shouldGetLogsByContainer() {
         // given
-        auditLogService.logActionStart("web", "container-web", "restart", "r", "i", null, RiskLevel.LOW, false);
-        auditLogService.logActionStart("web", "container-web", "kill", "k", "i", null, RiskLevel.LOW, false);
-        auditLogService.logActionStart("db", "container-db", "restart", "r", "i", null, RiskLevel.LOW, false);
+        auditLogService.logActionStart("web", "container-web", "restart", "r", "i", null, RiskLevel.LOW);
+        auditLogService.logActionStart("web", "container-web", "kill", "k", "i", null, RiskLevel.LOW);
+        auditLogService.logActionStart("db", "container-db", "restart", "r", "i", null, RiskLevel.LOW);
 
         // when
         List<AuditLog> webLogs = auditLogService.getLogsByContainerId("container-web");
@@ -240,16 +204,16 @@ class AuditLogServiceTest {
     @DisplayName("통계 조회")
     void shouldGetStatistics() {
         // given
-        AuditLog success1 = auditLogService.logActionStart("a", "1", "r", "t", "i", null, RiskLevel.LOW, false);
+        AuditLog success1 = auditLogService.logActionStart("a", "1", "r", "t", "i", null, RiskLevel.LOW);
         auditLogService.logActionSuccess(success1.getId(), "ok");
 
-        AuditLog success2 = auditLogService.logActionStart("b", "2", "r", "t", "i", null, RiskLevel.LOW, false);
+        AuditLog success2 = auditLogService.logActionStart("b", "2", "r", "t", "i", null, RiskLevel.LOW);
         auditLogService.logActionSuccess(success2.getId(), "ok");
 
-        AuditLog failure = auditLogService.logActionStart("c", "3", "r", "t", "i", null, RiskLevel.LOW, false);
+        AuditLog failure = auditLogService.logActionStart("c", "3", "r", "t", "i", null, RiskLevel.LOW);
         auditLogService.logActionFailure(failure.getId(), "error");
 
-        AuditLog blocked = auditLogService.logActionStart("d", "4", "r", "t", "i", null, RiskLevel.CRITICAL, true);
+        AuditLog blocked = auditLogService.logActionStart("d", "4", "r", "t", "i", null, RiskLevel.CRITICAL);
         auditLogService.logActionBlocked(blocked.getId(), "blocked");
 
         // when
