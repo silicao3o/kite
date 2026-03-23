@@ -102,8 +102,25 @@ public class DockerEventListener {
 
         List<Node> nodes = nodeRegistry != null ? nodeRegistry.findAll() : List.of();
 
+        // 로컬 이벤트 스트림은 항상 생성
+        eventStream = dockerClient.eventsCmd()
+                .withEventTypeFilter(EventType.CONTAINER)
+                .exec(new ResultCallback.Adapter<Event>() {
+                    @Override
+                    public void onNext(Event event) {
+                        handleEvent(event, null);
+                    }
+
+                    @Override
+                    public void onError(Throwable throwable) {
+                        log.error("Docker 이벤트 스트림 에러 발생", throwable);
+                        reconnect();
+                    }
+                });
+        log.info("로컬 Docker 이벤트 리스너 시작");
+
         if (!nodes.isEmpty()) {
-            // 멀티 노드 모드: 노드별 이벤트 스트림 병렬 생성
+            // 멀티 노드 모드: 원격 노드 이벤트 스트림 추가 생성
             for (Node node : nodes) {
                 DockerClient client = nodeClientFactory.createClient(node);
                 Closeable stream = client.eventsCmd()
@@ -122,22 +139,6 @@ public class DockerEventListener {
                 if (stream != null) nodeStreams.put(node.getId(), stream);
                 log.info("노드 이벤트 리스너 시작: {} ({}:{})", node.getName(), node.getHost(), node.getPort());
             }
-        } else {
-            // 로컬 단일 모드 (기존 동작)
-            eventStream = dockerClient.eventsCmd()
-                    .withEventTypeFilter(EventType.CONTAINER)
-                    .exec(new ResultCallback.Adapter<Event>() {
-                        @Override
-                        public void onNext(Event event) {
-                            handleEvent(event, null);
-                        }
-
-                        @Override
-                        public void onError(Throwable throwable) {
-                            log.error("Docker 이벤트 스트림 에러 발생", throwable);
-                            reconnect();
-                        }
-                    });
         }
 
         log.info("Docker 이벤트 리스너 시작 완료");
