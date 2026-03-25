@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>kite · Multi Logs</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .multi-logs-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: var(--card-bg, #1e1e2e);
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 8px;
+        }
+        .toolbar-label {
+            font-size: 13px;
+            color: var(--text-muted, #6c7086);
+            white-space: nowrap;
+        }
+        .panel-count-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .panel-count-btn {
+            padding: 5px 12px;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-muted, #6c7086);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .panel-count-btn.active {
+            background: var(--accent, #cba6f7);
+            border-color: var(--accent, #cba6f7);
+            color: #1e1e2e;
+            font-weight: 600;
+        }
+        .panel-count-btn:hover:not(.active) {
+            border-color: var(--accent, #cba6f7);
+            color: var(--text, #cdd6f4);
+        }
+        .refresh-interval-select {
+            padding: 5px 10px;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 6px;
+            background: var(--card-bg, #1e1e2e);
+            color: var(--text, #cdd6f4);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .panels-grid {
+            display: grid;
+            gap: 12px;
+            height: calc(100vh - 200px);
+        }
+        .panels-grid.count-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+        .panels-grid.count-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+        .panels-grid.count-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+        .panels-grid.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+        .panels-grid.count-3 .log-panel:nth-child(3) { grid-column: 1 / -1; }
+
+        .log-panel {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 8px;
+            background: var(--card-bg, #1e1e2e);
+            overflow: hidden;
+            min-height: 0;
+        }
+        .log-panel.hidden { display: none; }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color, #313244);
+            flex-shrink: 0;
+        }
+        .panel-number {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted, #6c7086);
+            background: var(--surface, #313244);
+            border-radius: 4px;
+            padding: 2px 6px;
+            flex-shrink: 0;
+        }
+        .container-select {
+            flex: 1;
+            padding: 5px 10px;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 6px;
+            background: var(--surface, #181825);
+            color: var(--text, #cdd6f4);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .container-select:focus { outline: none; border-color: var(--accent, #cba6f7); }
+        .panel-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted, #6c7086);
+            flex-shrink: 0;
+        }
+        .panel-status.active { background: #a6e3a1; animation: pulse 2s infinite; }
+        .panel-status.paused { background: #f9e2af; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .panel-btn {
+            padding: 4px 10px;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 5px;
+            background: transparent;
+            color: var(--text-muted, #6c7086);
+            cursor: pointer;
+            font-size: 12px;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .panel-btn:hover { border-color: var(--accent, #cba6f7); color: var(--text, #cdd6f4); }
+        .panel-btn.pause-btn.paused { color: #f9e2af; border-color: #f9e2af; }
+        .log-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 14px;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 11.5px;
+            line-height: 1.6;
+            color: var(--text, #cdd6f4);
+            white-space: pre-wrap;
+            word-break: break-all;
+            min-height: 0;
+        }
+        .log-output::-webkit-scrollbar { width: 6px; }
+        .log-output::-webkit-scrollbar-track { background: transparent; }
+        .log-output::-webkit-scrollbar-thumb { background: var(--border-color, #313244); border-radius: 3px; }
+        .log-placeholder {
+            color: var(--text-muted, #6c7086);
+            font-style: italic;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                    </svg>
+                </div>
+                <h1>kite</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workloads</div>
+                    <a href="/" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Containers
+                    </a>
+                    <a href="/nodes" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+                        </svg>
+                        Nodes
+                    </a>
+                    <a href="/multi-logs" class="nav-item active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="8" height="8" rx="1"/>
+                            <rect x="13" y="3" width="8" height="8" rx="1"/>
+                            <rect x="3" y="13" width="8" height="8" rx="1"/>
+                            <rect x="13" y="13" width="8" height="8" rx="1"/>
+                        </svg>
+                        Multi Logs
+                    </a>
+                    <a href="/healing-logs" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        Healing Logs
+                    </a>
+                    <a href="/incidents" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Incident Reports
+                    </a>
+                    <a href="/suggestions" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        Suggestions
+                    </a>
+                    <a href="/metrics-history" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Metrics History
+                    </a>
+                    <a href="/ai-settings" class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+                        </svg>
+                        AI 설정
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Multi Logs</h2>
+                <p>Real-time log view for up to 4 containers simultaneously</p>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="multi-logs-toolbar">
+                <span class="toolbar-label">Panels</span>
+                <div class="panel-count-btns">
+                    <button class="panel-count-btn active" data-count="1" onclick="setPanelCount(1)">1</button>
+                    <button class="panel-count-btn" data-count="2" onclick="setPanelCount(2)">2</button>
+                    <button class="panel-count-btn" data-count="3" onclick="setPanelCount(3)">3</button>
+                    <button class="panel-count-btn" data-count="4" onclick="setPanelCount(4)">4</button>
+                </div>
+                <span class="toolbar-label" style="margin-left: 16px;">Refresh</span>
+                <select class="refresh-interval-select" id="refreshInterval" onchange="updateRefreshInterval()">
+                    <option value="2000">2s</option>
+                    <option value="5000" selected>5s</option>
+                    <option value="10000">10s</option>
+                    <option value="30000">30s</option>
+                </select>
+            </div>
+
+            <!-- Panels Grid -->
+            <div class="panels-grid count-1" id="panelsGrid">
+                <div class="log-panel" id="panel-1">
+                    <div class="panel-header">
+                        <span class="panel-number">#1</span>
+                        <select class="container-select" id="select-1" onchange="onContainerSelected(1)">
+                            <option value="">— Select container —</option>
+                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                        </select>
+                        <span class="panel-status" id="status-1"></span>
+                        <button class="panel-btn pause-btn" id="pause-1" onclick="togglePause(1)" disabled>Pause</button>
+                        <button class="panel-btn" onclick="clearPanel(1)">Clear</button>
+                    </div>
+                    <pre class="log-output" id="logs-1"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                </div>
+
+                <div class="log-panel hidden" id="panel-2">
+                    <div class="panel-header">
+                        <span class="panel-number">#2</span>
+                        <select class="container-select" id="select-2" onchange="onContainerSelected(2)">
+                            <option value="">— Select container —</option>
+                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                        </select>
+                        <span class="panel-status" id="status-2"></span>
+                        <button class="panel-btn pause-btn" id="pause-2" onclick="togglePause(2)" disabled>Pause</button>
+                        <button class="panel-btn" onclick="clearPanel(2)">Clear</button>
+                    </div>
+                    <pre class="log-output" id="logs-2"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                </div>
+
+                <div class="log-panel hidden" id="panel-3">
+                    <div class="panel-header">
+                        <span class="panel-number">#3</span>
+                        <select class="container-select" id="select-3" onchange="onContainerSelected(3)">
+                            <option value="">— Select container —</option>
+                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                        </select>
+                        <span class="panel-status" id="status-3"></span>
+                        <button class="panel-btn pause-btn" id="pause-3" onclick="togglePause(3)" disabled>Pause</button>
+                        <button class="panel-btn" onclick="clearPanel(3)">Clear</button>
+                    </div>
+                    <pre class="log-output" id="logs-3"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                </div>
+
+                <div class="log-panel hidden" id="panel-4">
+                    <div class="panel-header">
+                        <span class="panel-number">#4</span>
+                        <select class="container-select" id="select-4" onchange="onContainerSelected(4)">
+                            <option value="">— Select container —</option>
+                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                        </select>
+                        <span class="panel-status" id="status-4"></span>
+                        <button class="panel-btn pause-btn" id="pause-4" onclick="togglePause(4)" disabled>Pause</button>
+                        <button class="panel-btn" onclick="clearPanel(4)">Clear</button>
+                    </div>
+                    <pre class="log-output" id="logs-4"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const MAX_LOG_LINES = 500;
+        const panels = {
+            1: { containerId: null, paused: false, intervalId: null },
+            2: { containerId: null, paused: false, intervalId: null },
+            3: { containerId: null, paused: false, intervalId: null },
+            4: { containerId: null, paused: false, intervalId: null }
+        };
+        let currentCount = 1;
+        let refreshInterval = 5000;
+
+        function setPanelCount(count) {
+            currentCount = count;
+            document.querySelectorAll('.panel-count-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
+            });
+            const grid = document.getElementById('panelsGrid');
+            grid.className = 'panels-grid count-' + count;
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById('panel-' + i).classList.toggle('hidden', i > count);
+                if (i > count) stopPanel(i);
+            }
+        }
+
+        function onContainerSelected(panelNum) {
+            const select = document.getElementById('select-' + panelNum);
+            const containerId = select.value;
+            stopPanel(panelNum);
+            if (!containerId) {
+                setStatus(panelNum, 'idle');
+                document.getElementById('pause-' + panelNum).disabled = true;
+                return;
+            }
+            panels[panelNum].containerId = containerId;
+            panels[panelNum].paused = false;
+            document.getElementById('pause-' + panelNum).disabled = false;
+            document.getElementById('pause-' + panelNum).textContent = 'Pause';
+            document.getElementById('pause-' + panelNum).classList.remove('paused');
+            fetchLogs(panelNum);
+            panels[panelNum].intervalId = setInterval(() => fetchLogs(panelNum), refreshInterval);
+        }
+
+        function fetchLogs(panelNum) {
+            const panel = panels[panelNum];
+            if (panel.paused || !panel.containerId) return;
+            fetch('/api/containers/' + panel.containerId + '/logs')
+                .then(r => r.text())
+                .then(text => {
+                    const el = document.getElementById('logs-' + panelNum);
+                    const trimmed = trimLines(text);
+                    el.textContent = trimmed;
+                    if (isScrolledToBottom(el)) el.scrollTop = el.scrollHeight;
+                    setStatus(panelNum, 'active');
+                })
+                .catch(() => setStatus(panelNum, 'idle'));
+        }
+
+        function trimLines(text) {
+            const lines = text.split('\n');
+            return lines.length > MAX_LOG_LINES
+                ? lines.slice(lines.length - MAX_LOG_LINES).join('\n')
+                : text;
+        }
+
+        function isScrolledToBottom(el) {
+            return el.scrollHeight - el.clientHeight - el.scrollTop < 40;
+        }
+
+        function togglePause(panelNum) {
+            const panel = panels[panelNum];
+            if (!panel.containerId) return;
+            panel.paused = !panel.paused;
+            const btn = document.getElementById('pause-' + panelNum);
+            btn.textContent = panel.paused ? 'Resume' : 'Pause';
+            btn.classList.toggle('paused', panel.paused);
+            setStatus(panelNum, panel.paused ? 'paused' : 'active');
+        }
+
+        function clearPanel(panelNum) {
+            document.getElementById('logs-' + panelNum).textContent = '';
+        }
+
+        function stopPanel(panelNum) {
+            const panel = panels[panelNum];
+            if (panel.intervalId) {
+                clearInterval(panel.intervalId);
+                panel.intervalId = null;
+            }
+            panel.containerId = null;
+            panel.paused = false;
+            setStatus(panelNum, 'idle');
+        }
+
+        function setStatus(panelNum, state) {
+            const el = document.getElementById('status-' + panelNum);
+            el.className = 'panel-status';
+            if (state === 'active') el.classList.add('active');
+            else if (state === 'paused') el.classList.add('paused');
+        }
+
+        function updateRefreshInterval() {
+            refreshInterval = parseInt(document.getElementById('refreshInterval').value);
+            for (let i = 1; i <= 4; i++) {
+                const panel = panels[i];
+                if (panel.intervalId) {
+                    clearInterval(panel.intervalId);
+                    panel.intervalId = setInterval(() => fetchLogs(i), refreshInterval);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

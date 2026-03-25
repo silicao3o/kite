@@ -171,4 +171,16 @@ public class DashboardController {
     public List<HealingEvent> getHealingLogs() {
         return healingEventRepository.findAll();
     }
+
+    @GetMapping("/multi-logs")
+    public String multiLogs(Model model) {
+        model.addAttribute("containers", metricsScheduler.getCachedContainers());
+        return "multi-logs";
+    }
+
+    @GetMapping("/api/containers")
+    @ResponseBody
+    public List<ContainerInfo> getContainers() {
+        return metricsScheduler.getCachedContainers();
+    }
 }
