@@ -314,7 +314,7 @@
                         <button class="panel-btn pause-btn" id="pause-1" onclick="togglePause(1)" disabled>Pause</button>
                         <button class="panel-btn" onclick="clearPanel(1)">Clear</button>
                     </div>
-                    <pre class="log-output" id="logs-1"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                    <pre class="log-output" tabindex="0" id="logs-1"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
                 </div>
 
                 <div class="log-panel hidden" id="panel-2">
@@ -330,7 +330,7 @@
                         <button class="panel-btn pause-btn" id="pause-2" onclick="togglePause(2)" disabled>Pause</button>
                         <button class="panel-btn" onclick="clearPanel(2)">Clear</button>
                     </div>
-                    <pre class="log-output" id="logs-2"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                    <pre class="log-output" tabindex="0" id="logs-2"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
                 </div>
 
                 <div class="log-panel hidden" id="panel-3">
@@ -346,7 +346,7 @@
                         <button class="panel-btn pause-btn" id="pause-3" onclick="togglePause(3)" disabled>Pause</button>
                         <button class="panel-btn" onclick="clearPanel(3)">Clear</button>
                     </div>
-                    <pre class="log-output" id="logs-3"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                    <pre class="log-output" tabindex="0" id="logs-3"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
                 </div>
 
                 <div class="log-panel hidden" id="panel-4">
@@ -362,7 +362,7 @@
                         <button class="panel-btn pause-btn" id="pause-4" onclick="togglePause(4)" disabled>Pause</button>
                         <button class="panel-btn" onclick="clearPanel(4)">Clear</button>
                     </div>
-                    <pre class="log-output" id="logs-4"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
+                    <pre class="log-output" tabindex="0" id="logs-4"><span class="log-placeholder">Select a container to start streaming logs...</span></pre>
                 </div>
             </div>
         </main>
@@ -376,6 +376,22 @@
             3: { containerId: null, paused: false, intervalId: null },
             4: { containerId: null, paused: false, intervalId: null }
         };
+        let activePresetIdx = null;
+
+        // Enter 키 → 빈 줄 추가, 500줄 초과 시 위에서 제거
+        for (let i = 1; i <= 4; i++) {
+            document.getElementById('logs-' + i).addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const el = document.getElementById('logs-' + i);
+                    const lines = el.textContent.split('\n');
+                    lines.push('');
+                    if (lines.length > MAX_LOG_LINES) lines.splice(0, lines.length - MAX_LOG_LINES);
+                    el.textContent = lines.join('\n');
+                    el.scrollTop = el.scrollHeight;
+                }
+            });
+        }
         let currentCount = 1;
         let refreshInterval = 5000;
 
@@ -483,8 +499,19 @@
         const SERVER_PRESETS = /*[[${presets}]]*/ [];
 
         function loadPreset(idx) {
+            // 같은 프리셋 다시 누르면 취소
+            if (activePresetIdx === idx) {
+                activePresetIdx = null;
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                for (let i = 1; i <= 4; i++) {
+                    document.getElementById('select-' + i).value = '';
+                    stopPanel(i);
+                }
+                return;
+            }
             const preset = SERVER_PRESETS[idx];
             if (!preset) return;
+            activePresetIdx = idx;
             const panelCount = preset.panels || (preset.containers ? preset.containers.length : 1);
             setPanelCount(Math.min(Math.max(panelCount, 1), 4));
             (preset.containers || []).forEach((entry, i) => {
@@ -492,12 +519,10 @@
                 if (panelNum > 4) return;
                 const sel = document.getElementById('select-' + panelNum);
                 if (!sel) return;
-                // "node/container" 또는 "container" 형식 모두 지원
-                // 옵션 텍스트가 "nodeName/containerName" 또는 "containerName" 으로 표시됨
                 const opt = Array.from(sel.options).find(o =>
-                    o.text === entry ||                      // 정확히 일치 (node/name 또는 name)
-                    o.text.endsWith('/' + entry) ||          // node/name에서 name만 입력한 경우
-                    o.text.split('/').pop() === entry         // 이름 부분만 비교 (fallback)
+                    o.text === entry ||
+                    o.text.endsWith('/' + entry) ||
+                    o.text.split('/').pop() === entry
                 );
                 sel.value = opt ? opt.value : '';
                 onContainerSelected(panelNum);
