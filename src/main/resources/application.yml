@@ -179,8 +179,11 @@ docker:
       #     connection-type: SSH_PROXY
     # Multi Logs 프리셋 설정
     multi-logs:
+      # 환경변수로 전체 프리셋을 JSON으로 주입 (presets-json이 있으면 아래 presets 무시)
+      # MULTI_LOGS_PRESETS=[{"name":"API 서버","panels":2,"containers":["nginx","api-server"]}]
+      presets-json: ${MULTI_LOGS_PRESETS:}
+      # yml 인라인 선언 예시 (환경변수 미설정 시 사용):
       presets: []
-      # 예시:
       # presets:
       #   - name: "API 서버"
       #     panels: 2
