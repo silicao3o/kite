@@ -107,6 +107,9 @@ services:
       DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE: ${DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE}
       DOCKER_MONITOR_NODES_ENABLED: "true"
 
+      # ── Multi Logs 프리셋 ────────────────────────────────────────
+      MULTI_LOGS_PRESETS: ${MULTI_LOGS_PRESETS:}
+
       # ── DB 정보 (test-config/application.yml 에서 참조) ──────────
       EXERCISE_DB_URL: ${EXERCISE_DB_URL}
       EXERCISE_DB_USER: ${EXERCISE_DB_USER}
