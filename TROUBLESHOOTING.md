@@ -252,3 +252,93 @@ String containerName = (index == 0)
 **결과**:
 - replicas=1: `exercise-auth` (suffix 없음) ✓
 - replicas=2: `exercise-auth`, `exercise-auth-1` ✓
+
+---
+
+## 12. SSH_PROXY 노드 연결 시 Docker TCP 2375 개방 필요
+
+**발생일**: 2026-03-26
+**증상**: 온프레미스 노드를 SSH_PROXY로 등록하려면 대상 서버에서 Docker TCP 2375를 열어야 했음. daemon.json 수정 또는 socat 서비스 등록 필요.
+
+**원인**: 기존 JSch `session.setPortForwardingL(localPort, host, port)` 는 TCP→TCP 포워딩만 지원. `/var/run/docker.sock` (Unix 도메인 소켓) 직접 포워딩 불가.
+
+**해결**: mwiede/jsch 0.2.18이 이미 `direct-streamlocal@openssh.com` 지원 → 라이브러리 교체 없이 `setSocketForwardingL` 사용.
+
+`SshTunnelManager.java` 수정:
+
+```java
+// SSH 노드 (직접 연결): setPortForwardingL → setSocketForwardingL
+session.setSocketForwardingL(null, localPort, "/var/run/docker.sock", null, 10_000);
+
+// SSH_PROXY 노드: sshUser 설정 여부로 모드 분기
+private boolean useSocketForwarding(Node node) {
+    return node.getSshUser() != null && !node.getSshUser().isBlank();
+}
+```
+
+소켓 모드 (sshUser 설정됨) — 2홉 구조:
+1. CP 세션 → target SSH 포트로 TCP 포워딩
+2. 터널 통해 target SSH 접속
+3. target 세션 → `/var/run/docker.sock` 소켓 포워딩
+
+TCP 모드 (sshUser 미설정) — 기존 방식 하위 호환 유지.
+
+`nodes.html` 수정: SSH_PROXY 타입에서도 sshUser/sshPort 필드 표시하도록 `toggleSshFields()` 수정.
+
+**부수 버그**: sshKeyPath를 UI에서 비워두면 `null`이 아닌 `""`가 저장돼 proxy keyPath fallback이 안 타는 문제.
+```java
+// 수정 전 — null만 체크
+String targetKeyPath = node.getSshKeyPath() != null ? node.getSshKeyPath() : proxy.getKeyPath();
+
+// 수정 후 — blank 포함 체크
+String targetKeyPath = node.getSshKeyPath() != null && !node.getSshKeyPath().isBlank()
+    ? node.getSshKeyPath() : proxy.getKeyPath();
+```
+
+**결과**: 온프레미스 노드 추가 시 ssh-user만 입력하면 소켓 모드 활성화. 대상 서버 설정 변경 불필요.
+
+---
+
+## 13. oom/kill 이벤트 중복 처리 및 종료 원인 미식별
+
+**발생일**: 2026-03-26
+**증상**:
+- OOM으로 컨테이너가 죽으면 알림이 2회 발송될 수 있음
+- kill로 종료된 컨테이너의 deathReason이 exit code 기반으로만 분석돼 원인 불명확
+
+**원인**: Docker 이벤트 발생 순서가 `oom → die`, `kill → die` 인데 기존 코드에서 `oom`을 `die`와 동일하게 처리 (`DEATH_ACTIONS = Set.of("die", "oom")`). `kill`은 아예 무시.
+
+**해결**: `recentDeathCauses` 맵으로 사전 이벤트 원인을 임시 저장, `die`에서 꺼내 사용.
+
+```java
+// 변경 전
+private static final Set<String> DEATH_ACTIONS = Set.of("die", "oom");
+
+// 변경 후
+private static final Set<String> PRE_DEATH_ACTIONS = Set.of("oom", "kill");
+private final Map<String, String> recentDeathCauses = new ConcurrentHashMap<>();
+
+// oom/kill → 원인만 기록, 알림 미실행
+if (PRE_DEATH_ACTIONS.contains(actionLower)) {
+    recentDeathCauses.put(containerId, actionLower);
+    return;
+}
+
+// die → 사전 원인 있으면 사용, 없으면 exit code 분석
+if ("die".equals(actionLower)) {
+    String preCause = recentDeathCauses.remove(containerId);
+    String deathReason = preCause != null ? preCause : exitCodeAnalyzer.analyze(deathEvent);
+    deathEvent.setDeathReason(deathReason);
+    // 알림, 자가치유, AI 분석 실행
+}
+```
+
+필터링/중복으로 조기 return 시에도 `recentDeathCauses.remove(containerId)` 호출해 메모리 누수 방지.
+
+**결과**:
+
+| 시나리오 | 변경 전 | 변경 후 |
+|---------|--------|--------|
+| OOM 종료 | oom + die 이중 처리 가능 | die에서만 처리, deathReason = "oom" |
+| kill 종료 | kill 무시, 원인 불명 | die에서 처리, deathReason = "kill" |
+| 일반 종료 | die에서 exit code 분석 | 동일 |
