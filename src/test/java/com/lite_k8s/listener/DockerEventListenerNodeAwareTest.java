@@ -66,18 +66,13 @@ class DockerEventListenerNodeAwareTest {
     }
 
     @Test
-    @DisplayName("노드 등록 시 로컬 + 노드별 이벤트 스트림 모두 생성")
+    @DisplayName("nodes.enabled=true 시 노드별 이벤트 스트림 생성 (로컬 클라이언트 미사용)")
     void startListening_WhenNodesRegistered_ShouldCreatePerNodeListeners() {
         // given
         java.util.List<Node> nodes = java.util.List.of(nodeA, nodeB);
         when(nodeRegistry.findAll()).thenReturn(nodes);
         when(nodeClientFactory.createClient(nodeA)).thenReturn(nodeADockerClient);
         when(nodeClientFactory.createClient(nodeB)).thenReturn(nodeBDockerClient);
-
-        EventsCmd localEventsCmd = mock(EventsCmd.class);
-        when(localDockerClient.eventsCmd()).thenReturn(localEventsCmd);
-        when(localEventsCmd.withEventTypeFilter(any(com.github.dockerjava.api.model.EventType.class))).thenReturn(localEventsCmd);
-        when(localEventsCmd.exec(any())).thenReturn(null);
 
         when(nodeADockerClient.eventsCmd()).thenReturn(nodeAEventsCmd);
         when(nodeBDockerClient.eventsCmd()).thenReturn(nodeBEventsCmd);
@@ -89,10 +84,12 @@ class DockerEventListenerNodeAwareTest {
         // when
         listener.startListening();
 
-        // then: 로컬 + 각 노드의 클라이언트로 이벤트 스트림 생성
-        verify(localDockerClient).eventsCmd();
+        // then: 각 노드의 클라이언트로 이벤트 스트림 생성
         verify(nodeADockerClient).eventsCmd();
         verify(nodeBDockerClient).eventsCmd();
+
+        // 로컬 클라이언트는 사용하지 않음
+        verify(localDockerClient, never()).eventsCmd();
     }
 
     @Test

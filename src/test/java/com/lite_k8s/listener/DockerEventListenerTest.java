@@ -115,8 +115,8 @@ class DockerEventListenerTest {
     }
 
     @Test
-    @DisplayName("kill 이벤트는 원인만 기록하고 알림을 보내지 않음")
-    void handleEvent_WhenKillEvent_ShouldRecordCauseOnly() {
+    @DisplayName("kill 이벤트는 무시됨 (die 이벤트가 뒤따르므로 중복 방지)")
+    void handleEvent_WhenKillEvent_ShouldBeIgnored() {
         // given
         setupEventsCmdMock();
 
@@ -128,16 +128,28 @@ class DockerEventListenerTest {
         Event killEvent = createDockerEvent("kill", "container456");
         callback.onNext(killEvent);
 
-        // then - kill만으로는 알림/자가치유 미실행
+        // then - kill 이벤트는 처리하지 않음
         verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
         verify(notificationService, never()).sendAlert(any());
     }
 
     @Test
-    @DisplayName("oom 이벤트는 원인만 기록하고 알림을 보내지 않음")
-    void handleEvent_WhenOomEvent_ShouldRecordCauseOnly() {
+    @DisplayName("oom 이벤트 발생 시 알림 전송")
+    void handleEvent_WhenOomEvent_ShouldSendNotification() {
         // given
         setupEventsCmdMock();
+
+        ContainerDeathEvent deathEvent = ContainerDeathEvent.builder()
+                .containerId("container789")
+                .containerName("memory-app")
+                .exitCode(137L)
+                .oomKilled(true)
+                .action("oom")
+                .deathTime(LocalDateTime.now())
+                .build();
+
+        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(exitCodeAnalyzer.analyze(any())).thenReturn("OOM Killed");
 
         // when
         dockerEventListener.startListening();
@@ -147,40 +159,8 @@ class DockerEventListenerTest {
         Event oomEvent = createDockerEvent("oom", "container789");
         callback.onNext(oomEvent);
 
-        // then: oom만으로는 알림/자가치유 미실행
-        verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
-        verify(notificationService, never()).sendAlert(any());
-    }
-
-    @Test
-    @DisplayName("oom → die 순서로 이벤트 발생 시 원인이 oom으로 설정됨")
-    void handleEvent_WhenOomThenDie_ShouldSetDeathReasonToOom() {
-        // given
-        setupEventsCmdMock();
-
-        ContainerDeathEvent deathEvent = ContainerDeathEvent.builder()
-                .containerId("container789")
-                .containerName("memory-app")
-                .exitCode(137L)
-                .oomKilled(true)
-                .action("die")
-                .deathTime(LocalDateTime.now())
-                .build();
-
-        when(dockerService.buildDeathEvent("container789", "die")).thenReturn(deathEvent);
-
-        // when
-        dockerEventListener.startListening();
-        verify(eventsCmd).exec(callbackCaptor.capture());
-        ResultCallback<Event> callback = callbackCaptor.getValue();
-
-        callback.onNext(createDockerEvent("oom", "container789"));
-        callback.onNext(createDockerEvent("die", "container789"));
-
-        // then: die 처리 시 deathReason이 "oom"으로 설정됨 (exitCodeAnalyzer 미호출)
-        verify(dockerService).buildDeathEvent("container789", "die");
-        verify(exitCodeAnalyzer, never()).analyze(any());
-        assertThat(deathEvent.getDeathReason()).isEqualTo("oom");
+        // then
+        verify(dockerService).buildDeathEvent("container789", "oom");
         verify(notificationService).sendAlert(deathEvent);
     }
 

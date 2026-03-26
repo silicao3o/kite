@@ -49,7 +49,6 @@ public class DockerEventListener {
     private Closeable eventStream; // 로컬 단일 모드 스트림
     private final Map<String, Closeable> nodeStreams = new ConcurrentHashMap<>(); // 노드별 스트림
     private final AtomicInteger retryCount = new AtomicInteger(0);
-    private final Map<String, String> recentDeathCauses = new ConcurrentHashMap<>(); // containerId → "oom"/"kill"
 
     @Autowired
     public DockerEventListener(
@@ -93,9 +92,9 @@ public class DockerEventListener {
                 null, null);
     }
 
-    // die에서만 자가치유/알림/AI분석 실행
-    // oom, kill은 die 이전에 발생하므로 원인만 기록하고 die에서 처리
-    private static final Set<String> PRE_DEATH_ACTIONS = Set.of("oom", "kill");
+    // 모니터링할 이벤트 액션들
+    // kill은 제외: kill 후 반드시 die가 따라오므로 die에서만 처리 (중복 트리거 방지)
+    private static final Set<String> DEATH_ACTIONS = Set.of("die", "oom");
 
     @PostConstruct
     public void startListening() {
@@ -153,44 +152,29 @@ public class DockerEventListener {
 
         log.debug("Docker 이벤트 수신: action={}, containerId={}", action, containerId);
 
-        if (action == null || containerId == null) return;
-
-        String actionLower = action.toLowerCase();
-
-        // oom, kill은 원인만 기록하고 die에서 처리
-        if (PRE_DEATH_ACTIONS.contains(actionLower)) {
-            log.info("사전 종료 이벤트 감지 (원인 기록): containerId={}, action={}", containerId, actionLower);
-            recentDeathCauses.put(containerId, actionLower);
-            return;
-        }
-
-        if ("die".equals(actionLower)) {
-            log.info("컨테이너 종료 감지: containerId={}", containerId);
+        // die, kill, oom 이벤트만 처리
+        if (action != null && DEATH_ACTIONS.contains(action.toLowerCase())) {
+            log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
 
             // 중복 알림 체크
-            if (!deduplicationService.shouldAlert(containerId, actionLower)) {
-                log.info("중복 알림 스킵: containerId={}", containerId);
-                recentDeathCauses.remove(containerId);
+            if (!deduplicationService.shouldAlert(containerId, action)) {
+                log.info("중복 알림 스킵: containerId={}, action={}", containerId, action);
                 return;
             }
 
             try {
                 // 컨테이너 정보 수집
-                ContainerDeathEvent deathEvent = dockerService.buildDeathEvent(containerId, actionLower);
+                ContainerDeathEvent deathEvent = dockerService.buildDeathEvent(containerId, action);
                 deathEvent.setNodeId(nodeId);
 
                 // 필터링 체크
                 if (!containerFilterService.shouldMonitor(deathEvent.getContainerName(), deathEvent.getImageName())) {
                     log.info("컨테이너 필터링으로 알림 제외: {}", deathEvent.getContainerName());
-                    recentDeathCauses.remove(containerId);
                     return;
                 }
 
-                // 사전 이벤트(oom/kill)가 있으면 원인으로 사용, 없으면 exit code로 분석
-                String preCause = recentDeathCauses.remove(containerId);
-                String deathReason = preCause != null
-                        ? preCause
-                        : exitCodeAnalyzer.analyze(deathEvent);
+                // Exit Code 분석하여 종료 원인 설정
+                String deathReason = exitCodeAnalyzer.analyze(deathEvent);
                 deathEvent.setDeathReason(deathReason);
 
                 // 이메일 알림 전송
@@ -202,7 +186,7 @@ public class DockerEventListener {
                 // AI 사후 분석 리포트 생성 (비동기)
                 incidentReportService.createReport(deathEvent);
 
-                log.info("컨테이너 종료 처리 완료: {}, 원인: {}", deathEvent.getContainerName(), deathReason);
+                log.info("컨테이너 종료 알림 전송 완료: {}", deathEvent.getContainerName());
 
             } catch (Exception e) {
                 log.error("컨테이너 종료 이벤트 처리 실패: {}", containerId, e);
