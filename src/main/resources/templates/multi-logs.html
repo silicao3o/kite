@@ -306,7 +306,9 @@
                         <span class="panel-number">#1</span>
                         <select class="container-select" id="select-1" onchange="onContainerSelected(1)">
                             <option value="">— Select container —</option>
-                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                            <option th:each="c : ${containers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-1"></span>
                         <button class="panel-btn pause-btn" id="pause-1" onclick="togglePause(1)" disabled>Pause</button>
@@ -320,7 +322,9 @@
                         <span class="panel-number">#2</span>
                         <select class="container-select" id="select-2" onchange="onContainerSelected(2)">
                             <option value="">— Select container —</option>
-                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                            <option th:each="c : ${containers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-2"></span>
                         <button class="panel-btn pause-btn" id="pause-2" onclick="togglePause(2)" disabled>Pause</button>
@@ -334,7 +338,9 @@
                         <span class="panel-number">#3</span>
                         <select class="container-select" id="select-3" onchange="onContainerSelected(3)">
                             <option value="">— Select container —</option>
-                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                            <option th:each="c : ${containers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-3"></span>
                         <button class="panel-btn pause-btn" id="pause-3" onclick="togglePause(3)" disabled>Pause</button>
@@ -348,7 +354,9 @@
                         <span class="panel-number">#4</span>
                         <select class="container-select" id="select-4" onchange="onContainerSelected(4)">
                             <option value="">— Select container —</option>
-                            <option th:each="c : ${containers}" th:value="${c.id}" th:text="${c.name}"></option>
+                            <option th:each="c : ${containers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-4"></span>
                         <button class="panel-btn pause-btn" id="pause-4" onclick="togglePause(4)" disabled>Pause</button>
@@ -477,14 +485,20 @@
         function loadPreset(idx) {
             const preset = SERVER_PRESETS[idx];
             if (!preset) return;
-            const panelCount = preset.panels || preset.panelCount || (preset.containers ? preset.containers.length : 1);
+            const panelCount = preset.panels || (preset.containers ? preset.containers.length : 1);
             setPanelCount(Math.min(Math.max(panelCount, 1), 4));
-            (preset.containers || []).forEach((containerName, i) => {
+            (preset.containers || []).forEach((entry, i) => {
                 const panelNum = i + 1;
                 if (panelNum > 4) return;
                 const sel = document.getElementById('select-' + panelNum);
                 if (!sel) return;
-                const opt = Array.from(sel.options).find(o => o.text === containerName);
+                // "node/container" 또는 "container" 형식 모두 지원
+                // 옵션 텍스트가 "nodeName/containerName" 또는 "containerName" 으로 표시됨
+                const opt = Array.from(sel.options).find(o =>
+                    o.text === entry ||                      // 정확히 일치 (node/name 또는 name)
+                    o.text.endsWith('/' + entry) ||          // node/name에서 name만 입력한 경우
+                    o.text.split('/').pop() === entry         // 이름 부분만 비교 (fallback)
+                );
                 sel.value = opt ? opt.value : '';
                 onContainerSelected(panelNum);
             });

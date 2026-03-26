@@ -188,15 +188,20 @@ docker:
       #   - name: "API 서버"
       #     panels: 2
       #     containers:
-      #       - nginx
-      #       - api-server
+      #       - vm-a/nginx          # 멀티 노드: "nodeName/containerName"
+      #       - vm-b/api-server
       #   - name: "전체 스택"
       #     panels: 4
       #     containers:
+      #       - vm-a/nginx
+      #       - vm-a/api-server
+      #       - vm-b/redis
+      #       - vm-b/postgres
+      #   - name: "로컬"            # 단일 노드: 이름만 입력해도 됨
+      #     panels: 2
+      #     containers:
       #       - nginx
       #       - api-server
-      #       - redis
-      #       - postgres
 
     # Desired State 관리 설정
     desired-state:
