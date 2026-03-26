@@ -33,6 +33,7 @@ public class DashboardController {
     private final HealingEventRepository healingEventRepository;
     private final MetricsScheduler metricsScheduler;
     private final LogSearchService logSearchService;
+    private final MultiLogsProperties multiLogsProperties;
 
     @GetMapping("/")
     public String dashboard(Model model,
@@ -175,6 +176,7 @@ public class DashboardController {
     @GetMapping("/multi-logs")
     public String multiLogs(Model model) {
         model.addAttribute("containers", metricsScheduler.getCachedContainers());
+        model.addAttribute("presets", multiLogsProperties.getPresets());
         return "multi-logs";
     }
 

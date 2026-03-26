@@ -177,6 +177,24 @@ docker:
       #     host: 
       #     port: 2375
       #     connection-type: SSH_PROXY
+    # Multi Logs 프리셋 설정
+    multi-logs:
+      presets: []
+      # 예시:
+      # presets:
+      #   - name: "API 서버"
+      #     panels: 2
+      #     containers:
+      #       - nginx
+      #       - api-server
+      #   - name: "전체 스택"
+      #     panels: 4
+      #     containers:
+      #       - nginx
+      #       - api-server
+      #       - redis
+      #       - postgres
+
     # Desired State 관리 설정
     desired-state:
       # 활성화 여부

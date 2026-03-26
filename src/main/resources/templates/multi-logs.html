@@ -54,6 +54,35 @@
             font-size: 13px;
             cursor: pointer;
         }
+        .toolbar-separator {
+            width: 1px;
+            height: 20px;
+            background: var(--border-color, #313244);
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
+        .presets-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            overflow-x: auto;
+            min-width: 0;
+        }
+        .preset-btn {
+            padding: 4px 12px;
+            border: 1px solid var(--border-color, #313244);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-muted, #6c7086);
+            cursor: pointer;
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .preset-btn:hover { border-color: #89b4fa; color: #89b4fa; }
+        .preset-btn.active { background: #89b4fa22; border-color: #89b4fa; color: #89b4fa; }
         .panels-grid {
             display: grid;
             gap: 12px;
@@ -241,7 +270,27 @@
                     <button class="panel-count-btn" data-count="3" onclick="setPanelCount(3)">3</button>
                     <button class="panel-count-btn" data-count="4" onclick="setPanelCount(4)">4</button>
                 </div>
-                <span class="toolbar-label" style="margin-left: 16px;">Refresh</span>
+                <div class="toolbar-separator"></div>
+                <div class="presets-area" id="presetsArea">
+                    <span class="toolbar-label" style="flex-shrink:0;">Presets</span>
+                    <div id="presetList" style="display:flex;gap:6px;flex-wrap:nowrap;">
+                        <th:block th:if="${presets != null and !#lists.isEmpty(presets)}">
+                            <button th:each="preset, iter : ${presets}"
+                                    class="preset-btn"
+                                    th:data-index="${iter.index}"
+                                    th:title="${#strings.listJoin(preset.containers, ', ')}"
+                                    th:onclick="|loadPreset(${iter.index})|"
+                                    th:text="${preset.name}">
+                            </button>
+                        </th:block>
+                        <span th:if="${presets == null or #lists.isEmpty(presets)}"
+                              style="font-size:12px;color:var(--text-muted,#6c7086);font-style:italic;">
+                            application.yml에 presets를 설정하세요
+                        </span>
+                    </div>
+                </div>
+                <div class="toolbar-separator"></div>
+                <span class="toolbar-label">Refresh</span>
                 <select class="refresh-interval-select" id="refreshInterval" onchange="updateRefreshInterval()">
                     <option value="2000">2s</option>
                     <option value="5000" selected>5s</option>
@@ -420,6 +469,26 @@
                     panel.intervalId = setInterval(() => fetchLogs(i), refreshInterval);
                 }
             }
+        }
+
+        // ── Preset management (server-side, declared in application.yml) ──
+        const SERVER_PRESETS = /*[[${presets}]]*/ [];
+
+        function loadPreset(idx) {
+            const preset = SERVER_PRESETS[idx];
+            if (!preset) return;
+            const panelCount = preset.panels || preset.panelCount || (preset.containers ? preset.containers.length : 1);
+            setPanelCount(Math.min(Math.max(panelCount, 1), 4));
+            (preset.containers || []).forEach((containerName, i) => {
+                const panelNum = i + 1;
+                if (panelNum > 4) return;
+                const sel = document.getElementById('select-' + panelNum);
+                if (!sel) return;
+                const opt = Array.from(sel.options).find(o => o.text === containerName);
+                sel.value = opt ? opt.value : '';
+                onContainerSelected(panelNum);
+            });
+            document.querySelectorAll('.preset-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
         }
     </script>
 </body>
