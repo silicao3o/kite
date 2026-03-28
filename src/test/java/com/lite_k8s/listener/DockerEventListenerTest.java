@@ -95,7 +95,7 @@ class DockerEventListenerTest {
         setupEventsCmdMock();
 
         ContainerDeathEvent deathEvent = createTestDeathEvent();
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         when(exitCodeAnalyzer.analyze(any())).thenReturn("SIGKILL로 강제 종료됨");
 
         // when
@@ -109,7 +109,7 @@ class DockerEventListenerTest {
         callback.onNext(dieEvent);
 
         // then
-        verify(dockerService).buildDeathEvent("container123", "die");
+        verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(exitCodeAnalyzer).analyze(deathEvent);
         verify(notificationService).sendAlert(deathEvent);
     }
@@ -129,7 +129,7 @@ class DockerEventListenerTest {
         callback.onNext(killEvent);
 
         // then - kill 이벤트는 처리하지 않음
-        verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
+        verify(dockerService, never()).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -148,7 +148,7 @@ class DockerEventListenerTest {
                 .deathTime(LocalDateTime.now())
                 .build();
 
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         when(exitCodeAnalyzer.analyze(any())).thenReturn("OOM Killed");
 
         // when
@@ -160,7 +160,7 @@ class DockerEventListenerTest {
         callback.onNext(oomEvent);
 
         // then
-        verify(dockerService).buildDeathEvent("container789", "oom");
+        verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService).sendAlert(deathEvent);
     }
 
@@ -179,7 +179,7 @@ class DockerEventListenerTest {
         callback.onNext(startEvent);
 
         // then
-        verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
+        verify(dockerService, never()).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -198,7 +198,7 @@ class DockerEventListenerTest {
         callback.onNext(stopEvent);
 
         // then
-        verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
+        verify(dockerService, never()).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -208,7 +208,7 @@ class DockerEventListenerTest {
         // given
         setupEventsCmdMock();
 
-        when(dockerService.buildDeathEvent(anyString(), anyString()))
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any()))
                 .thenThrow(new RuntimeException("Docker API error"));
 
         // when
@@ -220,7 +220,7 @@ class DockerEventListenerTest {
         callback.onNext(dieEvent);
 
         // then - 예외가 발생해도 서비스가 중단되지 않음
-        verify(dockerService).buildDeathEvent("container123", "die");
+        verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -233,7 +233,7 @@ class DockerEventListenerTest {
         ContainerDeathEvent deathEvent = createTestDeathEvent();
         String expectedReason = "[Exit Code: 137] SIGKILL - 강제 종료됨";
 
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         when(exitCodeAnalyzer.analyze(any())).thenReturn(expectedReason);
 
         // when
@@ -268,7 +268,7 @@ class DockerEventListenerTest {
         setupEventsCmdMock();
 
         ContainerDeathEvent deathEvent = createTestDeathEvent();
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         // 필터링으로 제외
         when(containerFilterService.shouldMonitor(any(), any())).thenReturn(false);
 
@@ -281,7 +281,7 @@ class DockerEventListenerTest {
         callback.onNext(dieEvent);
 
         // then
-        verify(dockerService).buildDeathEvent("container123", "die");
+        verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -294,7 +294,7 @@ class DockerEventListenerTest {
         when(deduplicationService.shouldAlert(any(), any())).thenReturn(false);
 
         ContainerDeathEvent deathEvent = createTestDeathEvent();
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("exit code");
 
         // when
@@ -306,7 +306,7 @@ class DockerEventListenerTest {
         callback.onNext(dieEvent);
 
         // then - 이메일 알림만 스킵
-        verify(dockerService).buildDeathEvent("container123", "die");
+        verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -344,7 +344,7 @@ class DockerEventListenerTest {
         when(deduplicationService.shouldAlert(any(), any())).thenReturn(false);
 
         ContainerDeathEvent deathEvent = createTestDeathEvent();
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("exit code");
 
         // when
@@ -368,7 +368,7 @@ class DockerEventListenerTest {
         setupEventsCmdMock();
 
         ContainerDeathEvent deathEvent = createTestDeathEvent();
-        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
         when(exitCodeAnalyzer.analyze(any())).thenReturn("SIGKILL로 강제 종료됨");
 
         // when
@@ -381,5 +381,27 @@ class DockerEventListenerTest {
 
         // then
         verify(selfHealingService).handleContainerDeath(deathEvent);
+    }
+
+    @Test
+    @DisplayName("로컬 단일 모드에서 buildDeathEvent에 nodeId=null 전달")
+    void handleEvent_LocalMode_ShouldPassNullNodeIdToBuildDeathEvent() {
+        // given
+        setupEventsCmdMock();
+
+        ContainerDeathEvent deathEvent = createTestDeathEvent();
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
+        lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("exit");
+
+        // when
+        dockerEventListener.startListening();
+        verify(eventsCmd).exec(callbackCaptor.capture());
+        ResultCallback<Event> callback = callbackCaptor.getValue();
+
+        Event dieEvent = createDockerEvent("die", "container123");
+        callback.onNext(dieEvent);
+
+        // then — 로컬 단일 모드이므로 nodeId=null
+        verify(dockerService).buildDeathEvent("container123", "die", null);
     }
 }

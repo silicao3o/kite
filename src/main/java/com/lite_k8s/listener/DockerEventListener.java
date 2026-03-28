@@ -157,8 +157,8 @@ public class DockerEventListener {
             log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
 
             try {
-                // 컨테이너 정보 수집
-                ContainerDeathEvent deathEvent = dockerService.buildDeathEvent(containerId, action);
+                // 컨테이너 정보 수집 (nodeId로 올바른 클라이언트 선택 — 라벨 포함)
+                ContainerDeathEvent deathEvent = dockerService.buildDeathEvent(containerId, action, nodeId);
                 deathEvent.setNodeId(nodeId);
 
                 // 필터링 체크

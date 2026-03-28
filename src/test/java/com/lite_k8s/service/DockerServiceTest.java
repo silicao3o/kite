@@ -1,6 +1,9 @@
 package com.lite_k8s.service;
 
 import com.lite_k8s.model.ContainerDeathEvent;
+import com.lite_k8s.node.Node;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -16,6 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Map;
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -25,6 +31,12 @@ class DockerServiceTest {
 
     @Mock
     private DockerClient dockerClient;
+
+    @Mock
+    private NodeRegistry nodeRegistry;
+
+    @Mock
+    private NodeDockerClientFactory nodeClientFactory;
 
     @Mock
     private InspectContainerCmd inspectContainerCmd;
@@ -51,7 +63,7 @@ class DockerServiceTest {
 
     @BeforeEach
     void setUp() {
-        dockerService = new DockerService(dockerClient, null, null);
+        dockerService = new DockerService(dockerClient, nodeRegistry, nodeClientFactory);
         ReflectionTestUtils.setField(dockerService, "logTailLines", 50);
     }
 
@@ -120,6 +132,77 @@ class DockerServiceTest {
         // then
         assertThat(event.isOomKilled()).isTrue();
         assertThat(event.getExitCode()).isEqualTo(137L);
+    }
+
+    @Test
+    @DisplayName("nodeId 지정 시 해당 노드 클라이언트로 inspect — 라벨 포함 반환")
+    void buildDeathEvent_WithNodeId_ShouldUseNodeClient() {
+        // given
+        String containerId = "remote-c123";
+        String nodeId = "node-1";
+        Node node = mock(Node.class);
+        DockerClient remoteClient = mock(DockerClient.class);
+        InspectContainerCmd remoteInspectCmd = mock(InspectContainerCmd.class);
+        InspectContainerResponse remoteResponse = mock(InspectContainerResponse.class);
+        InspectContainerResponse.ContainerState remoteState = mock(InspectContainerResponse.ContainerState.class);
+        ContainerConfig remoteConfig = mock(ContainerConfig.class);
+        when(nodeRegistry.findById(nodeId)).thenReturn(Optional.of(node));
+        when(nodeClientFactory.createClient(node)).thenReturn(remoteClient);
+        when(remoteClient.inspectContainerCmd(containerId)).thenReturn(remoteInspectCmd);
+        when(remoteInspectCmd.exec()).thenReturn(remoteResponse);
+        when(remoteResponse.getState()).thenReturn(remoteState);
+        when(remoteResponse.getName()).thenReturn("/remote-app");
+        when(remoteResponse.getConfig()).thenReturn(remoteConfig);
+        when(remoteConfig.getImage()).thenReturn("myapp:1.0");
+        when(remoteConfig.getLabels()).thenReturn(Map.of("self-healing.enabled", "true"));
+        when(remoteState.getExitCodeLong()).thenReturn(1L);
+        when(remoteState.getOOMKilled()).thenReturn(false);
+        when(remoteState.getFinishedAt()).thenReturn("2026-03-29T10:00:00Z");
+
+        when(dockerClient.logContainerCmd(containerId)).thenReturn(logContainerCmd);
+        when(logContainerCmd.withStdOut(true)).thenReturn(logContainerCmd);
+        when(logContainerCmd.withStdErr(true)).thenReturn(logContainerCmd);
+        when(logContainerCmd.withTail(anyInt())).thenReturn(logContainerCmd);
+        when(logContainerCmd.withTimestamps(true)).thenReturn(logContainerCmd);
+
+        // when
+        ContainerDeathEvent event = dockerService.buildDeathEvent(containerId, "die", nodeId);
+
+        // then
+        assertThat(event.getContainerName()).isEqualTo("remote-app");
+        assertThat(event.getLabels()).containsEntry("self-healing.enabled", "true");
+        // 로컬 클라이언트는 사용하지 않음
+        verify(dockerClient, never()).inspectContainerCmd(anyString());
+    }
+
+    @Test
+    @DisplayName("nodeId가 null이면 기존 로컬 클라이언트로 inspect")
+    void buildDeathEvent_WithNullNodeId_ShouldUseLocalClient() {
+        // given
+        String containerId = "local-c123";
+        when(dockerClient.inspectContainerCmd(containerId)).thenReturn(inspectContainerCmd);
+        when(inspectContainerCmd.exec()).thenReturn(inspectContainerResponse);
+        when(inspectContainerResponse.getState()).thenReturn(containerState);
+        when(inspectContainerResponse.getName()).thenReturn("/local-app");
+        when(inspectContainerResponse.getConfig()).thenReturn(containerConfig);
+        when(containerConfig.getImage()).thenReturn("nginx:latest");
+        when(containerState.getExitCodeLong()).thenReturn(0L);
+        when(containerState.getOOMKilled()).thenReturn(false);
+        when(containerState.getFinishedAt()).thenReturn(null);
+
+        when(dockerClient.logContainerCmd(anyString())).thenReturn(logContainerCmd);
+        when(logContainerCmd.withStdOut(true)).thenReturn(logContainerCmd);
+        when(logContainerCmd.withStdErr(true)).thenReturn(logContainerCmd);
+        when(logContainerCmd.withTail(anyInt())).thenReturn(logContainerCmd);
+        when(logContainerCmd.withTimestamps(true)).thenReturn(logContainerCmd);
+
+        // when
+        ContainerDeathEvent event = dockerService.buildDeathEvent(containerId, "die", null);
+
+        // then
+        assertThat(event.getContainerName()).isEqualTo("local-app");
+        verify(dockerClient).inspectContainerCmd(containerId);
+        verify(nodeRegistry, never()).findById(anyString());
     }
 
     @Test

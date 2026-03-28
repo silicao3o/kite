@@ -43,8 +43,26 @@ public class DockerService {
     }
 
     public ContainerDeathEvent buildDeathEvent(String containerId, String action) {
+        return buildDeathEvent(containerId, action, null);
+    }
+
+    public ContainerDeathEvent buildDeathEvent(String containerId, String action, String nodeId) {
+        DockerClient client = resolveClient(nodeId);
+        return buildDeathEventWithClient(containerId, action, client);
+    }
+
+    private DockerClient resolveClient(String nodeId) {
+        if (nodeId == null || nodeRegistry == null) {
+            return dockerClient;
+        }
+        return nodeRegistry.findById(nodeId)
+                .map(nodeClientFactory::createClient)
+                .orElse(dockerClient);
+    }
+
+    private ContainerDeathEvent buildDeathEventWithClient(String containerId, String action, DockerClient client) {
         try {
-            InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
+            InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
             InspectContainerResponse.ContainerState state = inspection.getState();
 
             String containerName = DockerContainerNames.stripLeadingSlash(inspection.getName());
