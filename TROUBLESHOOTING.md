@@ -342,3 +342,91 @@ if ("die".equals(actionLower)) {
 | OOM 종료 | oom + die 이중 처리 가능 | die에서만 처리, deathReason = "oom" |
 | kill 종료 | kill 무시, 원인 불명 | die에서 처리, deathReason = "kill" |
 | 일반 종료 | die에서 exit code 분석 | 동일 |
+
+---
+
+## 14. Crash Loop 감지 불가 — dedup이 SelfHealing까지 차단
+
+**발생일**: 2026-03-29
+**증상**: DB 스키마 불일치 등으로 컨테이너가 계속 재기동해도 crash loop로 감지되지 않음.
+
+**원인**: `DockerEventListener.handleEvent()`에서 dedup 체크가 `return`으로 전체 처리 블록을 차단. `SelfHealingService`도 실행되지 않아 `RestartTracker` 카운터가 쌓이지 않음.
+
+```java
+// 변경 전 — dedup 차단 시 SelfHealing도 실행 안 됨
+if (!deduplicationService.shouldAlert(containerId, action)) {
+    return;  // SelfHealingService.handleContainerDeath() 도달 불가
+}
+```
+
+실제 crash loop 흐름:
+```
+1st die → dedup 통과 → SelfHealing → count=1 → 재시작
+2nd die → dedup 차단 → return  ← count 영원히 1, 임계치 도달 불가
+```
+
+**해결**: dedup을 이메일 알림 직전으로 이동. SelfHealing은 항상 실행.
+
+```java
+// 변경 후
+selfHealingService.handleContainerDeath(deathEvent);  // 항상 실행
+
+if (deduplicationService.shouldAlert(containerId, action)) {
+    notificationService.sendAlert(deathEvent);  // 이메일만 dedup
+}
+```
+
+crash loop 임계치(5분 내 3회) 초과 시 동작:
+- `dockerService.stopContainer(containerId, nodeId)` — 컨테이너 강제 정지
+- `emailNotificationService.sendCrashLoopStoppedAlert()` — `[CRASH LOOP]` 전용 알림 발송
+
+`DockerService.stopContainer(containerId, nodeId)` 신규 추가 (멀티 노드 지원).
+
+---
+
+## 15. 원격 노드 컨테이너 buildDeathEvent — 로컬 클라이언트 오사용
+
+**발생일**: 2026-03-29
+**증상**: 원격 노드 컨테이너가 죽어도 자가치유 실행 안 됨. 알림에 컨테이너 이름 "Unknown", 라벨 null.
+
+**원인**: `DockerService.buildDeathEvent(containerId, action)` 가 nodeId 파라미터 없이 항상 로컬 `dockerClient`로 inspect.
+
+```java
+// 변경 전 — nodeId 없음, 항상 로컬
+InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
+// 원격 컨테이너 → NotFoundException → containerName="Unknown", labels=null
+// → SelfHealingService: "Unknown"은 아무 규칙과도 매칭 안 됨 → 자가치유 없음
+```
+
+`DockerEventListener`에서 nodeId를 이미 받고 있었으나 `buildDeathEvent` 호출 후에야 세팅:
+```java
+ContainerDeathEvent deathEvent = dockerService.buildDeathEvent(containerId, action); // 이미 실패
+deathEvent.setNodeId(nodeId);  // 너무 늦음
+```
+
+참고: `getContainerLogs()`는 Phase 6에서 노드 fallback이 추가됐으나 `buildDeathEvent`는 누락됐었음.
+
+**해결**: `buildDeathEvent(containerId, action, nodeId)` 3-arg 오버로드 추가.
+
+```java
+public ContainerDeathEvent buildDeathEvent(String containerId, String action, String nodeId) {
+    DockerClient client = resolveClient(nodeId);
+    return buildDeathEventWithClient(containerId, action, client);
+}
+
+private DockerClient resolveClient(String nodeId) {
+    if (nodeId == null || nodeRegistry == null) return dockerClient;
+    return nodeRegistry.findById(nodeId)
+            .map(nodeClientFactory::createClient)
+            .orElse(dockerClient);
+}
+```
+
+`DockerEventListener`에서 `buildDeathEvent(containerId, action, nodeId)` 로 호출.
+
+**결과**:
+
+| 시나리오 | 변경 전 | 변경 후 |
+|---------|--------|--------|
+| 로컬 컨테이너 die | 정상 | 동일 |
+| 원격 노드 컨테이너 die | containerName="Unknown", labels=null → 자가치유 없음 | 해당 노드 클라이언트로 inspect → 정상 이름/라벨 → 자가치유 동작 |
