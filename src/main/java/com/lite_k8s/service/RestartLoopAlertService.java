@@ -14,8 +14,9 @@ public class RestartLoopAlertService {
     private final AlertDeduplicationService deduplicationService;
     private final RestartTracker restartTracker;
     private final MonitorProperties monitorProperties;
+    private final DockerService dockerService;
 
-    public void checkAndAlert(String containerId, String containerName) {
+    public void checkAndHandle(String containerId, String containerName, String nodeId) {
         MonitorProperties.RestartLoop config = monitorProperties.getRestartLoop();
 
         if (!config.isEnabled()) {
@@ -25,10 +26,11 @@ public class RestartLoopAlertService {
         int restartCount = restartTracker.getRestartCount(containerId);
 
         if (restartCount >= config.getThresholdCount()) {
-            if (deduplicationService.shouldAlert(containerId, "RESTART_LOOP")) {
-                log.warn("재시작 반복 감지: {} ({}분 내 {}회)",
+            if (deduplicationService.shouldAlert(containerId, "CRASH_LOOP")) {
+                log.warn("Crash Loop 감지 — 컨테이너 강제 정지: {} ({}분 내 {}회)",
                         containerName, config.getWindowMinutes(), restartCount);
-                emailNotificationService.sendRestartLoopAlert(
+                dockerService.stopContainer(containerId, nodeId);
+                emailNotificationService.sendCrashLoopStoppedAlert(
                         containerName, containerId, restartCount, config.getWindowMinutes());
             }
         }

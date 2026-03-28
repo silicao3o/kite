@@ -238,6 +238,33 @@ public class DockerService {
                 .build();
     }
 
+    public boolean stopContainer(String containerId) {
+        return stopContainer(containerId, dockerClient);
+    }
+
+    public boolean stopContainer(String containerId, String nodeId) {
+        if (nodeId == null) {
+            return stopContainer(containerId, dockerClient);
+        }
+        return nodeRegistry.findById(nodeId)
+                .map(node -> stopContainer(containerId, nodeClientFactory.createClient(node)))
+                .orElseGet(() -> {
+                    log.warn("노드를 찾을 수 없어 로컬 클라이언트로 정지 시도: nodeId={}, containerId={}", nodeId, containerId);
+                    return stopContainer(containerId, dockerClient);
+                });
+    }
+
+    public boolean stopContainer(String containerId, DockerClient client) {
+        try {
+            client.stopContainerCmd(containerId).exec();
+            log.info("컨테이너 강제 정지 성공: {}", containerId);
+            return true;
+        } catch (Exception e) {
+            log.error("컨테이너 강제 정지 실패: {}", containerId, e);
+            return false;
+        }
+    }
+
     public boolean restartContainer(String containerId) {
         return restartContainer(containerId, dockerClient);
     }

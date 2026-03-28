@@ -71,8 +71,8 @@ public class SelfHealingService {
             restartTracker.recordRestart(containerId);
             log.info("자가치유 완료: {}", event.getContainerName());
             saveHealingEvent(event, true, "자가치유 성공");
-            // 재시작 반복 알림 체크
-            restartLoopAlertService.checkAndAlert(containerId, event.getContainerName());
+            // Crash Loop 감지 및 강제 정지 체크
+            restartLoopAlertService.checkAndHandle(containerId, event.getContainerName(), event.getNodeId());
         } else {
             log.error("자가치유 실패: {}", event.getContainerName());
             saveHealingEvent(event, false, "자가치유 실패");

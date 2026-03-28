@@ -309,6 +309,46 @@ public class EmailNotificationService {
         return buildEmailHtml("600px", color, type + " 사용률 경고", extraStyles, body);
     }
 
+    @Async
+    public void sendCrashLoopStoppedAlert(String containerName, String containerId, int restartCount, int windowMinutes) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(parseRecipients());
+            helper.setSubject(String.format("[CRASH LOOP] %s - 강제 정지됨 (%d분 내 %d회 재시작) (%s)",
+                    sanitizeHeader(containerName), windowMinutes, restartCount, sanitizeHeader(serverName)));
+            helper.setText(buildCrashLoopStoppedContent(containerName, containerId, restartCount, windowMinutes), true);
+
+            mailSender.send(message);
+            log.info("Crash Loop 강제 정지 알림 전송 완료: {} ({}회)", containerName, restartCount);
+
+        } catch (Exception e) {
+            log.error("이메일 전송 실패: {}", containerName, e);
+        }
+    }
+
+    private String buildCrashLoopStoppedContent(String containerName, String containerId, int restartCount, int windowMinutes) {
+        String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
+        String body = String.format("""
+                <table class="info-table">
+                    <tr><th>서버</th><td>%s</td></tr>
+                    <tr><th>컨테이너 이름</th><td><strong>%s</strong></td></tr>
+                    <tr><th>컨테이너 ID</th><td><code>%s</code></td></tr>
+                    <tr><th>재시작 횟수</th><td><strong>%d회</strong> (최근 %d분 내)</td></tr>
+                    <tr><th>조치</th><td><span style="color:#dc3545;font-weight:bold;">컨테이너 강제 정지됨</span></td></tr>
+                </table>
+                <div class="warning-box">
+                    <strong>Crash Loop 감지:</strong> 컨테이너가 %d분 내 %d회 재시작되어 강제 정지되었습니다.<br>
+                    애플리케이션 오류(DB 스키마 불일치, 설정 오류 등)를 확인한 후 수동으로 재시작하세요.
+                </div>""",
+                escapeHtml(serverName), escapeHtml(containerName), shortId, restartCount, windowMinutes, windowMinutes, restartCount);
+        return buildEmailHtml("600px", "#dc3545", "Crash Loop — 컨테이너 강제 정지",
+                "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
+                body);
+    }
+
     private String buildRestartLoopContent(String containerName, String containerId, int restartCount, int windowMinutes) {
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""

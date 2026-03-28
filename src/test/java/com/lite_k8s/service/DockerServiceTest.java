@@ -6,6 +6,7 @@ import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.command.LogContainerCmd;
 import com.github.dockerjava.api.command.StartContainerCmd;
+import com.github.dockerjava.api.command.StopContainerCmd;
 import com.github.dockerjava.api.model.ContainerConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,9 @@ class DockerServiceTest {
 
     @Mock
     private StartContainerCmd startContainerCmd;
+
+    @Mock
+    private StopContainerCmd stopContainerCmd;
 
     private DockerService dockerService;
 
@@ -249,6 +253,52 @@ class DockerServiceTest {
 
         // then
         assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("컨테이너 강제 정지 - 성공")
+    void stopContainer_ShouldCallDockerStopCmd() {
+        // given
+        String containerId = "abc123def456";
+        when(dockerClient.stopContainerCmd(containerId)).thenReturn(stopContainerCmd);
+
+        // when
+        boolean result = dockerService.stopContainer(containerId);
+
+        // then
+        assertThat(result).isTrue();
+        verify(dockerClient).stopContainerCmd(containerId);
+        verify(stopContainerCmd).exec();
+    }
+
+    @Test
+    @DisplayName("컨테이너 강제 정지 - 실패 시 false 반환")
+    void stopContainer_ShouldReturnFalseOnFailure() {
+        // given
+        String containerId = "nonexistent123";
+        when(dockerClient.stopContainerCmd(containerId)).thenReturn(stopContainerCmd);
+        doThrow(new RuntimeException("Container not found")).when(stopContainerCmd).exec();
+
+        // when
+        boolean result = dockerService.stopContainer(containerId);
+
+        // then
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("nodeId로 컨테이너 강제 정지 - nodeId null이면 로컬 사용")
+    void stopContainer_WithNullNodeId_ShouldUseLocalClient() {
+        // given
+        String containerId = "abc123def456";
+        when(dockerClient.stopContainerCmd(containerId)).thenReturn(stopContainerCmd);
+
+        // when
+        boolean result = dockerService.stopContainer(containerId, (String) null);
+
+        // then
+        assertThat(result).isTrue();
+        verify(dockerClient).stopContainerCmd(containerId);
     }
 
     @Test

@@ -286,12 +286,16 @@ class DockerEventListenerTest {
     }
 
     @Test
-    @DisplayName("중복 알림은 스킵")
+    @DisplayName("중복 알림은 이메일만 스킵 — buildDeathEvent와 SelfHealing은 실행됨")
     void handleEvent_WhenDuplicateAlert_ShouldNotSendNotification() {
         // given
         setupEventsCmdMock();
         // 중복으로 판정
         when(deduplicationService.shouldAlert(any(), any())).thenReturn(false);
+
+        ContainerDeathEvent deathEvent = createTestDeathEvent();
+        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("exit code");
 
         // when
         dockerEventListener.startListening();
@@ -301,8 +305,8 @@ class DockerEventListenerTest {
         Event dieEvent = createDockerEvent("die", "container123");
         callback.onNext(dieEvent);
 
-        // then
-        verify(dockerService, never()).buildDeathEvent(anyString(), anyString());
+        // then - 이메일 알림만 스킵
+        verify(dockerService).buildDeathEvent("container123", "die");
         verify(notificationService, never()).sendAlert(any());
     }
 
@@ -330,6 +334,31 @@ class DockerEventListenerTest {
                 .action("die")
                 .lastLogs("Some logs here")
                 .build();
+    }
+
+    @Test
+    @DisplayName("중복 알림이더라도 SelfHealingService는 실행된다")
+    void handleEvent_WhenDuplicateAlert_ShouldStillCallSelfHealingService() {
+        // given
+        setupEventsCmdMock();
+        when(deduplicationService.shouldAlert(any(), any())).thenReturn(false);
+
+        ContainerDeathEvent deathEvent = createTestDeathEvent();
+        when(dockerService.buildDeathEvent(anyString(), anyString())).thenReturn(deathEvent);
+        lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("exit code");
+
+        // when
+        dockerEventListener.startListening();
+        verify(eventsCmd).exec(callbackCaptor.capture());
+        ResultCallback<Event> callback = callbackCaptor.getValue();
+
+        Event dieEvent = createDockerEvent("die", "container123");
+        callback.onNext(dieEvent);
+
+        // then - SelfHealing은 dedup과 무관하게 실행
+        verify(selfHealingService).handleContainerDeath(deathEvent);
+        // 이메일 알림은 전송하지 않음
+        verify(notificationService, never()).sendAlert(any());
     }
 
     @Test

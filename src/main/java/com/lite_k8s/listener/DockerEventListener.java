@@ -152,15 +152,9 @@ public class DockerEventListener {
 
         log.debug("Docker 이벤트 수신: action={}, containerId={}", action, containerId);
 
-        // die, kill, oom 이벤트만 처리
+        // die, oom 이벤트만 처리
         if (action != null && DEATH_ACTIONS.contains(action.toLowerCase())) {
             log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
-
-            // 중복 알림 체크
-            if (!deduplicationService.shouldAlert(containerId, action)) {
-                log.info("중복 알림 스킵: containerId={}, action={}", containerId, action);
-                return;
-            }
 
             try {
                 // 컨테이너 정보 수집
@@ -177,16 +171,19 @@ public class DockerEventListener {
                 String deathReason = exitCodeAnalyzer.analyze(deathEvent);
                 deathEvent.setDeathReason(deathReason);
 
-                // 이메일 알림 전송
-                notificationService.sendAlert(deathEvent);
-
-                // 자가치유 시도
+                // 자가치유 시도 (dedup과 무관하게 항상 실행 — crash loop 감지를 위해)
                 selfHealingService.handleContainerDeath(deathEvent);
+
+                // 이메일 알림 전송 (중복 방지 적용)
+                if (deduplicationService.shouldAlert(containerId, action)) {
+                    notificationService.sendAlert(deathEvent);
+                    log.info("컨테이너 종료 알림 전송 완료: {}", deathEvent.getContainerName());
+                } else {
+                    log.info("중복 알림 스킵: containerId={}, action={}", containerId, action);
+                }
 
                 // AI 사후 분석 리포트 생성 (비동기)
                 incidentReportService.createReport(deathEvent);
-
-                log.info("컨테이너 종료 알림 전송 완료: {}", deathEvent.getContainerName());
 
             } catch (Exception e) {
                 log.error("컨테이너 종료 이벤트 처리 실패: {}", containerId, e);
