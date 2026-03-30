@@ -81,6 +81,8 @@ public class IncidentReportService {
 
             if (!response.isError() && response.isJsonParsed()) {
                 report.setRootCause(response.getReasoning());
+                report.setStatus(IncidentReport.Status.CLOSED);
+                report.setClosedAt(LocalDateTime.now());
                 log.info("AI incident analysis completed for {}: rootCause={}",
                         event.getContainerName(), response.getReasoning());
             }
