@@ -89,6 +89,7 @@
                 <span class="status-badge"
                       th:classappend="${container.statusClass}"
                       th:text="${container.state}">running</span>
+                <button id="update-image-btn" onclick="updateImage()" style="margin-left:auto;">↑ Update Image</button>
             </div>
 
             <!-- Info Cards -->
@@ -230,7 +231,28 @@
 
     <script th:inline="javascript">
         const containerId = [[${container.id}]];
+        const nodeId = [[${container.nodeId}]];
         let originalLogs = document.getElementById('logs').innerHTML;
+
+        function updateImage() {
+            const btn = document.getElementById('update-image-btn');
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+
+            const params = new URLSearchParams();
+            if (nodeId) params.append('nodeId', nodeId);
+
+            fetch('/api/containers/' + containerId + '/update-image', { method: 'POST', body: params })
+                .then(r => r.text())
+                .then(() => {
+                    btn.textContent = '✓ Updated';
+                    setTimeout(() => location.reload(), 2000);
+                })
+                .catch(() => {
+                    btn.textContent = '✗ Failed';
+                    btn.disabled = false;
+                });
+        }
 
         function refreshLogs() {
             fetch('/api/containers/' + containerId + '/logs')

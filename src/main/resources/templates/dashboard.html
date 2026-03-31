@@ -132,6 +132,7 @@
                                 <th>Memory</th>
                                 <th>Healing</th>
                                 <th>Container ID</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -175,6 +176,12 @@
                                 </td>
                                 <td>
                                     <span class="container-id" th:text="${container.shortId}">abc123</span>
+                                </td>
+                                <td>
+                                    <button class="update-btn"
+                                            th:data-container-id="${container.id}"
+                                            th:data-node-id="${container.nodeId}"
+                                            onclick="updateImage(this)">↑ Update</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -292,6 +299,21 @@
                     }
                 }
             });
+        }
+
+        function updateImage(btn) {
+            const id = btn.dataset.containerId;
+            const nodeId = btn.dataset.nodeId;
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            const params = new URLSearchParams();
+            if (nodeId) params.append('nodeId', nodeId);
+
+            fetch('/api/containers/' + id + '/update-image', { method: 'POST', body: params })
+                .then(r => r.text())
+                .then(() => { btn.textContent = '✓ Done'; })
+                .catch(() => { btn.textContent = '✗ Failed'; btn.disabled = false; });
         }
 
         // 페이지 로드 시 WebSocket 연결
