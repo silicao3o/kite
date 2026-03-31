@@ -64,6 +64,7 @@ class ContainerRecreateServiceTest {
         PullImageCmd pullImageCmd = mock(PullImageCmd.class);
         ResultCallback.Adapter<PullResponseItem> callback = mock(ResultCallback.Adapter.class);
         when(dockerClient.pullImageCmd("ghcr.io/silicao3o/exercise-auth:latest")).thenReturn(pullImageCmd);
+        when(pullImageCmd.withPlatform(anyString())).thenReturn(pullImageCmd);
         when(pullImageCmd.exec(any())).thenReturn(callback);
         when(callback.awaitCompletion(anyLong(), any())).thenReturn(true);
 
@@ -76,6 +77,7 @@ class ContainerRecreateServiceTest {
     void shouldThrowWhenPullImageFails() {
         PullImageCmd pullImageCmd = mock(PullImageCmd.class);
         when(dockerClient.pullImageCmd(anyString())).thenReturn(pullImageCmd);
+        when(pullImageCmd.withPlatform(anyString())).thenReturn(pullImageCmd);
         when(pullImageCmd.exec(any())).thenThrow(new NotFoundException("이미지 없음"));
 
         assertThatThrownBy(() -> service.pullImage(dockerClient, "unknown:latest"))
@@ -111,6 +113,7 @@ class ContainerRecreateServiceTest {
         PullImageCmd pullCmd = mock(PullImageCmd.class);
         ResultCallback.Adapter<PullResponseItem> callback = mock(ResultCallback.Adapter.class);
         when(dockerClient.pullImageCmd("my-image:latest")).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
         when(pullCmd.exec(any())).thenReturn(callback);
         when(callback.awaitCompletion(anyLong(), any())).thenReturn(true);
 
@@ -149,6 +152,7 @@ class ContainerRecreateServiceTest {
         PullImageCmd pullCmd = mock(PullImageCmd.class);
         ResultCallback.Adapter<PullResponseItem> callback = mock(ResultCallback.Adapter.class);
         when(nodeClient.pullImageCmd("my-image:latest")).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
         when(pullCmd.exec(any())).thenReturn(callback);
         when(callback.awaitCompletion(anyLong(), any())).thenReturn(true);
 
