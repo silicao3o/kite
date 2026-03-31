@@ -17,13 +17,24 @@ public class NodeDockerClientFactory {
 
     private final SshTunnelManager tunnelManager;
     private final ConcurrentHashMap<String, DockerClient> clientCache = new ConcurrentHashMap<>();
+    private final java.util.Set<String> failedNodes = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public NodeDockerClientFactory(SshTunnelManager tunnelManager) {
         this.tunnelManager = tunnelManager;
     }
 
     public DockerClient createClient(Node node) {
-        return clientCache.computeIfAbsent(node.getId(), id -> buildClient(node));
+        if (failedNodes.contains(node.getId())) {
+            throw new RuntimeException("노드 연결 실패 (스킵): " + node.getName());
+        }
+        return clientCache.computeIfAbsent(node.getId(), id -> {
+            try {
+                return buildClient(node);
+            } catch (Exception e) {
+                failedNodes.add(node.getId());
+                throw e;
+            }
+        });
     }
 
     private DockerClient buildClient(Node node) {
@@ -72,6 +83,7 @@ public class NodeDockerClientFactory {
         if (client != null) {
             try { client.close(); } catch (Exception ignored) {}
         }
+        failedNodes.remove(nodeId);
         tunnelManager.closeTunnel(nodeId);
     }
 }

@@ -360,13 +360,16 @@ tbody tr:last-child td {
 }
 
 /* Table column sizing */
-table th:nth-child(1), table td:nth-child(1) { width: 22%; } /* Name */
-table th:nth-child(2), table td:nth-child(2) { width: 28%; } /* Image */
-table th:nth-child(3), table td:nth-child(3) { width: 10%; } /* Status */
-table th:nth-child(4), table td:nth-child(4) { width: 9%; }  /* CPU */
-table th:nth-child(5), table td:nth-child(5) { width: 13%; } /* Memory */
-table th:nth-child(6), table td:nth-child(6) { width: 9%; }  /* Healing */
-table th:nth-child(7), table td:nth-child(7) { width: 9%; }  /* Container ID */
+table th:nth-child(1), table td:nth-child(1) { width: 18%; } /* Name */
+table th:nth-child(2), table td:nth-child(2) { width: 7%;  } /* Node */
+table th:nth-child(3), table td:nth-child(3) { width: 22%; } /* Image */
+table th:nth-child(4), table td:nth-child(4) { width: 9%;  } /* Status */
+table th:nth-child(5), table td:nth-child(5) { width: 8%;  } /* CPU */
+table th:nth-child(6), table td:nth-child(6) { width: 12%; } /* Memory */
+table th:nth-child(7), table td:nth-child(7) { width: 8%;  } /* Healing */
+table th:nth-child(8), table td:nth-child(8) { width: 8%;  } /* Container ID */
+table th:nth-child(9), table td:nth-child(9) { width: 8%; overflow: visible; } /* Action */
+table td:nth-child(9) { overflow: visible; }
 
 /* Container Name Link */
 .container-link {
@@ -543,6 +546,32 @@ table th:nth-child(7), table td:nth-child(7) { width: 9%; }  /* Container ID */
     background-color: var(--accent-blue);
     border-color: var(--accent-blue);
     color: white;
+}
+
+.update-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.update-btn:hover {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.update-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .logs-content {

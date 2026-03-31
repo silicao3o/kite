@@ -122,7 +122,13 @@ public class DockerEventListener {
         if (!nodes.isEmpty()) {
             // 멀티 노드 모드: 원격 노드 이벤트 스트림 추가 생성
             for (Node node : nodes) {
-                DockerClient client = nodeClientFactory.createClient(node);
+                DockerClient client;
+                try {
+                    client = nodeClientFactory.createClient(node);
+                } catch (Exception e) {
+                    log.warn("노드 이벤트 스트림 스킵 [{}] — 연결 실패: {}", node.getName(), e.getMessage());
+                    continue;
+                }
                 Closeable stream = client.eventsCmd()
                         .withEventTypeFilter(EventType.CONTAINER)
                         .exec(new ResultCallback.Adapter<Event>() {
