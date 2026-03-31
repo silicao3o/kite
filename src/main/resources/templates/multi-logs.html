@@ -410,6 +410,11 @@
                 document.getElementById('panel-' + i).classList.toggle('hidden', i > count);
                 if (i > count) stopPanel(i);
             }
+            // 패널 수 변경 시 보이는 패널들의 스크롤을 하단으로 리셋
+            for (let i = 1; i <= count; i++) {
+            const el = document.getElementById('logs-' + i);
+            el.scrollTop = el.scrollHeight;
+            }
         }
 
         function onContainerSelected(panelNum) {
@@ -439,7 +444,8 @@
                     const el = document.getElementById('logs-' + panelNum);
                     const trimmed = trimLines(text);
                     el.textContent = trimmed;
-                    if (isScrolledToBottom(el)) el.scrollTop = el.scrollHeight;
+                    // 로그 갱신 시 항상 하단 스크롤 
+                    el.scrollTop = el.scrollHeight;
                     setStatus(panelNum, 'active');
                 })
                 .catch(() => setStatus(panelNum, 'idle'));

@@ -254,8 +254,8 @@
     </div>
 
     <script th:inline="javascript">
-        const containerId = [[${container.id}]];
-        const nodeId = [[${container.nodeId}]];
+        const containerId = [[${ container.id }]];
+        const nodeId = [[${ container.nodeId }]];
         let originalLogs = document.getElementById('logs').innerHTML;
         // 페이지 로드 시 로그를 하단 스크롤로 시작
         document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
