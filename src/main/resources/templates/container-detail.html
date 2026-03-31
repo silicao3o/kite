@@ -95,6 +95,13 @@
                     </svg>
                     Update Image
                 </button>
+                <button id="delete-image-btn" class="delete-btn" onclick="deleteImage()"
+                        th:data-image="${container.image}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                    Delete Image
+                </button>
             </div>
 
             <!-- Info Cards -->
@@ -238,6 +245,32 @@
         const containerId = [[${container.id}]];
         const nodeId = [[${container.nodeId}]];
         let originalLogs = document.getElementById('logs').innerHTML;
+
+        function deleteImage() {
+            const btn = document.getElementById('delete-image-btn');
+            const imageName = btn.dataset.image;
+            if (!confirm('이미지 "' + imageName + '"을 삭제하시겠습니까?\n컨테이너가 실행 중이면 삭제에 실패할 수 있습니다.')) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+
+            const params = new URLSearchParams({ name: imageName });
+            if (nodeId) params.append('nodeId', nodeId);
+
+            fetch('/api/images?' + params.toString(), { method: 'DELETE' })
+                .then(r => {
+                    if (!r.ok) return r.text().then(msg => { throw new Error(msg); });
+                    return r.text();
+                })
+                .then(() => {
+                    window.location.href = '/';
+                })
+                .catch(err => {
+                    alert('삭제 실패: ' + err.message);
+                    btn.disabled = false;
+                    btn.textContent = 'Delete Image';
+                });
+        }
 
         function updateImage() {
             const btn = document.getElementById('update-image-btn');
