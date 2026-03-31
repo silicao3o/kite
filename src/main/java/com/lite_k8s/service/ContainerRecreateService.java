@@ -37,10 +37,14 @@ public class ContainerRecreateService {
 
     public void pullImage(DockerClient client, String imageName) {
         try {
-            var cmd = client.pullImageCmd(imageName);
+            var cmd = client.pullImageCmd(imageName)
+                    .withPlatform("linux/amd64");
             if (ghcrToken != null && !ghcrToken.isBlank() && imageName.startsWith("ghcr.io")) {
+                String[] parts = imageName.split("/");
+                String username = parts.length >= 2 ? parts[1] : "token";
                 cmd.withAuthConfig(new AuthConfig()
-                        .withRegistryAddress("ghcr.io")
+                        .withRegistryAddress("https://ghcr.io")
+                        .withUsername(username)
                         .withPassword(ghcrToken));
             }
             cmd.exec(new ResultCallback.Adapter<PullResponseItem>())

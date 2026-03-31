@@ -1,5 +1,9 @@
 package com.lite_k8s.controller;
 
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.RemoveContainerCmd;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.service.ContainerRecreateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,12 +20,15 @@ import static org.mockito.Mockito.*;
 class ContainerControllerTest {
 
     @Mock private ContainerRecreateService containerRecreateService;
+    @Mock private DockerClient dockerClient;
+    @Mock private NodeRegistry nodeRegistry;
+    @Mock private NodeDockerClientFactory nodeClientFactory;
 
     private ContainerController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new ContainerController(containerRecreateService);
+        controller = new ContainerController(containerRecreateService, dockerClient, nodeRegistry, nodeClientFactory);
     }
 
     @Test
