@@ -4,14 +4,15 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.model.AuthConfig;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PullResponseItem;
-import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.DockerContainerNames;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -26,6 +27,9 @@ public class ContainerRecreateService {
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
 
+    @Value("${GHCR_TOKEN:}")
+    private String ghcrToken;
+
     public String getImageName(String containerId) {
         return dockerClient.inspectContainerCmd(containerId).exec()
                 .getConfig().getImage();
@@ -33,8 +37,13 @@ public class ContainerRecreateService {
 
     public void pullImage(DockerClient client, String imageName) {
         try {
-            client.pullImageCmd(imageName)
-                    .exec(new ResultCallback.Adapter<PullResponseItem>())
+            var cmd = client.pullImageCmd(imageName);
+            if (ghcrToken != null && !ghcrToken.isBlank() && imageName.startsWith("ghcr.io")) {
+                cmd.withAuthConfig(new AuthConfig()
+                        .withRegistryAddress("ghcr.io")
+                        .withPassword(ghcrToken));
+            }
+            cmd.exec(new ResultCallback.Adapter<PullResponseItem>())
                     .awaitCompletion(120, TimeUnit.SECONDS);
             log.info("이미지 Pull 완료: {}", imageName);
         } catch (InterruptedException e) {
