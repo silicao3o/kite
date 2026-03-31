@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${container.name} + ' · kite'">Container · kite</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
+
 <body>
     <div class="layout">
         <!-- Sidebar -->
@@ -13,7 +15,8 @@
             <div class="sidebar-header">
                 <div class="logo">
                     <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z"/>
+                        <path
+                            d="M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z" />
                     </svg>
                 </div>
                 <h1>kite</h1>
@@ -23,49 +26,54 @@
                     <div class="nav-section-title">Workloads</div>
                     <a href="/" class="nav-item active">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7" rx="1"/>
-                            <rect x="14" y="3" width="7" height="7" rx="1"/>
-                            <rect x="3" y="14" width="7" height="7" rx="1"/>
-                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                            <rect x="3" y="3" width="7" height="7" rx="1" />
+                            <rect x="14" y="3" width="7" height="7" rx="1" />
+                            <rect x="3" y="14" width="7" height="7" rx="1" />
+                            <rect x="14" y="14" width="7" height="7" rx="1" />
                         </svg>
                         Containers
                     </a>
                     <a href="/nodes" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+                            <rect x="2" y="2" width="20" height="8" rx="2" />
+                            <rect x="2" y="14" width="20" height="8" rx="2" />
+                            <line x1="6" y1="6" x2="6.01" y2="6" />
+                            <line x1="6" y1="18" x2="6.01" y2="18" />
                         </svg>
                         Nodes
                     </a>
                     <a href="/multi-logs" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="8" height="8" rx="1"/>
-                            <rect x="13" y="3" width="8" height="8" rx="1"/>
-                            <rect x="3" y="13" width="8" height="8" rx="1"/>
-                            <rect x="13" y="13" width="8" height="8" rx="1"/>
+                            <rect x="3" y="3" width="8" height="8" rx="1" />
+                            <rect x="13" y="3" width="8" height="8" rx="1" />
+                            <rect x="3" y="13" width="8" height="8" rx="1" />
+                            <rect x="13" y="13" width="8" height="8" rx="1" />
                         </svg>
                         Multi Logs
                     </a>
                     <a href="/healing-logs" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                         </svg>
                         Healing Logs
                     </a>
                     <a href="/incidents" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                            <path
+                                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                         </svg>
                         Incident Reports
                     </a>
                     <a href="/suggestions" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            <path
+                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                         Suggestions
                     </a>
                     <a href="/metrics-history" class="nav-item">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                         </svg>
                         Metrics History
                     </a>
@@ -79,25 +87,27 @@
             <div class="detail-header">
                 <a href="/" class="back-button">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                 </a>
                 <div class="detail-title">
                     <h2 th:text="${container.name}">container-name</h2>
                     <div class="subtitle" th:text="${container.id}">container-id</div>
                 </div>
-                <span class="status-badge"
-                      th:classappend="${container.statusClass}"
-                      th:text="${container.state}">running</span>
+                <span class="status-badge" th:classappend="${container.statusClass}"
+                    th:text="${container.state}">running</span>
                 <button id="update-image-btn" class="refresh-btn" onclick="updateImage()" style="margin-left:auto;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     </svg>
                     Update Image
                 </button>
                 <button id="delete-container-btn" class="delete-btn" onclick="deleteContainer()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M9 6V4h6v2" />
                     </svg>
                     Delete Container
                 </button>
@@ -121,7 +131,8 @@
                     </div>
                     <div class="info-row">
                         <span class="info-label">Created</span>
-                        <span class="info-value" th:text="${#temporals.format(container.created, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+                        <span class="info-value"
+                            th:text="${#temporals.format(container.created, 'yyyy-MM-dd HH:mm:ss')}">-</span>
                     </div>
                 </div>
 
@@ -173,11 +184,11 @@
                         </thead>
                         <tbody>
                             <tr th:each="event : ${healingEvents}">
-                                <td th:text="${#temporals.format(event.timestamp, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01 12:00:00</td>
+                                <td th:text="${#temporals.format(event.timestamp, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01
+                                    12:00:00</td>
                                 <td>
-                                    <span class="status-badge"
-                                          th:classappend="${event.success} ? 'running' : 'exited'"
-                                          th:text="${event.success} ? 'SUCCESS' : 'FAILED'">SUCCESS</span>
+                                    <span class="status-badge" th:classappend="${event.success} ? 'running' : 'exited'"
+                                        th:text="${event.success} ? 'SUCCESS' : 'FAILED'">SUCCESS</span>
                                 </td>
                                 <td th:text="${event.restartCount}">1</td>
                                 <td th:text="${event.message}">Message</td>
@@ -192,9 +203,10 @@
                 <div class="logs-header">
                     <h3>Container Logs</h3>
                     <button class="refresh-btn" onclick="refreshLogs()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M23 4v6h-6M1 20v-6h6"/>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                         </svg>
                         Refresh
                     </button>
@@ -211,9 +223,10 @@
                             <option value="DEBUG">DEBUG</option>
                         </select>
                         <button class="search-btn" onclick="searchLogs()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/>
-                                <path d="M21 21l-4.35-4.35"/>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
                             </svg>
                             Search
                         </button>
@@ -244,6 +257,8 @@
         const containerId = [[${container.id}]];
         const nodeId = [[${container.nodeId}]];
         let originalLogs = document.getElementById('logs').innerHTML;
+        // 페이지 로드 시 로그를 하단 스크롤로 시작
+        document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
 
         function deleteContainer() {
             const btn = document.getElementById('delete-container-btn');
@@ -296,6 +311,7 @@
                 .then(response => response.text())
                 .then(logs => {
                     document.getElementById('logs').textContent = logs;
+                    document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
                     originalLogs = logs;
                     clearSearch();
                 })
@@ -331,7 +347,7 @@
             const now = new Date();
             let fromDate = new Date();
 
-            switch(preset) {
+            switch (preset) {
                 case '1h':
                     fromDate.setHours(now.getHours() - 1);
                     break;
@@ -381,11 +397,12 @@
         }
 
         // Enter key to search
-        document.getElementById('searchKeyword').addEventListener('keypress', function(e) {
+        document.getElementById('searchKeyword').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 searchLogs();
             }
         });
     </script>
 </body>
+
 </html>
