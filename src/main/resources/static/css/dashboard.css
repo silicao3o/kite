@@ -127,8 +127,7 @@ body {
     flex: 1;
     margin-left: 240px;
     padding: 24px;
-    transition: margin-left 0.3s ease; /* 사이드바 숨길 때 콘텐츠 영역이 부드럽게 확장 */
-
+    /* transition: margin-left 0.3s ease; — reflow 비용이 높아 제거 (텍스트 많은 페이지 버벅임 원인) */
 }
 
 /* Header */
