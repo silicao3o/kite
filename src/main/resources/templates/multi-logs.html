@@ -86,7 +86,7 @@
         .panels-grid {
             display: grid;
             gap: 12px;
-            height: calc(100vh - 200px);
+            height: calc(100vh - 120px); /* 패널 높이 확대 */
         }
         .panels-grid.count-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
         .panels-grid.count-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
@@ -260,10 +260,11 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <div class="page-header">
-                <h2>Multi Logs</h2>
+            <!-- <div class="page-header">
+                <h2>Multi Logs</h2>   
                 <p>Real-time log view for up to 4 containers simultaneously</p>
-            </div>
+                헤더 제거 - 공간 활용 극대화
+            </div> -->
 
             <!-- Toolbar -->
             <div class="multi-logs-toolbar">
