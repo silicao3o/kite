@@ -401,9 +401,13 @@
                 }
             });
         }
+        //ANSI escape code 제거 - 터미널 색상 코드를 브라우저에서 표시하면 깨져 보이므로 제거
+        function stripAnsi(text) {
+            return text.replace(/\x1b\[[0-9;]*m/g, '');
+        }
         let currentCount = 1;
         let refreshInterval = 5000;
-
+        
         function setPanelCount(count) {
             currentCount = count;
             document.querySelectorAll('.panel-count-btn').forEach(btn => {
@@ -456,7 +460,7 @@
                     const wasAtBottom = isScrolledToBottom(el);
                     if (!panel.lastLog) {
                     // 최초 로드 — 전체 표시 + 하단 스크롤
-                        el.textContent = trimmed;
+                        el.textContent = stripAnsi(trimmed);
                         el.scrollTop = el.scrollHeight;
                     } else {
                         // 이전 마지막 줄을 기준으로 새 줄 찾기
@@ -477,10 +481,10 @@
                         // 기준점 이후의 줄 = 새로 추가된 로그만 추출하여 DOM 끝에 추가
                         // appendChild(createTextNode)는 기존 DOM을 건드리지 않아 드래그/Enter 빈 줄 유지
                             var diff = newLines.slice(matchIdx + 1).join('\n');
-                            el.appendChild(document.createTextNode('\n' + diff));
+                            el.appendChild(document.createTextNode('\n' + stripAnsi(diff)));
                         } else if (matchIdx === -1) {
                         // 로그 완전히 바뀜 (컨테이너 재시작 등)
-                            el.textContent = trimmed;
+                            el.textContent = stripAnsi(trimmed);
                         }
 
                         // 500줄 초과 시 위에서 잘라냄

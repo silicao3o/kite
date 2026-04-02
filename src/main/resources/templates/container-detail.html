@@ -259,6 +259,10 @@
     <script th:inline="javascript">
         const containerId = [[${ container.id }]];
         const nodeId = [[${ container.nodeId }]];
+        // ANSI escape code 제거 — 터미널 색상 코드를 브라우저에서 표시하면 깨져 보이므로 제거
+        function stripAnsi(text) {
+            return text.replace(/\x1b\[[0-9;]*m/g, '');
+        }
         let originalLogs = document.getElementById('logs').innerHTML;
         // 페이지 로드 시 로그를 하단 스크롤로 시작
         document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
@@ -313,7 +317,8 @@
             fetch('/api/containers/' + containerId + '/logs')
                 .then(response => response.text())
                 .then(logs => {
-                    document.getElementById('logs').textContent = logs;
+                    document.getElementById('logs').textContent = stripAnsi(logs);
+                    // 로그 Refresh 후 하단 스크롤로 이동
                     document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
                     originalLogs = logs;
                     clearSearch();
