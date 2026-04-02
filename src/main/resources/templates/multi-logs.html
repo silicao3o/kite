@@ -405,6 +405,39 @@
         function stripAnsi(text) {
             return text.replace(/\x1b\[[0-9;]*m/g, '');
         }
+
+        // 로그 텍스트에 색상 강조 적용 — ANSI 제거 후 HTML span으로 감싸기
+        function highlightLog(text) {
+            // ANSI 코드 제거
+            text = stripAnsi(text);
+            // HTML 특수문자 이스케이프 (<script> 등 실행 방지)
+            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            // 타임스탬프 강조 (2026-04-01T21:23:00 또는 2026-04-01 21:23:00 형식)
+            text = text.replace(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[\.\d+]*[\+\dZ:]*)/g,
+                '<span class="log-time">$1</span>');
+            // 로그 레벨 강조
+            text = text.replace(/\bERROR\b/g, '<span class="log-level-error">ERROR</span>');
+            text = text.replace(/\bWARN\b/g, '<span class="log-level-warn">WARN</span>');
+            text = text.replace(/\bINFO\b/g, '<span class="log-level-info">INFO</span>');
+            text = text.replace(/\bDEBUG\b/g, '<span class="log-level-debug">DEBUG</span>');
+            // error: 키워드 강조
+            text = text.replace(/\berror:/gi, '<span class="log-level-error">error:</span>');
+            // 대괄호 강조 [스레드명], [앱이름] 등
+            text = text.replace(/\[/g, '<span class="log-bracket">[</span>');
+            text = text.replace(/\]/g, '<span class="log-bracket">]</span>');
+            // 부정적 키워드 강조 — 빨간색
+            text = text.replace(/\b(Exception|Failed|Failure|Timeout|refused|rejected|denied|fatal|FATAL|critical)\b/gi, '<span class="log-level-error">$1</span>');
+            text = text.replace(/(삭제|실패|에러|오류|예외)/g, '<span class="log-level-error">$1</span>');
+            // HTTP 메서드 강조 — 초록색
+            text = text.replace(/\b(GET|POST|PUT|DELETE|PATCH)\b/g, '<span class="log-bracket">$1</span>');
+            return text;
+            // ===== 큐비 키워드 — 여기에 추가 =====
+            // 예시:
+            // text = text.replace(/워크플로우 실행 실패/g, '<span class="log-level-error">워크플로우 실행 실패</span>');
+            // text = text.replace(/초기화 완료/g, '<span class="log-level-info">초기화 완료</span>');
+
+        }
+
         let currentCount = 1;
         let refreshInterval = 5000;
         
@@ -421,8 +454,8 @@
             }
             // 패널 수 변경 시 보이는 패널들의 스크롤을 하단으로 리셋
             for (let i = 1; i <= count; i++) {
-            const el = document.getElementById('logs-' + i);
-            el.scrollTop = el.scrollHeight;
+                const el = document.getElementById('logs-' + i);
+                el.scrollTop = el.scrollHeight;
             }
         }
 
@@ -460,7 +493,7 @@
                     const wasAtBottom = isScrolledToBottom(el);
                     if (!panel.lastLog) {
                     // 최초 로드 — 전체 표시 + 하단 스크롤
-                        el.textContent = stripAnsi(trimmed);
+                        el.innerHTML = highlightLog(trimmed);// HTML로 넣기 (태그 렌더링)
                         el.scrollTop = el.scrollHeight;
                     } else {
                         // 이전 마지막 줄을 기준으로 새 줄 찾기
@@ -481,10 +514,13 @@
                         // 기준점 이후의 줄 = 새로 추가된 로그만 추출하여 DOM 끝에 추가
                         // appendChild(createTextNode)는 기존 DOM을 건드리지 않아 드래그/Enter 빈 줄 유지
                             var diff = newLines.slice(matchIdx + 1).join('\n');
-                            el.appendChild(document.createTextNode('\n' + stripAnsi(diff)));
+                            // 새 로그를 HTML 요소로 만들어서 기존 DOM 끝에 추가 (기존 DOM 안 건드려서 드래그 유지)
+                            var newNode = document.createElement('span');    // 빈 <span> 요소 생성
+                            newNode.innerHTML = '\n' + highlightLog(diff);   // span 안에 색상 강조된 로그를 HTML로 넣기
+                            el.appendChild(newNode);                         // 기존 로그 끝에 span을 추가
                         } else if (matchIdx === -1) {
                         // 로그 완전히 바뀜 (컨테이너 재시작 등)
-                            el.textContent = stripAnsi(trimmed);
+                            el.innerHTML = highlightLog(trimmed);
                         }
 
                         // 500줄 초과 시 위에서 잘라냄
@@ -504,8 +540,7 @@
                     setStatus(panelNum, 'active');
                 })
                 .catch(() => setStatus(panelNum, 'idle'));
-            }
-
+        }
 
         function trimLines(text) {
             const lines = text.split('\n');

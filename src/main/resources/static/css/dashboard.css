@@ -823,17 +823,24 @@ table td:nth-child(9) { overflow: visible; }
 }
 
 .log-level-info {
-    color: #60a5fa;
+    color: #a5e003;
+;
 }
 
 .log-level-debug {
-    color: #9ca3af;
+    color: #6fb9eb;
 }
 
 .log-level-trace {
     color: #6b7280;
 }
 
+.log-time {
+    color: #27beb7;
+}
+.log-bracket {
+    color: #dbdb39;
+}
 .no-results {
     color: var(--text-muted);
     font-style: italic;
