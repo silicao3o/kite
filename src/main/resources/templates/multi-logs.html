@@ -433,28 +433,75 @@
             }
             panels[panelNum].containerId = containerId;
             panels[panelNum].paused = false;
+            panels[panelNum].lastLog = null;   // 컨테이너 변경 시 비교 기준 초기화 → 다음 fetch에서 전체 로드 + 하단 스크롤
+
             document.getElementById('pause-' + panelNum).disabled = false;
             document.getElementById('pause-' + panelNum).textContent = 'Pause';
             document.getElementById('pause-' + panelNum).classList.remove('paused');
             fetchLogs(panelNum);
             panels[panelNum].intervalId = setInterval(() => fetchLogs(panelNum), refreshInterval);
         }
-
+        // 서버에서 해당 컨테이너의 전체 로그를 가져옴    
         function fetchLogs(panelNum) {
             const panel = panels[panelNum];
             if (panel.paused || !panel.containerId) return;
+
             fetch('/api/containers/' + panel.containerId + '/logs')
-                .then(r => r.text())
+                .then(r => r.text()) // 서버 응답을 텍스트로 변환
                 .then(text => {
                     const el = document.getElementById('logs-' + panelNum);
-                    const trimmed = trimLines(text);
-                    el.textContent = trimmed;
-                    // 로그 갱신 시 항상 하단 스크롤 
-                    el.scrollTop = el.scrollHeight;
+                    const trimmed = trimLines(text); // 서버 응답을 최신 500줄로 자름 (비교용)
+                    
+                    // DOM 변경 전에 스크롤 위치 저장
+                    const wasAtBottom = isScrolledToBottom(el);
+                    if (!panel.lastLog) {
+                    // 최초 로드 — 전체 표시 + 하단 스크롤
+                        el.textContent = trimmed;
+                        el.scrollTop = el.scrollHeight;
+                    } else {
+                        // 이전 마지막 줄을 기준으로 새 줄 찾기
+                        var oldLines = panel.lastLog.split('\n'); // 이전 로그를 줄 단위로 분리
+                        var newLines = trimmed.split('\n'); // 새 로그를 줄 단위로 분리
+                        var lastOldLine = oldLines[oldLines.length - 1]; // 이전 로그의 마지막 줄 = 비교 기준점
+
+                        // 기준점이 새 로그에서 어디에 있는지 뒤에서부터 검색
+                        // 뒤에서부터 찾는 이유: 동일한 내용의 줄이 여러 개 있을 수 있으므로 가장 최근 매칭을 찾기 위해    
+                        var matchIdx = -1;
+                        for (var i = newLines.length - 1; i >= 0; i--) {
+                            if (newLines[i] === lastOldLine) {
+                                matchIdx = i;
+                                break;
+                            }
+                        }
+                        if (matchIdx >= 0 && matchIdx < newLines.length - 1) {
+                        // 기준점 이후의 줄 = 새로 추가된 로그만 추출하여 DOM 끝에 추가
+                        // appendChild(createTextNode)는 기존 DOM을 건드리지 않아 드래그/Enter 빈 줄 유지
+                            var diff = newLines.slice(matchIdx + 1).join('\n');
+                            el.appendChild(document.createTextNode('\n' + diff));
+                        } else if (matchIdx === -1) {
+                        // 로그 완전히 바뀜 (컨테이너 재시작 등)
+                            el.textContent = trimmed;
+                        }
+
+                        // 500줄 초과 시 위에서 잘라냄
+                        // var currentLines = el.textContent.split('\n');
+                        // if (currentLines.length > MAX_LOG_LINES) {
+                        //     el.textContent = currentLines.slice(currentLines.length - MAX_LOG_LINES).join('\n');
+                        // }
+
+                        //wasAtBottom 사용 (DOM 변경 전 값)
+                        //matchIdx가 -1인 경우(로그 완전 변경)에도 하단 스크롤
+                        if (wasAtBottom || matchIdx === -1) {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    }
+
+                    panel.lastLog = trimmed; // 이번 서버 응답 저장 — 다음 fetch 시 비교 기준
                     setStatus(panelNum, 'active');
                 })
                 .catch(() => setStatus(panelNum, 'idle'));
-        }
+            }
+
 
         function trimLines(text) {
             const lines = text.split('\n');
@@ -479,6 +526,7 @@
 
         function clearPanel(panelNum) {
             document.getElementById('logs-' + panelNum).textContent = '';
+            panels[panelNum].lastLog = null; // Clear 시 lastLog도 초기화하여 다음 fetch에서 전체 로드
         }
 
         function stopPanel(panelNum) {
@@ -487,6 +535,7 @@
                 clearInterval(panel.intervalId);
                 panel.intervalId = null;
             }
+            panel.lastLog = null; // lastLog 초기화 추가
             panel.containerId = null;
             panel.paused = false;
             setStatus(panelNum, 'idle');
