@@ -99,16 +99,15 @@
                 </div>
                 <div class="form-group">
                     <label>호스트 (IP)</label>
-                    <input type="text" id="nodeHost" placeholder="192.168.1.20" />
+                    <input type="text" id="nodeHost" placeholder="192.168.1.20" autocomplete="off" />
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="portGroup" style="display:none;">
                     <label>포트</label>
                     <input type="number" id="nodePort" value="2375" />
                 </div>
                 <div class="form-group">
                     <label>연결 방식</label>
                     <select id="connectionType" onchange="toggleSshFields()" style="padding:.45rem .7rem; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-size:.9rem;">
-                        <option value="TCP">TCP</option>
                         <option value="SSH">SSH 터널</option>
                         <option value="SSH_PROXY">SSH Proxy (CP 경유)</option>
                     </select>
@@ -126,8 +125,12 @@
                         <input type="text" id="sshUser" placeholder="ubuntu" style="width:130px;" />
                     </div>
                     <div class="form-group">
-                        <label>SSH 키 경로 (서버 내부)</label>
+                        <label>SSH 키 경로 (컨테이너 내부)</label>
                         <input type="text" id="sshKeyPath" placeholder="/root/.ssh/id_rsa" style="width:220px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>패스프레이즈 (선택)</label>
+                        <input type="password" id="sshPassphrase" placeholder="없으면 빈칸" style="width:160px;" autocomplete="new-password" />
                     </div>
                 </div>
             </div>
@@ -148,11 +151,10 @@
                           th:text="${node.status.name()}">UNKNOWN</span>
                 </div>
                 <div class="node-address">
-                    <span>*.*.*.*:[[${node.port}]]</span>
+                    <span th:if="${node.connectionType.name() == 'SSH'}">*.*.*.*</span>
+                    <span th:if="${node.connectionType.name() == 'SSH_PROXY'}">*.*.*.*:[[${node.port}]]</span>
                     <span th:if="${node.connectionType.name() == 'SSH'}"
                           style="margin-left:.5rem; background:#ede9fe; color:#6d28d9; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH</span>
-                    <span th:if="${node.connectionType.name() == 'TCP'}"
-                          style="margin-left:.5rem; background:#dbeafe; color:#1d4ed8; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">TCP</span>
                     <span th:if="${node.connectionType.name() == 'SSH_PROXY'}"
                           style="margin-left:.5rem; background:#fef3c7; color:#92400e; padding:1px 7px; border-radius:999px; font-size:.75rem; font-weight:600;">SSH_PROXY</span>
                 </div>
@@ -170,9 +172,13 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', toggleSshFields);
+
 function toggleSshFields() {
-    const val = document.getElementById('connectionType').value; const isSsh = val === 'SSH';
+    const val = document.getElementById('connectionType').value;
+    const isSsh = val === 'SSH';
     document.getElementById('sshFields').style.display = isSsh ? 'block' : 'none';
+    document.getElementById('portGroup').style.display = isSsh ? 'none' : '';
 }
 
 async function addNode() {
@@ -188,7 +194,8 @@ async function addNode() {
         return;
     }
 
-    const body = {name, host, port, connectionType};
+    const body = {name, host, connectionType};
+    if (connectionType !== 'SSH') body.port = port;
 
     if (connectionType === 'SSH') {
         const sshUser = document.getElementById('sshUser').value.trim();
@@ -201,6 +208,8 @@ async function addNode() {
         body.sshPort = parseInt(document.getElementById('sshPort').value);
         body.sshUser = sshUser;
         body.sshKeyPath = sshKeyPath;
+        const sshPassphrase = document.getElementById('sshPassphrase').value;
+        if (sshPassphrase) body.sshPassphrase = sshPassphrase;
     }
 
     errEl.style.display = 'none';

@@ -22,10 +22,11 @@ public class Node {
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private NodeConnectionType connectionType = NodeConnectionType.TCP;
+    private NodeConnectionType connectionType = NodeConnectionType.SSH;
     private int sshPort;
     private String sshUser;
     private String sshKeyPath;
+    private String sshPassphrase;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default

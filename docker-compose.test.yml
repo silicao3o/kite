@@ -33,10 +33,9 @@ services:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.ssh:/root/.ssh:ro
       # Phase 5 기능 활성화 설정 오버라이드
       - ./docker/test-config/application.yml:/app/config/application.yml:ro
-      - ~/.ssh/id_rsa_cp:/root/.ssh/id_rsa_cp:ro
-      - /root/.docker/config.json:/root/.docker/config.json:ro
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docker_monitor
       SPRING_DATASOURCE_USERNAME: docker_monitor
@@ -109,7 +108,7 @@ services:
       DOCKER_MONITOR_NODES_ENABLED: "true"
 
       # ── Multi Logs 프리셋 ────────────────────────────────────────
-      MULTI_LOGS_PRESETS: ${MULTI_LOGS_PRESETS:}
+      MULTI_LOGS_PRESETS: ${MULTI_LOGS_PRESETS:-}
 
       # ── DB 정보 (test-config/application.yml 에서 참조) ──────────
       EXERCISE_DB_URL: ${EXERCISE_DB_URL}

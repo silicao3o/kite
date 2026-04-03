@@ -38,6 +38,7 @@ public class NodeConfig {
                     .sshPort(cfg.getSshPort())
                     .sshUser(cfg.getSshUser())
                     .sshKeyPath(cfg.getSshKeyPath())
+                    .sshPassphrase(cfg.getSshPassphrase())
                     .status(NodeStatus.UNKNOWN)
                     .build();
             boolean registered = registry.registerIfAbsent(node);
@@ -60,7 +61,7 @@ public class NodeConfig {
         return switch (type.toUpperCase()) {
             case "SSH" -> NodeConnectionType.SSH;
             case "SSH_PROXY" -> NodeConnectionType.SSH_PROXY;
-            default -> NodeConnectionType.TCP;
+            default -> throw new IllegalArgumentException("지원하지 않는 연결 타입: " + type + " (SSH 또는 SSH_PROXY만 허용)");
         };
     }
 

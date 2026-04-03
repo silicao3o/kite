@@ -62,7 +62,7 @@ public class NodeDockerClientFactory {
             int localPort = tunnelManager.allocateLocalPort(node.getId());
             dockerHost = "tcp://localhost:" + localPort;
         } else {
-            dockerHost = "tcp://" + node.getHost() + ":" + node.getPort();
+            throw new IllegalArgumentException("지원하지 않는 연결 타입: " + node.getConnectionType());
         }
 
         log.info("노드 DockerClient 생성: {} → {}", node.getName(), dockerHost);

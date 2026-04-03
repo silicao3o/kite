@@ -5,5 +5,5 @@ import com.jcraft.jsch.Session;
 
 @FunctionalInterface
 public interface JSchSessionFactory {
-    Session create(String user, String host, int port, String keyPath) throws JSchException;
+    Session create(String user, String host, int port, String keyPath, String passphrase) throws JSchException;
 }

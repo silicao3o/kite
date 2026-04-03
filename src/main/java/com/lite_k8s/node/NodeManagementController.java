@@ -19,8 +19,7 @@ public class NodeManagementController {
     @PostMapping
     public NodeResponse addNode(@RequestBody AddNodeRequest request) {
         NodeConnectionType connectionType = "SSH_PROXY".equalsIgnoreCase(request.getConnectionType())
-                ? NodeConnectionType.SSH_PROXY : "SSH".equalsIgnoreCase(request.getConnectionType())
-                ? NodeConnectionType.SSH : NodeConnectionType.TCP;
+                ? NodeConnectionType.SSH_PROXY : NodeConnectionType.SSH;
 
         Node node = Node.builder()
                 .id(UUID.randomUUID().toString())
@@ -31,6 +30,7 @@ public class NodeManagementController {
                 .sshPort(request.getSshPort())
                 .sshUser(request.getSshUser())
                 .sshKeyPath(request.getSshKeyPath())
+                .sshPassphrase(request.getSshPassphrase())
                 .status(NodeStatus.UNKNOWN)
                 .build();
         nodeRegistry.register(node);
@@ -55,10 +55,11 @@ public class NodeManagementController {
         private String name;
         private String host;
         private int port = 2375;
-        private String connectionType = "TCP";
+        private String connectionType = "SSH";
         private int sshPort = 22;
         private String sshUser;
         private String sshKeyPath;
+        private String sshPassphrase;
     }
 
     @Getter

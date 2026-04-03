@@ -39,9 +39,13 @@ public class SshTunnelManager {
 
     @org.springframework.beans.factory.annotation.Autowired
     public SshTunnelManager(NodeProperties properties) {
-        this(properties, (user, host, port, keyPath) -> {
+        this(properties, (user, host, port, keyPath, passphrase) -> {
             JSch jsch = new JSch();
-            jsch.addIdentity(keyPath);
+            if (passphrase != null && !passphrase.isBlank()) {
+                jsch.addIdentity(keyPath, passphrase);
+            } else {
+                jsch.addIdentity(keyPath);
+            }
             Session session = jsch.getSession(user, host, port);
             session.setConfig("StrictHostKeyChecking", "no");
             return session;
@@ -85,7 +89,7 @@ public class SshTunnelManager {
 
         int localPort = allocateLocalPort(node.getId());
 
-        Session session = sessionFactory.create(node.getSshUser(), node.getHost(), node.getSshPort(), node.getSshKeyPath());
+        Session session = sessionFactory.create(node.getSshUser(), node.getHost(), node.getSshPort(), node.getSshKeyPath(), node.getSshPassphrase());
         session.connect(10_000);
         session.setSocketForwardingL(null, localPort, DOCKER_SOCKET_PATH, null, 10_000);
 
@@ -149,7 +153,7 @@ public class SshTunnelManager {
         String targetUser = node.getSshUser();
         String targetKeyPath = node.getSshKeyPath() != null && !node.getSshKeyPath().isBlank() ? node.getSshKeyPath() : proxy.getKeyPath();
 
-        Session targetSession = sessionFactory.create(targetUser, "localhost", sshTunnelPort, targetKeyPath);
+        Session targetSession = sessionFactory.create(targetUser, "localhost", sshTunnelPort, targetKeyPath, node.getSshPassphrase());
         targetSession.connect(10_000);
         targetSessions.put(node.getId(), targetSession);
 
@@ -179,7 +183,7 @@ public class SshTunnelManager {
                 return sharedCpSession;
             }
             log.info("CP SSH 세션 생성: {}@{}:{}", proxy.getUser(), proxy.getHost(), proxy.getPort());
-            Session session = sessionFactory.create(proxy.getUser(), proxy.getHost(), proxy.getPort(), proxy.getKeyPath());
+            Session session = sessionFactory.create(proxy.getUser(), proxy.getHost(), proxy.getPort(), proxy.getKeyPath(), proxy.getPassphrase());
             session.connect(10_000);
             sharedCpSession = session;
             return sharedCpSession;

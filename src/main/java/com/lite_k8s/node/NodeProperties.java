@@ -27,6 +27,7 @@ public class NodeProperties {
         private Integer port = 22;
         private String user;
         private String keyPath;
+        private String passphrase;
     }
 
     @Getter
@@ -35,9 +36,10 @@ public class NodeProperties {
         private String name;
         private String host;
         private Integer port = 2375;
-        private String connectionType = "TCP";
+        private String connectionType = "SSH";
         private Integer sshPort = 22;
         private String sshUser;
         private String sshKeyPath;
+        private String sshPassphrase;
     }
 }

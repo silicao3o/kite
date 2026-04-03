@@ -151,12 +151,6 @@ docker:
       nodes: []
       # 예시:
       # nodes:
-      #   # GCP 내부망 노드 (TCP 직접 연결)
-      #   - name: gcp-vm-1
-      #     host: <GCP 내부 IP>
-      #     port: 2375
-      #     connection-type: TCP
-      #
       #   # 온프레미스 노드 (SSH 터널 직접 연결)
       #   - name: onprem-dev
       #     host: <온프레미스 공인 IP>

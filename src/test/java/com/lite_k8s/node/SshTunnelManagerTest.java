@@ -52,22 +52,6 @@ class SshTunnelManagerTest {
     }
 
     @Test
-    @DisplayName("TCP 노드는 SSH 터널 불필요 — openTunnel 호출 시 예외")
-    void openTunnel_WhenTcpNode_ShouldThrowException() {
-        Node tcpNode = Node.builder()
-                .id("node-gcp")
-                .name("chat-quvi")
-                .host("10.178.0.12")
-                .port(2375)
-                .connectionType(NodeConnectionType.TCP)
-                .build();
-
-        assertThatThrownBy(() -> tunnelManager.openTunnel(tcpNode))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("TCP");
-    }
-
-    @Test
     @DisplayName("SSH_PROXY가 아닌 노드에 openProxyTunnel 호출 시 예외")
     void openProxyTunnel_WhenNotSshProxyNode_ShouldThrowException() {
         Node sshNode = Node.builder()
@@ -110,7 +94,7 @@ class SshTunnelManagerTest {
         Session mockSession = mock(Session.class);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockSession);
 
         SshTunnelManager manager = new SshTunnelManager(new NodeProperties(), mockFactory);
@@ -143,7 +127,7 @@ class SshTunnelManagerTest {
         when(mockCpSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession);
 
         SshTunnelManager manager = new SshTunnelManager(propertiesWithProxy(), mockFactory);
@@ -164,7 +148,7 @@ class SshTunnelManagerTest {
         // setSocketForwardingL은 호출되지 않아야 함
         verify(mockCpSession, never()).setSocketForwardingL(any(), anyInt(), anyString(), any(), anyInt());
         // target 세션은 생성되지 않아야 함 (factory는 CP 세션 1번만 호출)
-        verify(mockFactory, times(1)).create(anyString(), anyString(), anyInt(), anyString());
+        verify(mockFactory, times(1)).create(anyString(), anyString(), anyInt(), anyString(), any());
     }
 
     @Test
@@ -174,7 +158,7 @@ class SshTunnelManagerTest {
         when(mockCpSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession);
 
         SshTunnelManager manager = new SshTunnelManager(propertiesWithProxy(), mockFactory);
@@ -182,7 +166,7 @@ class SshTunnelManagerTest {
         manager.openProxyTunnel(tcpProxyNode("node-vm1", "10.178.0.15", 2375));
         manager.openProxyTunnel(tcpProxyNode("node-vm2", "10.178.0.14", 2375));
 
-        verify(mockFactory, times(1)).create(anyString(), anyString(), anyInt(), anyString());
+        verify(mockFactory, times(1)).create(anyString(), anyString(), anyInt(), anyString(), any());
         verify(mockCpSession, times(2)).setPortForwardingL(anyInt(), anyString(), anyInt());
     }
 
@@ -196,7 +180,7 @@ class SshTunnelManagerTest {
         Session mockTargetSession = mock(Session.class);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession)
                 .thenReturn(mockTargetSession);
 
@@ -223,7 +207,7 @@ class SshTunnelManagerTest {
         Session mockTarget2 = mock(Session.class);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession)
                 .thenReturn(mockTarget1)
                 .thenReturn(mockTarget2);
@@ -234,7 +218,7 @@ class SshTunnelManagerTest {
         manager.openProxyTunnel(socketProxyNode("node-res", "183.102.124.146", 2222, "daquv"));
 
         // CP 1 + target 2 = factory 3번 호출
-        verify(mockFactory, times(3)).create(anyString(), anyString(), anyInt(), anyString());
+        verify(mockFactory, times(3)).create(anyString(), anyString(), anyInt(), anyString(), any());
         // CP: 2개 노드의 SSH 포트 포워딩
         verify(mockCpSession, times(2)).setPortForwardingL(anyInt(), anyString(), anyInt());
         // 각 target: docker.sock 포워딩
@@ -254,7 +238,7 @@ class SshTunnelManagerTest {
         Session mockTargetSession = mock(Session.class);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession)
                 .thenReturn(mockTargetSession);
 
@@ -282,7 +266,7 @@ class SshTunnelManagerTest {
         when(mockCpSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession);
 
         SshTunnelManager manager = new SshTunnelManager(propertiesWithProxy(), mockFactory);
@@ -303,7 +287,7 @@ class SshTunnelManagerTest {
         when(mockCpSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession);
 
         SshTunnelManager manager = new SshTunnelManager(propertiesWithProxy(), mockFactory);
@@ -323,7 +307,7 @@ class SshTunnelManagerTest {
         when(mockTargetSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(mockCpSession)
                 .thenReturn(mockTargetSession);
 
@@ -346,7 +330,7 @@ class SshTunnelManagerTest {
         when(newCpSession.isConnected()).thenReturn(true);
 
         JSchSessionFactory mockFactory = mock(JSchSessionFactory.class);
-        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString()))
+        when(mockFactory.create(anyString(), anyString(), anyInt(), anyString(), any()))
                 .thenReturn(droppedSession)
                 .thenReturn(newCpSession);
 
@@ -355,7 +339,7 @@ class SshTunnelManagerTest {
         manager.openProxyTunnel(tcpProxyNode("node-vm1", "10.178.0.15", 2375));
         manager.openProxyTunnel(tcpProxyNode("node-vm2", "10.178.0.14", 2375));
 
-        verify(mockFactory, times(2)).create(anyString(), anyString(), anyInt(), anyString());
+        verify(mockFactory, times(2)).create(anyString(), anyString(), anyInt(), anyString(), any());
         verify(newCpSession).setPortForwardingL(anyInt(), eq("10.178.0.14"), eq(2375));
     }
 

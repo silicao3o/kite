@@ -8,11 +8,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NodeConfigSshTest {
 
     @Test
-    @DisplayName("NodeConfig 기본 connectionType은 TCP")
-    void nodeConfig_DefaultConnectionType_IsTcp() {
+    @DisplayName("NodeConfig 기본 connectionType은 SSH")
+    void nodeConfig_DefaultConnectionType_IsSsh() {
         NodeProperties.NodeConfig config = new NodeProperties.NodeConfig();
 
-        assertThat(config.getConnectionType()).isEqualTo("TCP");
+        assertThat(config.getConnectionType()).isEqualTo("SSH");
     }
 
     @Test
@@ -48,19 +48,6 @@ class NodeConfigSshTest {
     }
 
     @Test
-    @DisplayName("TCP 타입 Node는 isSsh()가 false")
-    void node_TcpType_IsSshReturnsFalse() {
-        Node node = Node.builder()
-                .id("node-gcp")
-                .name("chat-quvi")
-                .host("10.178.0.12")
-                .port(2375)
-                .build();
-
-        assertThat(node.isSsh()).isFalse();
-    }
-
-    @Test
     @DisplayName("SSH_PROXY 타입 Node는 isSshProxy()가 true")
     void node_SshProxyType_IsSshProxyReturnsTrue() {
         Node node = Node.builder()
@@ -76,17 +63,14 @@ class NodeConfigSshTest {
     }
 
     @Test
-    @DisplayName("SSH/SSH_PROXY 타입 Node는 requiresTunnel()이 true, TCP는 false")
-    void node_RequiresTunnel_OnlyForSshTypes() {
+    @DisplayName("SSH/SSH_PROXY 타입 Node는 requiresTunnel()이 true")
+    void node_RequiresTunnel_ForAllSshTypes() {
         Node sshNode = Node.builder().id("1").name("ssh").host("h").port(1)
                 .connectionType(NodeConnectionType.SSH).build();
         Node proxyNode = Node.builder().id("2").name("proxy").host("h").port(1)
                 .connectionType(NodeConnectionType.SSH_PROXY).build();
-        Node tcpNode = Node.builder().id("3").name("tcp").host("h").port(1)
-                .connectionType(NodeConnectionType.TCP).build();
 
         assertThat(sshNode.requiresTunnel()).isTrue();
         assertThat(proxyNode.requiresTunnel()).isTrue();
-        assertThat(tcpNode.requiresTunnel()).isFalse();
     }
 }

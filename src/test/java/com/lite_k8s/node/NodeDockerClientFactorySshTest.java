@@ -49,22 +49,6 @@ class NodeDockerClientFactorySshTest {
     }
 
     @Test
-    @DisplayName("TCP 노드는 tunnelManager를 호출하지 않는다")
-    void createClient_TcpNode_DoesNotUseTunnel() throws JSchException {
-        Node tcpNode = Node.builder()
-                .id("node-gcp")
-                .name("gcp")
-                .host("10.178.0.12")
-                .port(2375)
-                .connectionType(NodeConnectionType.TCP)
-                .build();
-
-        factory.createClient(tcpNode);
-
-        verifyNoInteractions(tunnelManager);
-    }
-
-    @Test
     @DisplayName("같은 SSH 노드를 두 번 요청하면 터널은 한 번만 연다")
     void createClient_SshNode_OpensTunnelOnlyOnce() throws JSchException {
         Node sshNode = Node.builder()
