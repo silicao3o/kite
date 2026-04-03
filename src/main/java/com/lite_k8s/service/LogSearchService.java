@@ -30,7 +30,7 @@ public class LogSearchService {
     public LogSearchResult search(String containerId, String keyword,
                                    LocalDateTime fromTime, LocalDateTime toTime,
                                    List<String> levels) {
-        String rawLogs = dockerService.getContainerLogs(containerId);
+        String rawLogs = dockerService.getContainerLogs(containerId, null); // 검색 — name 없이 ID로 조회
         List<LogEntry> entries = parseAndFilter(rawLogs, keyword, fromTime, toTime, levels);
 
         return LogSearchResult.builder()

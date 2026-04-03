@@ -261,8 +261,11 @@
     <script th:inline="javascript">
         const containerId = [[${ container.id }]];
         const nodeId = [[${ container.nodeId }]];
-        // 페이지 최초 로드 시 ANSI 제거 + 색상 강조 적용
-        document.getElementById('logs').innerHTML = highlightLog(document.getElementById('logs').textContent);
+        const containerName = [[${ container.name }]]; // 컨테이너 이름 — 재기동 시 이름으로 재검색용
+        // ANSI escape code 제거 — 터미널 색상 코드를 브라우저에서 표시하면 깨져 보이므로 제거
+        function stripAnsi(text) {
+            return text.replace(/\x1b\[[0-9;]*m/g, '');
+        }
         let originalLogs = document.getElementById('logs').innerHTML;
         // 페이지 로드 시 로그를 하단 스크롤로 시작
         document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
@@ -314,7 +317,8 @@
         }
 
         function refreshLogs() {
-            fetch('/api/containers/' + containerId + '/logs')
+            // 컨테이너 이름도 함께 전달 — ID로 못 찾을 때 이름으로 재검색 (재기동 대응)
+            fetch('/api/containers/' + containerId + '/logs?name=' + encodeURIComponent(containerName))
                 .then(response => response.text())
                 .then(logs => {
                     document.getElementById('logs').innerHTML = highlightLog(logs);

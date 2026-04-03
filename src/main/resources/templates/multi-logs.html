@@ -448,7 +448,10 @@
             const panel = panels[panelNum];
             if (panel.paused || !panel.containerId) return;
 
-            fetch('/api/containers/' + panel.containerId + '/logs')
+            // 컨테이너 이름도 함께 전달 — ID로 못 찾을 때 이름으로 재검색 (재기동 대응)
+            var selectEl = document.getElementById('select-' + panelNum);
+            var containerName = selectEl.options[selectEl.selectedIndex]?.text || '';
+            fetch('/api/containers/' + panel.containerId + '/logs?name=' + encodeURIComponent(containerName))
                 .then(r => r.text()) // 서버 응답을 텍스트로 변환
                 .then(text => {
                     const el = document.getElementById('logs-' + panelNum);

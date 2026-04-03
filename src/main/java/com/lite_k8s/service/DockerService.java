@@ -72,7 +72,7 @@ public class DockerService {
             String finishedAt = state.getFinishedAt();
 
             LocalDateTime deathTime = parseDockerTime(finishedAt);
-            String lastLogs = getContainerLogs(containerId);
+            String lastLogs = getContainerLogs(containerId, null); // 내부 호출 — name 없이 ID로 조회
 
             return ContainerDeathEvent.builder()
                     .containerId(containerId)
@@ -98,12 +98,13 @@ public class DockerService {
         }
     }
 
-    public String getContainerLogs(String containerId) {
-        // 로컬에서 먼저 조회
+    // 컨테이너 로그 조회 — ID로 먼저 찾고, 실패 시 이름으로 재검색 (재기동 대응)
+    public String getContainerLogs(String containerId, String containerName) {
+        // 1단계: 로컬에서 ID로 조회
         try {
             return fetchLogs(dockerClient, containerId);
         } catch (NotFoundException ignored) {
-            // 로컬에 없으면 노드 탐색
+            // 로컬에 없으면 다음 단계로
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return "로그 조회 중단";
@@ -111,7 +112,7 @@ public class DockerService {
             log.error("로그 조회 실패 (local): {}", containerId, e);
         }
 
-        // 등록된 노드에서 탐색
+        // 2단계: 등록된 노드에서 ID로 조회
         if (nodeRegistry != null) {
             for (Node node : nodeRegistry.findAll()) {
                 try {
@@ -128,8 +129,55 @@ public class DockerService {
             }
         }
 
+        // 3단계: ID로 못 찾았고 이름이 있으면 — 이름으로 재검색 (컨테이너 재기동 대응)
+        if (containerName != null && !containerName.isEmpty()) {
+            // 로컬에서 이름으로 검색
+            String newId = findContainerIdByName(dockerClient, containerName);
+            if (newId != null) {
+                try {
+                    return fetchLogs(dockerClient, newId);
+                } catch (Exception e) {
+                    log.error("이름 기반 로그 조회 실패 (local): {} ({})", containerName, newId, e);
+                }
+            }
+            // 원격 노드에서 이름으로 검색
+            if (nodeRegistry != null) {
+                for (Node node : nodeRegistry.findAll()) {
+                    try {
+                        DockerClient client = nodeClientFactory.createClient(node);
+                        newId = findContainerIdByName(client, containerName);
+                        if (newId != null) {
+                            return fetchLogs(client, newId);
+                        }
+                    } catch (Exception e) {
+                        log.warn("[멀티노드] {} 이름 기반 로그 조회 실패: {}", node.getName(), e.getMessage());
+                    }
+                }
+            }
+        }
+
         log.debug("로그 조회 스킵 — 컨테이너 없음: {}", containerId);
         return "";
+    }
+
+    // 컨테이너 이름으로 현재 ID를 찾는 메서드 — Docker는 이름 앞에 "/"를 붙여서 저장
+    // 프론트에서 "dev/chat-quvi-test" 형태로 오면 노드 접두사를 제거하고 "chat-quvi-test"로 검색
+    private String findContainerIdByName(DockerClient client, String name) {
+        try {
+            // 노드 접두사 제거 (dev/chat-quvi-test → chat-quvi-test)
+            String searchName = name.contains("/") ? name.substring(name.lastIndexOf("/") + 1) : name;
+            return client.listContainersCmd().withShowAll(true).exec()
+                    .stream()
+                    .filter(c -> c.getNames() != null &&
+                            java.util.Arrays.stream(c.getNames())
+                                    .anyMatch(n -> n.equals("/" + searchName) || n.endsWith("/" + searchName)))
+                    .map(c -> c.getId())
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("이름으로 컨테이너 검색 실패: {}", name, e);
+            return null;
+        }
     }
 
     private String fetchLogs(DockerClient client, String containerId) throws InterruptedException {
