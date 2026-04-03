@@ -123,8 +123,17 @@
                     </div>
                     <div class="form-group">
                         <label>SSH 유저</label>
-                        <input type="text" id="sshUser" placeholder="ubuntu" style="width:130px;" />
+                        <input type="text" id="sshUser" placeholder="ubuntu" style="width:130px;" autocomplete="off" />
                     </div>
+                    <div class="form-group">
+                        <label>인증 방식</label>
+                        <select id="sshAuthType" onchange="toggleSshAuthFields()" style="padding:.45rem .7rem; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-size:.9rem;">
+                            <option value="key">키 인증</option>
+                            <option value="password">비밀번호 인증</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" id="sshKeyFields">
                     <div class="form-group">
                         <label>SSH 키 경로 (컨테이너 내부)</label>
                         <input type="text" id="sshKeyPath" placeholder="/root/.ssh/id_rsa" style="width:220px;" />
@@ -132,6 +141,12 @@
                     <div class="form-group">
                         <label>패스프레이즈 (선택)</label>
                         <input type="password" id="sshPassphrase" placeholder="없으면 빈칸" style="width:160px;" autocomplete="new-password" />
+                    </div>
+                </div>
+                <div class="form-row" id="sshPasswordFields" style="display:none;">
+                    <div class="form-group">
+                        <label>비밀번호</label>
+                        <input type="password" id="sshPassword" placeholder="SSH 비밀번호" style="width:200px;" autocomplete="new-password" />
                     </div>
                 </div>
             </div>
@@ -182,6 +197,12 @@ function toggleSshFields() {
     document.getElementById('portGroup').style.display = isSsh ? 'none' : '';
 }
 
+function toggleSshAuthFields() {
+    const isPassword = document.getElementById('sshAuthType').value === 'password';
+    document.getElementById('sshKeyFields').style.display = isPassword ? 'none' : '';
+    document.getElementById('sshPasswordFields').style.display = isPassword ? '' : 'none';
+}
+
 async function addNode() {
     const name = document.getElementById('nodeName').value.trim();
     const host = document.getElementById('nodeHost').value.trim();
@@ -200,17 +221,33 @@ async function addNode() {
 
     if (connectionType === 'SSH') {
         const sshUser = document.getElementById('sshUser').value.trim();
-        const sshKeyPath = document.getElementById('sshKeyPath').value.trim();
-        if (!sshUser || !sshKeyPath) {
-            errEl.textContent = 'SSH 유저와 키 경로를 입력하세요.';
+        const authType = document.getElementById('sshAuthType').value;
+        if (!sshUser) {
+            errEl.textContent = 'SSH 유저를 입력하세요.';
             errEl.style.display = 'block';
             return;
         }
         body.sshPort = parseInt(document.getElementById('sshPort').value);
         body.sshUser = sshUser;
-        body.sshKeyPath = sshKeyPath;
-        const sshPassphrase = document.getElementById('sshPassphrase').value;
-        if (sshPassphrase) body.sshPassphrase = sshPassphrase;
+        if (authType === 'password') {
+            const sshPassword = document.getElementById('sshPassword').value;
+            if (!sshPassword) {
+                errEl.textContent = 'SSH 비밀번호를 입력하세요.';
+                errEl.style.display = 'block';
+                return;
+            }
+            body.sshPassword = sshPassword;
+        } else {
+            const sshKeyPath = document.getElementById('sshKeyPath').value.trim();
+            if (!sshKeyPath) {
+                errEl.textContent = 'SSH 키 경로를 입력하세요.';
+                errEl.style.display = 'block';
+                return;
+            }
+            body.sshKeyPath = sshKeyPath;
+            const sshPassphrase = document.getElementById('sshPassphrase').value;
+            if (sshPassphrase) body.sshPassphrase = sshPassphrase;
+        }
     }
 
     errEl.style.display = 'none';

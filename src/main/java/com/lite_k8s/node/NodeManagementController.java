@@ -29,6 +29,7 @@ public class NodeManagementController {
                 .connectionType(connectionType)
                 .sshPort(request.getSshPort())
                 .sshUser(request.getSshUser())
+                .sshPassword(request.getSshPassword())
                 .sshKeyPath(request.getSshKeyPath())
                 .sshPassphrase(request.getSshPassphrase())
                 .status(NodeStatus.UNKNOWN)
@@ -58,6 +59,7 @@ public class NodeManagementController {
         private String connectionType = "SSH";
         private int sshPort = 22;
         private String sshUser;
+        private String sshPassword;
         private String sshKeyPath;
         private String sshPassphrase;
     }

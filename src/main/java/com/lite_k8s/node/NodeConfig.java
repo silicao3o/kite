@@ -37,6 +37,7 @@ public class NodeConfig {
                     .connectionType(connectionType)
                     .sshPort(cfg.getSshPort())
                     .sshUser(cfg.getSshUser())
+                    .sshPassword(cfg.getSshPassword())
                     .sshKeyPath(cfg.getSshKeyPath())
                     .sshPassphrase(cfg.getSshPassphrase())
                     .status(NodeStatus.UNKNOWN)

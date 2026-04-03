@@ -25,6 +25,7 @@ public class Node {
     private NodeConnectionType connectionType = NodeConnectionType.SSH;
     private int sshPort;
     private String sshUser;
+    private String sshPassword;
     private String sshKeyPath;
     private String sshPassphrase;
 

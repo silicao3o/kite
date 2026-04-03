@@ -39,15 +39,17 @@ public class SshTunnelManager {
 
     @org.springframework.beans.factory.annotation.Autowired
     public SshTunnelManager(NodeProperties properties) {
-        this(properties, (user, host, port, keyPath, passphrase) -> {
+        this(properties, (user, host, port, keyPath, passphrase, password) -> {
             JSch jsch = new JSch();
-            if (passphrase != null && !passphrase.isBlank()) {
+            Session session = jsch.getSession(user, host, port);
+            session.setConfig("StrictHostKeyChecking", "no");
+            if (password != null && !password.isBlank()) {
+                session.setPassword(password);
+            } else if (passphrase != null && !passphrase.isBlank()) {
                 jsch.addIdentity(keyPath, passphrase);
             } else {
                 jsch.addIdentity(keyPath);
             }
-            Session session = jsch.getSession(user, host, port);
-            session.setConfig("StrictHostKeyChecking", "no");
             return session;
         });
     }
@@ -89,7 +91,7 @@ public class SshTunnelManager {
 
         int localPort = allocateLocalPort(node.getId());
 
-        Session session = sessionFactory.create(node.getSshUser(), node.getHost(), node.getSshPort(), node.getSshKeyPath(), node.getSshPassphrase());
+        Session session = sessionFactory.create(node.getSshUser(), node.getHost(), node.getSshPort(), node.getSshKeyPath(), node.getSshPassphrase(), node.getSshPassword());
         session.connect(10_000);
         session.setSocketForwardingL(null, localPort, DOCKER_SOCKET_PATH, null, 10_000);
 
@@ -153,7 +155,7 @@ public class SshTunnelManager {
         String targetUser = node.getSshUser();
         String targetKeyPath = node.getSshKeyPath() != null && !node.getSshKeyPath().isBlank() ? node.getSshKeyPath() : proxy.getKeyPath();
 
-        Session targetSession = sessionFactory.create(targetUser, "localhost", sshTunnelPort, targetKeyPath, node.getSshPassphrase());
+        Session targetSession = sessionFactory.create(targetUser, "localhost", sshTunnelPort, targetKeyPath, node.getSshPassphrase(), node.getSshPassword());
         targetSession.connect(10_000);
         targetSessions.put(node.getId(), targetSession);
 
@@ -183,7 +185,7 @@ public class SshTunnelManager {
                 return sharedCpSession;
             }
             log.info("CP SSH 세션 생성: {}@{}:{}", proxy.getUser(), proxy.getHost(), proxy.getPort());
-            Session session = sessionFactory.create(proxy.getUser(), proxy.getHost(), proxy.getPort(), proxy.getKeyPath(), proxy.getPassphrase());
+            Session session = sessionFactory.create(proxy.getUser(), proxy.getHost(), proxy.getPort(), proxy.getKeyPath(), proxy.getPassphrase(), null);
             session.connect(10_000);
             sharedCpSession = session;
             return sharedCpSession;

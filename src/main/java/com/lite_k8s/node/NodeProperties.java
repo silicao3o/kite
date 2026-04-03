@@ -39,6 +39,7 @@ public class NodeProperties {
         private String connectionType = "SSH";
         private Integer sshPort = 22;
         private String sshUser;
+        private String sshPassword;
         private String sshKeyPath;
         private String sshPassphrase;
     }
