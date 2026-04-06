@@ -19,6 +19,7 @@ public class ContainerInfo {
     private LocalDateTime created;
     private List<PortMapping> ports;
     private Map<String, String> labels;
+    private List<String> envVars;
 
     // 노드 정보 (null = local)
     private String nodeId;

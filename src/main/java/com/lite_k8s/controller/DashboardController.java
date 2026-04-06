@@ -114,6 +114,7 @@ public class DashboardController {
         }
 
         setHealingInfo(container);
+        container.setEnvVars(dockerService.getContainerEnvVars(id));
         String logs = dockerService.getContainerLogs(id, null, null); // 페이지 로드 시 — name 없이 ID로 조회
         List<HealingEvent> healingEvents = healingEventRepository.findByContainerId(id);
 

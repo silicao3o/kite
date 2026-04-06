@@ -156,9 +156,34 @@
                     <div th:if="${container.labels == null or container.labels.isEmpty()}" class="info-row">
                         <span class="info-label">No labels</span>
                     </div>
-                    <div th:each="entry : ${container.labels}" class="info-row">
-                        <span class="info-label" th:text="${entry.key}">key</span>
-                        <span class="info-value" th:text="${entry.value}">value</span>
+                    <th:block th:each="entry : ${container.labels}">
+                        <div class="info-row"
+                             th:unless="${entry.key.contains('config-hash') or
+                                         entry.key.contains('container-number') or
+                                         entry.key.contains('image-hash') or
+                                         entry.key.contains('oneoff') or
+                                         entry.key.contains('replace') or
+                                         entry.key == 'com.docker.compose.version' or
+                                         entry.key.contains('os.image.ref.name') or
+                                         entry.key.contains('os.image.version') or
+                                         entry.key.contains('self-healing.enabled')}">
+                            <span class="info-label" th:text="${entry.key}">key</span>
+                            <span class="info-value" th:text="${entry.value}">value</span>
+                        </div>
+                    </th:block>
+                </div>
+            </div>
+
+            <!-- Environment Variables -->
+            <div class="info-card" th:if="${container.envVars != null and !container.envVars.isEmpty()}">
+                <h4 style="cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="toggleEnvVars()">
+                    Environment Variables
+                    <span id="env-toggle-icon" style="font-size:11px;color:var(--text-secondary);">▶ 펼치기</span>
+                </h4>
+                <div id="env-vars-list" style="display:none;margin-top:8px;">
+                    <div th:each="env : ${container.envVars}" class="info-row">
+                        <span class="info-label" style="word-break:break-all;" th:text="${#strings.substringBefore(env, '=')}">KEY</span>
+                        <span class="info-value" style="word-break:break-all;" th:text="${#strings.substringAfter(env, '=')}">VALUE</span>
                     </div>
                 </div>
             </div>
@@ -278,6 +303,18 @@
         let originalLogs = document.getElementById('logs').innerHTML;
         // 페이지 로드 시 로그를 하단 스크롤로 시작
         document.querySelector('.logs-content').scrollTop = document.querySelector('.logs-content').scrollHeight;
+
+        function toggleEnvVars() {
+            const list = document.getElementById('env-vars-list');
+            const icon = document.getElementById('env-toggle-icon');
+            if (list.style.display === 'none') {
+                list.style.display = 'block';
+                icon.textContent = '▼ 접기';
+            } else {
+                list.style.display = 'none';
+                icon.textContent = '▶ 펼치기';
+            }
+        }
 
         function deleteContainer() {
             const btn = document.getElementById('delete-container-btn');

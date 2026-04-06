@@ -397,4 +397,10 @@ public class DockerService {
                 .labels(inspection.getConfig().getLabels())
                 .build();
     }
+
+    public List<String> getContainerEnvVars(String containerId) {
+        InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
+        String[] env = inspection.getConfig().getEnv();
+        return env != null ? List.of(env) : List.of();
+    }
 }
