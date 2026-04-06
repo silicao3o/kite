@@ -314,6 +314,7 @@
                             <option value="">— Select container —</option>
                             <option th:each="c : ${containers}"
                                     th:value="${c.id}"
+                                    th:attr="data-node-id=${c.nodeId}"
                                     th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-1"></span>
@@ -331,6 +332,7 @@
                             <option value="">— Select container —</option>
                             <option th:each="c : ${containers}"
                                     th:value="${c.id}"
+                                    th:attr="data-node-id=${c.nodeId}"
                                     th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-2"></span>
@@ -348,6 +350,7 @@
                             <option value="">— Select container —</option>
                             <option th:each="c : ${containers}"
                                     th:value="${c.id}"
+                                    th:attr="data-node-id=${c.nodeId}"
                                     th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-3"></span>
@@ -365,6 +368,7 @@
                             <option value="">— Select container —</option>
                             <option th:each="c : ${containers}"
                                     th:value="${c.id}"
+                                    th:attr="data-node-id=${c.nodeId}"
                                     th:text="${c.nodeName != null and !#strings.isEmpty(c.nodeName)} ? ${c.nodeName + '/' + c.name} : ${c.name}"></option>
                         </select>
                         <span class="panel-status" id="status-4"></span>
@@ -378,7 +382,7 @@
         </main>
     </div>
 
-    <script src="/js/log-highlight.js">// stripAnsi, highlightLog 함수는 /js/log-highlight.js 에서 로드</script>
+    <script src="/js/log-highlight.js"></script>
     
     <script th:inline="javascript">
         const MAX_LOG_LINES = 500;
@@ -434,6 +438,7 @@
                 return;
             }
             panels[panelNum].containerId = containerId;
+            panels[panelNum].nodeId = select.options[select.selectedIndex]?.dataset?.nodeId || ''; // 선택된 컨테이너의 노드 ID 저장 — 재기동 시 해당 노드에서만 이름 검색용
             panels[panelNum].paused = false;
             panels[panelNum].lastLog = null;   // 컨테이너 변경 시 비교 기준 초기화 → 다음 fetch에서 전체 로드 + 하단 스크롤
 
@@ -448,10 +453,11 @@
             const panel = panels[panelNum];
             if (panel.paused || !panel.containerId) return;
 
-            // 컨테이너 이름도 함께 전달 — ID로 못 찾을 때 이름으로 재검색 (재기동 대응)
+            // 컨테이너 이름 + nodeId 전달 — ID로 못 찾을 때 해당 노드에서만 이름으로 재검색 (재기동 대응)
             var selectEl = document.getElementById('select-' + panelNum);
             var containerName = selectEl.options[selectEl.selectedIndex]?.text || '';
-            fetch('/api/containers/' + panel.containerId + '/logs?name=' + encodeURIComponent(containerName))
+            var nodeIdParam = panel.nodeId ? '&nodeId=' + encodeURIComponent(panel.nodeId) : '';
+            fetch('/api/containers/' + panel.containerId + '/logs?name=' + encodeURIComponent(containerName) + nodeIdParam)
                 .then(r => r.text()) // 서버 응답을 텍스트로 변환
                 .then(text => {
                     const el = document.getElementById('logs-' + panelNum);

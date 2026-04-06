@@ -114,7 +114,7 @@ public class DashboardController {
         }
 
         setHealingInfo(container);
-        String logs = dockerService.getContainerLogs(id, null); // 페이지 로드 시 — name 없이 ID로 조회
+        String logs = dockerService.getContainerLogs(id, null, null); // 페이지 로드 시 — name 없이 ID로 조회
         List<HealingEvent> healingEvents = healingEventRepository.findByContainerId(id);
 
         model.addAttribute("container", container);
@@ -127,8 +127,9 @@ public class DashboardController {
     @GetMapping("/api/containers/{id}/logs")
     @ResponseBody
     public String getContainerLogs(@PathVariable String id,
-                                   @RequestParam(required = false) String name) { // 컨테이너 이름 (선택) — ID로 못 찾을 때 이름으로 재검색
-        return dockerService.getContainerLogs(id, name);
+                                   @RequestParam(required = false) String name,
+                                   @RequestParam(required = false) String nodeId) { // nodeId로 특정 노드에서만 이름 검색
+        return dockerService.getContainerLogs(id, name, nodeId);
     }
 
     @GetMapping("/api/containers/{id}/logs/search")

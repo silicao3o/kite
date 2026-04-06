@@ -42,7 +42,7 @@ class LogSearchServiceTest {
     void shouldSearchLogsByKeyword() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "ERROR", null, null, null);
@@ -57,7 +57,7 @@ class LogSearchServiceTest {
     void shouldSearchCaseInsensitive() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "error", null, null, null);
@@ -71,7 +71,7 @@ class LogSearchServiceTest {
     void shouldFilterByLogLevel() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, null, null, null, List.of("ERROR", "WARN"));
@@ -87,7 +87,7 @@ class LogSearchServiceTest {
     void shouldFilterByTimeRange() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
         LocalDateTime from = LocalDateTime.of(2026, 3, 13, 10, 0, 2);
         LocalDateTime to = LocalDateTime.of(2026, 3, 13, 10, 0, 4);
 
@@ -103,7 +103,7 @@ class LogSearchServiceTest {
     void shouldHighlightSearchKeyword() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "ERROR", null, null, null);
@@ -118,7 +118,7 @@ class LogSearchServiceTest {
     void shouldCombineKeywordAndLevelFilter() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "connection", null, null, List.of("ERROR"));
@@ -134,7 +134,7 @@ class LogSearchServiceTest {
     void shouldReturnEmptyListWhenNoMatch() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "nonexistent", null, null, null);
@@ -149,7 +149,7 @@ class LogSearchServiceTest {
     void shouldIncludeTotalCount() {
         // given
         String containerId = "abc123";
-        when(dockerService.getContainerLogs(containerId, null)).thenReturn(SAMPLE_LOGS);
+        when(dockerService.getContainerLogs(containerId, null, null)).thenReturn(SAMPLE_LOGS);
 
         // when
         LogSearchResult result = logSearchService.search(containerId, "INFO", null, null, null);

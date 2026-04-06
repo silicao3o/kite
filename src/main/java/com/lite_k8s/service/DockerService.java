@@ -72,7 +72,7 @@ public class DockerService {
             String finishedAt = state.getFinishedAt();
 
             LocalDateTime deathTime = parseDockerTime(finishedAt);
-            String lastLogs = getContainerLogs(containerId, null); // 내부 호출 — name 없이 ID로 조회
+            String lastLogs = getContainerLogs(containerId, null, null); // 내부 호출 — name 없이 ID로 조회
 
             return ContainerDeathEvent.builder()
                     .containerId(containerId)
@@ -99,7 +99,10 @@ public class DockerService {
     }
 
     // 컨테이너 로그 조회 — ID로 먼저 찾고, 실패 시 이름으로 재검색 (재기동 대응)
-    public String getContainerLogs(String containerId, String containerName) {
+    // containerId: 프론트가 가지고 있는 컨테이너 ID (재기동 시 이전 ID일 수 있음)
+    // containerName: 프론트에서 보내는 컨테이너 이름 (예: "dev/chat-quvi-test") — 3단계 fallback용
+    // nodeId: 컨테이너가 속한 노드 ID — 3단계에서 해당 노드에서만 검색하여 오매칭 방지
+    public String getContainerLogs(String containerId, String containerName, String nodeId) {
         // 1단계: 로컬에서 ID로 조회
         try {
             return fetchLogs(dockerClient, containerId);
@@ -130,27 +133,43 @@ public class DockerService {
         }
 
         // 3단계: ID로 못 찾았고 이름이 있으면 — 이름으로 재검색 (컨테이너 재기동 대응)
+        // nodeId가 있으면 해당 노드에서만 검색하여 동일 이름 컨테이너 오매칭 방지
         if (containerName != null && !containerName.isEmpty()) {
-            // 로컬에서 이름으로 검색
-            String newId = findContainerIdByName(dockerClient, containerName);
-            if (newId != null) {
-                try {
-                    return fetchLogs(dockerClient, newId);
-                } catch (Exception e) {
-                    log.error("이름 기반 로그 조회 실패 (local): {} ({})", containerName, newId, e);
-                }
-            }
-            // 원격 노드에서 이름으로 검색
-            if (nodeRegistry != null) {
-                for (Node node : nodeRegistry.findAll()) {
+            if (nodeId != null && !nodeId.isEmpty() && nodeRegistry != null) {
+                // nodeId가 있으면 해당 노드에서만 검색 — res/quvi 재기동 시 dev/quvi를 잘못 찾는 오매칭 방지
+                Node targetNode = nodeRegistry.findById(nodeId).orElse(null);
+                if (targetNode != null) {
                     try {
-                        DockerClient client = nodeClientFactory.createClient(node);
-                        newId = findContainerIdByName(client, containerName);
+                        DockerClient client = nodeClientFactory.createClient(targetNode);
+                        String newId = findContainerIdByName(client, containerName); // 해당 노드의 컨테이너 목록에서 이름으로 새 ID 검색
                         if (newId != null) {
-                            return fetchLogs(client, newId);
+                            return fetchLogs(client, newId); // 새 ID로 로그 조회 — 재기동 후에도 즉시 로그 반환
                         }
                     } catch (Exception e) {
-                        log.warn("[멀티노드] {} 이름 기반 로그 조회 실패: {}", node.getName(), e.getMessage());
+                        log.warn("[멀티노드] {} 이름 기반 로그 조회 실패: {}", targetNode.getName(), e.getMessage());
+                    }
+                }
+            } else {
+                // nodeId 없으면 기존 로직: 로컬 → 전체 노드 순회
+                String newId = findContainerIdByName(dockerClient, containerName);
+                if (newId != null) {
+                    try {
+                        return fetchLogs(dockerClient, newId);
+                    } catch (Exception e) {
+                        log.error("이름 기반 로그 조회 실패 (local): {} ({})", containerName, newId, e);
+                    }
+                }
+                if (nodeRegistry != null) {
+                    for (Node node : nodeRegistry.findAll()) {
+                        try {
+                            DockerClient client = nodeClientFactory.createClient(node);
+                            newId = findContainerIdByName(client, containerName);
+                            if (newId != null) {
+                                return fetchLogs(client, newId);
+                            }
+                        } catch (Exception e) {
+                            log.warn("[멀티노드] {} 이름 기반 로그 조회 실패: {}", node.getName(), e.getMessage());
+                        }
                     }
                 }
             }
