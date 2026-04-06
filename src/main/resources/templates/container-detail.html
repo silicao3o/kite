@@ -183,7 +183,10 @@
                 <div id="env-vars-list" style="display:none;margin-top:8px;">
                     <div th:each="env : ${container.envVars}" class="info-row">
                         <span class="info-label" style="word-break:break-all;" th:text="${#strings.substringBefore(env, '=')}">KEY</span>
-                        <span class="info-value" style="word-break:break-all;" th:text="${#strings.substringAfter(env, '=')}">VALUE</span>
+                        <span class="info-value" style="word-break:break-all;"
+                              th:text="${#strings.containsIgnoreCase(#strings.substringBefore(env, '='), 'GEMINI') or
+                                         #strings.containsIgnoreCase(#strings.substringBefore(env, '='), 'ANTHROPIC')
+                                         ? '****' : #strings.substringAfter(env, '=')}">VALUE</span>
                     </div>
                 </div>
             </div>
