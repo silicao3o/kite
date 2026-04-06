@@ -16,7 +16,6 @@
             background: var(--card-bg, #1e1e2e);
             border: 1px solid var(--border-color, #313244);
             border-radius: 8px;
-            user-select: none;
         }
         .toolbar-label {
             font-size: 13px;
@@ -104,6 +103,7 @@
             background: var(--card-bg, #1e1e2e);
             overflow: hidden;
             min-height: 0;
+            user-select: none;
         }
         .log-panel.hidden { display: none; }
         .panel-header {
@@ -113,7 +113,6 @@
             padding: 10px 14px;
             border-bottom: 1px solid var(--border-color, #313244);
             flex-shrink: 0;
-            user-select: none;
         }
         .panel-number {
             font-size: 11px;
@@ -172,6 +171,7 @@
             white-space: pre-wrap;
             word-break: break-all;
             min-height: 0;
+            user-select: text;
         }
         .log-output::-webkit-scrollbar { width: 6px; }
         .log-output::-webkit-scrollbar-track { background: transparent; }
