@@ -43,7 +43,7 @@ class DockerServiceEnvVarsTest {
         when(inspectResponse.getConfig()).thenReturn(containerConfig);
         when(containerConfig.getEnv()).thenReturn(envArray);
 
-        List<String> envVars = dockerService.getContainerEnvVars("abc123");
+        List<String> envVars = dockerService.getContainerEnvVars("abc123", null);
 
         assertThat(envVars).containsExactly(
                 "SPRING_PROFILES_ACTIVE=prod",
@@ -59,7 +59,7 @@ class DockerServiceEnvVarsTest {
         when(inspectResponse.getConfig()).thenReturn(containerConfig);
         when(containerConfig.getEnv()).thenReturn(null);
 
-        List<String> envVars = dockerService.getContainerEnvVars("abc123");
+        List<String> envVars = dockerService.getContainerEnvVars("abc123", null);
 
         assertThat(envVars).isEmpty();
     }

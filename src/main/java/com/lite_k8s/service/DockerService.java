@@ -398,8 +398,9 @@ public class DockerService {
                 .build();
     }
 
-    public List<String> getContainerEnvVars(String containerId) {
-        InspectContainerResponse inspection = dockerClient.inspectContainerCmd(containerId).exec();
+    public List<String> getContainerEnvVars(String containerId, String nodeId) {
+        DockerClient client = resolveClient(nodeId);
+        InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
         String[] env = inspection.getConfig().getEnv();
         return env != null ? List.of(env) : List.of();
     }
