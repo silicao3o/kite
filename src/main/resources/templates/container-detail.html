@@ -8,7 +8,8 @@
     <title th:text="${container.name} + ' · kite'">Container · kite</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
     <style>
-        .logs-content pre { user-select: text; }
+        .logs-content pre,
+        .logs-content pre * { user-select: text; }
     </style>
 </head>
 
