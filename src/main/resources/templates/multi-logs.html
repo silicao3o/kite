@@ -396,15 +396,31 @@
         };
         let activePresetIdx = null;
 
-        // Enter 키 → 빈 줄 추가, 500줄 초과 시 위에서 제거
+        // Enter 키 → 빈 줄 추가, Ctrl+A → 해당 패널만 전체 선택, 클릭 → 포커스
         for (let i = 1; i <= 4; i++) {
-            document.getElementById('logs-' + i).addEventListener('keydown', (e) => {
+            const el = document.getElementById('logs-' + i);
+
+            // 패널 클릭 시 포커스 — Ctrl+A가 해당 패널에만 적용되도록
+            el.addEventListener('click', function() {
+                this.focus();
+            });
+
+            el.addEventListener('keydown', (e) => {
+                // Enter 키 → 빈 줄 추가
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    const el = document.getElementById('logs-' + i);
                     // 기존 HTML(색상 강조) 유지하면서 빈 줄만 추가
                     el.appendChild(document.createTextNode('\n'));
                     el.scrollTop = el.scrollHeight;
+                }
+                // Ctrl+A 또는 Cmd+A → 해당 패널만 전체 선택 (다른 패널/헤더 제외)
+                if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                    e.preventDefault();
+                    const range = document.createRange();
+                    range.selectNodeContents(el);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
                 }
             });
         }
