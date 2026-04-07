@@ -96,7 +96,7 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="label">Total Incidents</div>
-                    <div class="value" th:text="${reports.size()}">0</div>
+                    <div class="value" th:text="${totalElements}">0</div>
                 </div>
                 <div class="stat-card">
                     <div class="label">Open</div>
@@ -149,6 +149,44 @@
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- 페이지네이션 (현재 페이지 기준 ±2, 최대 5개 페이지 번호 표시) -->
+                    <div class="pagination" th:if="${totalPages > 1}">
+                        <!-- 첫 페이지 -->
+                        <a th:if="${currentPage > 1}"
+                           th:href="@{/incidents(page=1, size=${pageSize})}"
+                           class="page-btn">«</a>
+                        <span th:unless="${currentPage > 1}" class="page-btn disabled">«</span>
+
+                        <!-- 이전 페이지 -->
+                        <a th:if="${hasPrevious}"
+                           th:href="@{/incidents(page=${currentPage - 1}, size=${pageSize})}"
+                           class="page-btn">‹</a>
+                        <span th:unless="${hasPrevious}" class="page-btn disabled">‹</span>
+
+                        <!-- 페이지 번호들 (현재 페이지 기준 ±2, 총 5개) -->
+                        <th:block th:with="startPage=${currentPage - 2 < 1 ? 1 : (currentPage + 2 > totalPages ? (totalPages - 4 < 1 ? 1 : totalPages - 4) : currentPage - 2)},
+                                           endPage=${currentPage + 2 > totalPages ? totalPages : (currentPage - 2 < 1 ? (5 > totalPages ? totalPages : 5) : currentPage + 2)}">
+                            <a th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                               th:href="@{/incidents(page=${pageNum}, size=${pageSize})}"
+                               th:text="${pageNum}"
+                               class="page-btn"
+                               th:classappend="${pageNum == currentPage} ? 'active' : ''">1</a>
+                        </th:block>
+
+                        <!-- 다음 페이지 -->
+                        <a th:if="${hasNext}"
+                           th:href="@{/incidents(page=${currentPage + 1}, size=${pageSize})}"
+                           class="page-btn">›</a>
+                        <span th:unless="${hasNext}" class="page-btn disabled">›</span>
+
+                        <!-- 마지막 페이지 -->
+                        <a th:if="${currentPage < totalPages}"
+                           th:href="@{/incidents(page=${totalPages}, size=${pageSize})}"
+                           class="page-btn">»</a>
+                        <span th:unless="${currentPage < totalPages}" class="page-btn disabled">»</span>
+                    </div>
+
                     <div th:if="${reports.isEmpty()}" class="empty-state">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>

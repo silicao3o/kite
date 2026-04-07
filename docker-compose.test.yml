@@ -66,8 +66,8 @@ services:
 
       # ── 보안 (데모: 비활성화) ────────────────────────────────────
       SECURITY_ENABLED: "true"
-      AUTH_USERNAME: admin
-      AUTH_PASSWORD: daquv_kite
+      AUTH_USERNAME: ${AUTH_USERNAME}
+      AUTH_PASSWORD: ${AUTH_PASSWORD}
 
       # ── AI 분석 ─────────────────────────────────────────────────
       AI_ENABLED: "true"

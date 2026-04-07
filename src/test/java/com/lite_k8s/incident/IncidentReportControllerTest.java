@@ -3,12 +3,15 @@ package com.lite_k8s.incident;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.ui.ExtendedModelMap;
 import org.springframework.ui.Model;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 class IncidentReportControllerTest {
@@ -32,10 +35,12 @@ class IncidentReportControllerTest {
                 .containerName("web-server")
                 .summary("OOM 발생")
                 .build();
-        when(service.findAll()).thenReturn(List.of(report));
+        Page<IncidentReport> page = new PageImpl<>(List.of(report));
+        when(service.findAll(anyInt(), anyInt())).thenReturn(page);
+        when(service.countByStatus(any())).thenReturn(0L);
 
         // when
-        String view = controller.incidentsPage(model);
+        String view = controller.incidentsPage(0, 50, model);
 
         // then
         assertThat(view).isEqualTo("incidents");

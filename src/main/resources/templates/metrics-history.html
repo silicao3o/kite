@@ -192,42 +192,10 @@
                 <div id="containerStatsBox" style="display:flex; gap:24px; padding:0 16px 16px; flex-wrap:wrap;"></div>
             </div>
 
-            <!-- Incident Timeline -->
-            <div class="table-card">
-                <div class="table-header">
-                    <h3>Incident Timeline (Last 7 days)</h3>
-                </div>
-                <div class="table-container">
-                    <table th:if="${!timeline.isEmpty()}">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Container</th>
-                                <th>Summary</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr th:each="entry : ${timeline}">
-                                <td th:text="${#temporals.format(entry.occurredAt, 'MM-dd HH:mm')}">01-01 12:00</td>
-                                <td><span class="container-name" th:text="${entry.containerName}">container</span></td>
-                                <td th:text="${entry.summary}">요약</td>
-                                <td>
-                                    <span class="status-badge"
-                                          th:classappend="${entry.status == 'CLOSED'} ? 'running' : (${entry.status == 'ANALYZING'} ? 'paused' : 'exited')"
-                                          th:text="${entry.status}">OPEN</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div th:if="${timeline.isEmpty()}" class="empty-state">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                        </svg>
-                        <h3>No incidents in the last 7 days</h3>
-                    </div>
-                </div>
-            </div>
+            <!-- [제거됨] Incident Timeline (Last 7 days) 섹션
+                 → incidents 페이지와 데이터 중복 + 디테일 페이지 이동 불가로 인해 제거
+                 → 인시던트 조회는 /incidents 페이지에서 페이지네이션과 함께 제공 -->
+
         </main>
     </div>
 

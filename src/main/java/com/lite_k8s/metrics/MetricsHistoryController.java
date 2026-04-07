@@ -22,19 +22,21 @@ public class MetricsHistoryController {
     private final MetricsHistoryService metricsHistoryService;
     private final MultiContainerMetricsService multiContainerMetricsService;
     private final HealingStatisticsService healingStatisticsService;
-    private final IncidentTimelineService incidentTimelineService;
     private final MetricsCsvExporter csvExporter;
+    // [제거됨] private final IncidentTimelineService incidentTimelineService;
+    // → incidents 페이지와 데이터가 중복되어 metrics-history에서는 표시하지 않음
 
     @GetMapping("/metrics-history")
     public String metricsHistoryPage(Model model,
                                      @RequestParam(defaultValue = "24") int hours) {
         List<String> containers = metricsHistoryService.getAllContainerNames();
         HealingStatistics healingStats = healingStatisticsService.getStatistics();
-        List<TimelineEntry> timeline = incidentTimelineService.getTimeline(7);
+        // [제거됨] List<TimelineEntry> timeline = incidentTimelineService.getTimeline(7);
+        // → 인시던트 타임라인은 incidents 페이지에서 페이지네이션과 함께 제공
 
         model.addAttribute("containers", containers);
         model.addAttribute("healingStats", healingStats);
-        model.addAttribute("timeline", timeline);
+        // [제거됨] model.addAttribute("timeline", timeline);
         model.addAttribute("hours", hours);
         return "metrics-history";
     }

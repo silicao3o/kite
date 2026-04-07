@@ -5,6 +5,9 @@ import com.lite_k8s.ai.ClaudeResponse;
 import com.lite_k8s.model.ContainerDeathEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -54,6 +57,17 @@ public class IncidentReportService {
 
     public List<IncidentReport> findAll() {
         return repository.findAll();
+    }
+
+    // 페이지네이션용 — 페이지 번호와 크기를 받아서 해당 페이지의 인시던트만 조회
+    public Page<IncidentReport> findAll(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return repository.findAll(pageable);
+    }
+
+    // 페이지와 무관하게 status별 전체 카운트 — 통계 카드 표시용
+    public long countByStatus(IncidentReport.Status status) {
+        return repository.countByStatus(status);
     }
 
     public List<IncidentReport> findByContainerName(String containerName) {
