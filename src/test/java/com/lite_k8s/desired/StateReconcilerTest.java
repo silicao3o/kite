@@ -129,6 +129,36 @@ class StateReconcilerTest {
     }
 
     @Test
+    @DisplayName("nodeName으로 노드를 찾아 해당 클라이언트 사용")
+    void reconcile_WithNodeName_ResolvesClientByName() {
+        // given
+        String nodeName = "res";
+        Node node = mock(Node.class);
+        when(node.getId()).thenReturn("uuid-res");
+        DockerClient nodeClient = mock(DockerClient.class);
+        ListContainersCmd nodeListCmd = mock(ListContainersCmd.class);
+
+        when(nodeRegistry.findByName(nodeName)).thenReturn(Optional.of(node));
+        when(nodeClientFactory.createClient(node)).thenReturn(nodeClient);
+        when(nodeClient.listContainersCmd()).thenReturn(nodeListCmd);
+        when(nodeListCmd.withShowAll(true)).thenReturn(nodeListCmd);
+        Container engineContainer = mockContainer("engine-0", "running");
+        when(nodeListCmd.exec()).thenReturn(List.of(engineContainer));
+
+        DesiredStateProperties.ServiceSpec spec = serviceSpec("engine", "ghcr.io/myorg/engine:latest", 1);
+        spec.setNodeName(nodeName);   // nodeName 사용
+        properties.setEnabled(true);
+        properties.setServices(List.of(spec));
+
+        // when
+        reconciler.reconcile();
+
+        // then
+        verify(nodeRegistry).findByName(nodeName);
+        verify(dockerClient, never()).listContainersCmd();
+    }
+
+    @Test
     @DisplayName("nodeId가 있으면 해당 노드 클라이언트로 컨테이너 조회 및 제거")
     void reconcile_WithNodeId_UsesNodeClient() {
         // given

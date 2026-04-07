@@ -1,15 +1,24 @@
 package com.lite_k8s.service;
 
 import com.lite_k8s.config.SelfHealingProperties;
+import com.lite_k8s.node.Node;
+import com.lite_k8s.node.NodeRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class HealingRuleMatcherTest {
+
+    @Mock private NodeRegistry nodeRegistry;
 
     private HealingRuleMatcher matcher;
     private SelfHealingProperties properties;
@@ -17,7 +26,7 @@ class HealingRuleMatcherTest {
     @BeforeEach
     void setUp() {
         properties = new SelfHealingProperties();
-        matcher = new HealingRuleMatcher(properties);
+        matcher = new HealingRuleMatcher(properties, nodeRegistry);
     }
 
     @Test
@@ -55,6 +64,52 @@ class HealingRuleMatcherTest {
         Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("db-server");
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldMatchRule_WhenNodeNameMatches() {
+        // given: rule에 nodeName="res" 설정, 컨테이너도 res 노드에 있음
+        Node resNode = Node.builder().id("uuid-res").name("res").host("h").port(2375).build();
+        when(nodeRegistry.findByName("res")).thenReturn(Optional.of(resNode));
+
+        SelfHealingProperties.Rule rule = new SelfHealingProperties.Rule();
+        rule.setNamePattern("engine");
+        rule.setNodeName("res");
+        properties.setRules(List.of(rule));
+
+        Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("engine", "uuid-res");
+
+        assertThat(result).isPresent();
+    }
+
+    @Test
+    void shouldNotMatchRule_WhenNodeNameDiffers() {
+        // given: rule에 nodeName="res", 컨테이너는 다른 노드
+        Node resNode = Node.builder().id("uuid-res").name("res").host("h").port(2375).build();
+        when(nodeRegistry.findByName("res")).thenReturn(Optional.of(resNode));
+
+        SelfHealingProperties.Rule rule = new SelfHealingProperties.Rule();
+        rule.setNamePattern("engine");
+        rule.setNodeName("res");
+        properties.setRules(List.of(rule));
+
+        Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("engine", "uuid-other");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldMatchRule_WhenNodeNameIsNull_AllNodes() {
+        // given: rule에 nodeName 없음 → 모든 노드에 적용
+        SelfHealingProperties.Rule rule = new SelfHealingProperties.Rule();
+        rule.setNamePattern("engine");
+        // nodeName 미설정
+        properties.setRules(List.of(rule));
+
+        Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("engine", "any-node-id");
+
+        assertThat(result).isPresent();
+        verifyNoInteractions(nodeRegistry);
     }
 
     @Test

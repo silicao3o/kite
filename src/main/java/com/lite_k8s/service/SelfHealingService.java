@@ -32,9 +32,9 @@ public class SelfHealingService {
         // 1. 라벨에서 설정 읽기 (우선)
         var ruleOpt = labelReader.readHealingConfig(event.getLabels());
 
-        // 2. 라벨에 없으면 yml 규칙 사용
+        // 2. 라벨에 없으면 yml 규칙 사용 (nodeId 포함하여 노드별 매칭)
         if (ruleOpt.isEmpty()) {
-            ruleOpt = ruleMatcher.findMatchingRule(event.getContainerName());
+            ruleOpt = ruleMatcher.findMatchingRule(event.getContainerName(), event.getNodeId());
         }
 
         if (ruleOpt.isEmpty()) {

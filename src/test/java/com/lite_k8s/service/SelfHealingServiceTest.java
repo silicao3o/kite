@@ -85,14 +85,14 @@ class SelfHealingServiceTest {
     void shouldNotRestartWhenNoRuleMatches() {
         // given
         when(properties.isEnabled()).thenReturn(true);
-        when(ruleMatcher.findMatchingRule("db-server")).thenReturn(Optional.empty());
+        when(ruleMatcher.findMatchingRule(eq("db-server"), any())).thenReturn(Optional.empty());
         ContainerDeathEvent event = createDeathEvent("abc123", "db-server");
 
         // when
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(ruleMatcher).findMatchingRule("db-server");
+        verify(ruleMatcher).findMatchingRule(eq("db-server"), any());
         verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
     }
 
@@ -107,7 +107,7 @@ class SelfHealingServiceTest {
         rule.setMaxRestarts(3);
         rule.setRestartDelaySeconds(0);
 
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
 
@@ -131,7 +131,7 @@ class SelfHealingServiceTest {
         rule.setNamePattern("web-*");
         rule.setMaxRestarts(3);
 
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(true);
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
@@ -153,7 +153,7 @@ class SelfHealingServiceTest {
         rule.setNamePattern("web-*");
         rule.setMaxRestarts(3);
 
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
 
@@ -223,7 +223,7 @@ class SelfHealingServiceTest {
         SelfHealingProperties.Rule ymlRule = new SelfHealingProperties.Rule();
         ymlRule.setMaxRestarts(3);
 
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(ymlRule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(ymlRule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
 
@@ -232,7 +232,7 @@ class SelfHealingServiceTest {
 
         // then
         verify(labelReader).readHealingConfig(any());
-        verify(ruleMatcher).findMatchingRule("web-server"); // yml 규칙 체크
+        verify(ruleMatcher).findMatchingRule(eq("web-server"), any()); // yml 규칙 체크
         verify(dockerService).restartContainer("abc123", (String) null);
     }
 
@@ -254,7 +254,7 @@ class SelfHealingServiceTest {
                 .build();
 
         when(labelReader.readHealingConfig(labels)).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.empty());
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.empty());
 
         // when
         selfHealingService.handleContainerDeath(event);
@@ -276,7 +276,7 @@ class SelfHealingServiceTest {
         rule.setMaxRestarts(3);
 
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(restartTracker.getRestartCount("abc123")).thenReturn(1);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
@@ -304,7 +304,7 @@ class SelfHealingServiceTest {
         rule.setMaxRestarts(3);
 
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
 
@@ -332,7 +332,7 @@ class SelfHealingServiceTest {
         rule.setRestartDelaySeconds(1); // 1초 지연
 
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
 
@@ -362,7 +362,7 @@ class SelfHealingServiceTest {
         rule.setMaxRestarts(3);
 
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(true);
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
@@ -386,7 +386,7 @@ class SelfHealingServiceTest {
         rule.setMaxRestarts(3);
 
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
-        when(ruleMatcher.findMatchingRule("web-server")).thenReturn(Optional.of(rule));
+        when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
 

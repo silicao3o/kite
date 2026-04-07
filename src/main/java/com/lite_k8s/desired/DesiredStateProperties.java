@@ -65,7 +65,11 @@ public class DesiredStateProperties {
         /** 추가 레이블 */
         private Map<String, String> labels = new java.util.LinkedHashMap<>();
 
-        /** 컨테이너를 실행할 노드 ID (null = 로컬) */
+        /** 컨테이너를 실행할 노드 이름 (application.yml에서 등록한 이름, null = 로컬) */
+        private String nodeName;
+
+        /** @deprecated nodeName 사용 권장. 하위 호환용 */
+        @Deprecated
         private String nodeId;
     }
 }

@@ -116,6 +116,14 @@ docker:
         - name-pattern: "web-*"
           max-restarts: 5
           restart-delay-seconds: 5
+      # node-name 사용 예시 (특정 노드의 컨테이너만 자가치유):
+      # rules:
+      #   - name-pattern: "engine"
+      #     node-name: res          # res 노드의 engine 컨테이너만 적용
+      #     max-restarts: 5
+      #     restart-delay-seconds: 10
+      #   - name-pattern: "web-*"   # node-name 없으면 모든 노드에 적용
+      #     max-restarts: 3
 
     # GHCR 이미지 자동 업데이트 설정
     image-watch:
@@ -207,7 +215,7 @@ docker:
       services: []
       # 예시:
       # services:
-      #   - name: demo-api
+      #   - name: demo-api             # 서비스 식별 이름
       #     image: ghcr.io/myorg/demo-api:latest
       #     replicas: 2
       #     container-name-prefix: demo-api
@@ -215,6 +223,13 @@ docker:
       #       - "DB_HOST=postgres"
       #     ports:
       #       - "8081:8081"
+      #
+      #   # 원격 노드 컨테이너 관리 예시 (node-name으로 노드 지정):
+      #   - name: engine
+      #     image: ghcr.io/myorg/engine:latest
+      #     replicas: 1
+      #     container-name-prefix: engine
+      #     node-name: res             # nodes 목록에 등록한 노드 이름
 
     # Health Check Probe 설정
     health-check:

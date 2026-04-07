@@ -89,6 +89,26 @@ class NodeRegistryTest {
     }
 
     @Test
+    @DisplayName("이름으로 노드 조회 — 존재하는 경우")
+    void findByName_WhenExists_ReturnsNode() {
+        Node node = Node.builder().id("n1").name("res").host("192.168.1.10").port(2375).build();
+        when(jpa.findByName("res")).thenReturn(Optional.of(node));
+
+        Optional<Node> found = registry.findByName("res");
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getId()).isEqualTo("n1");
+    }
+
+    @Test
+    @DisplayName("이름으로 노드 조회 — 존재하지 않는 경우 empty")
+    void findByName_WhenNotExists_ReturnsEmpty() {
+        when(jpa.findByName("unknown")).thenReturn(Optional.empty());
+
+        assertThat(registry.findByName("unknown")).isEmpty();
+    }
+
+    @Test
     @DisplayName("노드 상태 업데이트")
     void updateStatus_ChangesNodeStatus() {
         Node node = Node.builder().id("n1").name("s1").host("h1").port(2375)

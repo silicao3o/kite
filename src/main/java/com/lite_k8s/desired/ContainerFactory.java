@@ -38,7 +38,7 @@ public class ContainerFactory {
         String containerName = (index == 0)
                 ? spec.getContainerNamePrefix()
                 : spec.getContainerNamePrefix() + "-" + index;
-        DockerClient client = resolveClient(spec.getNodeId());
+        DockerClient client = resolveClient(spec);
         try {
             HostConfig hostConfig = buildHostConfig(spec);
 
@@ -60,11 +60,18 @@ public class ContainerFactory {
         }
     }
 
-    private DockerClient resolveClient(String nodeId) {
-        if (nodeId == null) return dockerClient;
-        return nodeRegistry.findById(nodeId)
-                .map(nodeClientFactory::createClient)
-                .orElse(dockerClient);
+    private DockerClient resolveClient(DesiredStateProperties.ServiceSpec spec) {
+        if (spec.getNodeName() != null) {
+            return nodeRegistry.findByName(spec.getNodeName())
+                    .map(nodeClientFactory::createClient)
+                    .orElse(dockerClient);
+        }
+        if (spec.getNodeId() != null) {
+            return nodeRegistry.findById(spec.getNodeId())
+                    .map(nodeClientFactory::createClient)
+                    .orElse(dockerClient);
+        }
+        return dockerClient;
     }
 
     private HostConfig buildHostConfig(DesiredStateProperties.ServiceSpec spec) {

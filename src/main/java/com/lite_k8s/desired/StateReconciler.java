@@ -49,15 +49,22 @@ public class StateReconciler {
         }
     }
 
-    private DockerClient resolveClient(String nodeId) {
-        if (nodeId == null) return dockerClient;
-        return nodeRegistry.findById(nodeId)
-                .map(nodeClientFactory::createClient)
-                .orElse(dockerClient);
+    private DockerClient resolveClient(DesiredStateProperties.ServiceSpec spec) {
+        if (spec.getNodeName() != null) {
+            return nodeRegistry.findByName(spec.getNodeName())
+                    .map(nodeClientFactory::createClient)
+                    .orElse(dockerClient);
+        }
+        if (spec.getNodeId() != null) {
+            return nodeRegistry.findById(spec.getNodeId())
+                    .map(nodeClientFactory::createClient)
+                    .orElse(dockerClient);
+        }
+        return dockerClient;
     }
 
     private void reconcileService(DesiredStateProperties.ServiceSpec spec) {
-        DockerClient client = resolveClient(spec.getNodeId());
+        DockerClient client = resolveClient(spec);
         List<Container> all = client.listContainersCmd()
                 .withShowAll(true)
                 .exec();

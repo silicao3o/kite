@@ -43,6 +43,16 @@ public class NodeRegistry {
         }
     }
 
+    public Optional<Node> findByName(String name) {
+        return runtimeCache.values().stream()
+                .filter(n -> name.equals(n.getName()))
+                .findFirst()
+                .or(() -> jpa.findByName(name).map(n -> {
+                    runtimeCache.put(n.getId(), n);
+                    return n;
+                }));
+    }
+
     public Optional<Node> findById(String nodeId) {
         Node cached = runtimeCache.get(nodeId);
         if (cached != null) return Optional.of(cached);

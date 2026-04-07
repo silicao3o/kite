@@ -24,5 +24,7 @@ public class SelfHealingProperties {
         private String namePattern;
         private int maxRestarts = 3;
         private int restartDelaySeconds = 0; // 기본값 0 (즉시 재시작)
+        /** 적용할 노드 이름 (null이면 모든 노드에 적용) */
+        private String nodeName;
     }
 }
