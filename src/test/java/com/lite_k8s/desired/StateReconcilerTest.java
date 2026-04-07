@@ -31,6 +31,7 @@ class StateReconcilerTest {
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory nodeClientFactory;
     @Mock private ListContainersCmd listContainersCmd;
+    @Mock private DesiredStateService desiredStateService;
 
     private DesiredStateProperties properties;
     private StateReconciler reconciler;
@@ -38,10 +39,11 @@ class StateReconcilerTest {
     @BeforeEach
     void setUp() {
         properties = new DesiredStateProperties();
-        reconciler = new StateReconciler(properties, dockerClient, containerFactory, nodeRegistry, nodeClientFactory);
+        reconciler = new StateReconciler(properties, dockerClient, containerFactory, nodeRegistry, nodeClientFactory, desiredStateService);
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(true)).thenReturn(listContainersCmd);
+        when(desiredStateService.findAllActive()).thenReturn(List.of());
     }
 
     @Test
@@ -211,6 +213,43 @@ class StateReconcilerTest {
 
         verify(dockerClient).listContainersCmd();
         verifyNoInteractions(nodeRegistry, nodeClientFactory);
+    }
+
+    @Test
+    @DisplayName("DB에 저장된 스펙도 reconcile에 포함 (YAML + DB 합산)")
+    void reconcile_IncludesDbSpecs() {
+        // YAML: 없음, DB: demo-api replicas=1
+        properties.setEnabled(true);
+        properties.setServices(List.of());
+
+        DesiredStateProperties.ServiceSpec dbSpec = serviceSpec("demo-api", "img:latest", 1);
+        when(desiredStateService.findAllActive()).thenReturn(List.of(dbSpec));
+        when(listContainersCmd.exec()).thenReturn(List.of());
+
+        reconciler.reconcile();
+
+        // 1개 생성 (DB spec 반영)
+        verify(containerFactory, times(1)).create(eq(dbSpec), anyInt());
+    }
+
+    @Test
+    @DisplayName("YAML과 DB에 같은 이름 있으면 DB 우선")
+    void reconcile_DbSpecOverridesYamlSpec() {
+        // YAML: demo-api replicas=1, DB: demo-api replicas=3 → DB 우선 → 3개 목표
+        DesiredStateProperties.ServiceSpec yamlSpec = serviceSpec("demo-api", "img:latest", 1);
+        properties.setEnabled(true);
+        properties.setServices(List.of(yamlSpec));
+
+        DesiredStateProperties.ServiceSpec dbSpec = serviceSpec("demo-api", "img:latest", 3);
+        when(desiredStateService.findAllActive()).thenReturn(List.of(dbSpec));
+        when(listContainersCmd.exec()).thenReturn(List.of());
+
+        reconciler.reconcile();
+
+        // 3개 생성 (DB 우선)
+        verify(containerFactory, times(3)).create(eq(dbSpec), anyInt());
+        // YAML spec으로는 create 안 함
+        verify(containerFactory, never()).create(eq(yamlSpec), anyInt());
     }
 
     private DesiredStateProperties.ServiceSpec serviceSpec(String name, String image, int replicas) {

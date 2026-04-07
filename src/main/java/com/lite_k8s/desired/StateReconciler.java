@@ -10,8 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Desired State Reconciler
@@ -30,6 +33,7 @@ public class StateReconciler {
     private final ContainerFactory containerFactory;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final DesiredStateService desiredStateService;
 
     @Scheduled(fixedDelayString =
             "#{${docker.monitor.desired-state.reconcile-interval-seconds:30} * 1000}")
@@ -38,15 +42,32 @@ public class StateReconciler {
             return;
         }
 
-        log.debug("Desired State Reconcile 시작: {}개 서비스", properties.getServices().size());
+        List<DesiredStateProperties.ServiceSpec> merged = mergeSpecs();
+        log.debug("Desired State Reconcile 시작: {}개 서비스 (YAML+DB 합산)", merged.size());
 
-        for (DesiredStateProperties.ServiceSpec spec : properties.getServices()) {
+        for (DesiredStateProperties.ServiceSpec spec : merged) {
             try {
                 reconcileService(spec);
             } catch (Exception e) {
                 log.error("Reconcile 실패: {}", spec.getName(), e);
             }
         }
+    }
+
+    /**
+     * YAML specs + DB specs 합산. 이름 충돌 시 DB 우선.
+     */
+    List<DesiredStateProperties.ServiceSpec> mergeSpecs() {
+        Map<String, DesiredStateProperties.ServiceSpec> merged = new LinkedHashMap<>();
+        // YAML 먼저
+        for (DesiredStateProperties.ServiceSpec spec : properties.getServices()) {
+            merged.put(spec.getName(), spec);
+        }
+        // DB 덮어쓰기 (우선)
+        for (DesiredStateProperties.ServiceSpec spec : desiredStateService.findAllActive()) {
+            merged.put(spec.getName(), spec);
+        }
+        return new ArrayList<>(merged.values());
     }
 
     private DockerClient resolveClient(DesiredStateProperties.ServiceSpec spec) {
