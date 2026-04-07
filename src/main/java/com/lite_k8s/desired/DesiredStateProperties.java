@@ -64,5 +64,8 @@ public class DesiredStateProperties {
 
         /** 추가 레이블 */
         private Map<String, String> labels = new java.util.LinkedHashMap<>();
+
+        /** 컨테이너를 실행할 노드 ID (null = 로컬) */
+        private String nodeId;
     }
 }

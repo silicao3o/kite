@@ -6,6 +6,8 @@ import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,6 +24,8 @@ import java.util.List;
 public class ContainerFactory {
 
     private final DockerClient dockerClient;
+    private final NodeRegistry nodeRegistry;
+    private final NodeDockerClientFactory nodeClientFactory;
 
     /**
      * ServiceSpec 설정으로 새 컨테이너 생성 및 시작
@@ -34,17 +38,18 @@ public class ContainerFactory {
         String containerName = (index == 0)
                 ? spec.getContainerNamePrefix()
                 : spec.getContainerNamePrefix() + "-" + index;
+        DockerClient client = resolveClient(spec.getNodeId());
         try {
             HostConfig hostConfig = buildHostConfig(spec);
 
-            CreateContainerResponse response = dockerClient.createContainerCmd(spec.getImage())
+            CreateContainerResponse response = client.createContainerCmd(spec.getImage())
                     .withName(containerName)
                     .withEnv(spec.getEnv().toArray(new String[0]))
                     .withHostConfig(hostConfig)
                     .withLabels(spec.getLabels())
                     .exec();
 
-            dockerClient.startContainerCmd(response.getId()).exec();
+            client.startContainerCmd(response.getId()).exec();
 
             log.info("컨테이너 생성 완료: {} ({})", containerName, response.getId().substring(0, 12));
             return response.getId();
@@ -53,6 +58,13 @@ public class ContainerFactory {
             log.error("컨테이너 생성 실패: {}", containerName, e);
             return null;
         }
+    }
+
+    private DockerClient resolveClient(String nodeId) {
+        if (nodeId == null) return dockerClient;
+        return nodeRegistry.findById(nodeId)
+                .map(nodeClientFactory::createClient)
+                .orElse(dockerClient);
     }
 
     private HostConfig buildHostConfig(DesiredStateProperties.ServiceSpec spec) {

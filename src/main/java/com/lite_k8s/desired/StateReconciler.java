@@ -2,6 +2,8 @@ package com.lite_k8s.desired;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.DockerContainerNames;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.IntStream;
 
 /**
  * Desired State Reconciler
@@ -27,6 +28,8 @@ public class StateReconciler {
     private final DesiredStateProperties properties;
     private final DockerClient dockerClient;
     private final ContainerFactory containerFactory;
+    private final NodeRegistry nodeRegistry;
+    private final NodeDockerClientFactory nodeClientFactory;
 
     @Scheduled(fixedDelayString =
             "#{${docker.monitor.desired-state.reconcile-interval-seconds:30} * 1000}")
@@ -46,8 +49,16 @@ public class StateReconciler {
         }
     }
 
+    private DockerClient resolveClient(String nodeId) {
+        if (nodeId == null) return dockerClient;
+        return nodeRegistry.findById(nodeId)
+                .map(nodeClientFactory::createClient)
+                .orElse(dockerClient);
+    }
+
     private void reconcileService(DesiredStateProperties.ServiceSpec spec) {
-        List<Container> all = dockerClient.listContainersCmd()
+        DockerClient client = resolveClient(spec.getNodeId());
+        List<Container> all = client.listContainersCmd()
                 .withShowAll(true)
                 .exec();
 
@@ -67,7 +78,7 @@ public class StateReconciler {
 
         if (actual < desired) {
             // 죽은 컨테이너 먼저 정리
-            cleanupDeadContainers(dead);
+            cleanupDeadContainers(client, dead);
             // 부족한 수만큼 생성
             int toCreate = desired - actual;
             log.info("[{}] 컨테이너 {}개 생성 필요", spec.getName(), toCreate);
@@ -77,13 +88,12 @@ public class StateReconciler {
             // 초과분 제거 (가장 나중에 생성된 것부터)
             int toRemove = actual - desired;
             log.info("[{}] 컨테이너 {}개 제거 필요", spec.getName(), toRemove);
-            removeExcess(running, toRemove);
+            removeExcess(client, running, toRemove);
         }
     }
 
     private void createContainers(DesiredStateProperties.ServiceSpec spec,
                                    List<Container> existing, int count) {
-        // 기존 인덱스와 겹치지 않는 다음 인덱스 계산
         int nextIndex = nextAvailableIndex(spec, existing);
         for (int i = 0; i < count; i++) {
             containerFactory.create(spec, nextIndex + i);
@@ -108,19 +118,17 @@ public class StateReconciler {
         return 0;
     }
 
-    private void removeExcess(List<Container> running, int count) {
-        // 이름 기준 역순 정렬 (가장 나중 인덱스부터 제거)
+    private void removeExcess(DockerClient client, List<Container> running, int count) {
         List<Container> sorted = running.stream()
                 .sorted(Comparator.comparing(c -> extractName(c), Comparator.reverseOrder()))
                 .toList();
-
-        sorted.stream().limit(count).forEach(this::stopAndRemove);
+        sorted.stream().limit(count).forEach(c -> stopAndRemove(client, c));
     }
 
-    private void cleanupDeadContainers(List<Container> dead) {
+    private void cleanupDeadContainers(DockerClient client, List<Container> dead) {
         dead.forEach(c -> {
             try {
-                dockerClient.removeContainerCmd(c.getId()).exec();
+                client.removeContainerCmd(c.getId()).exec();
                 log.debug("죽은 컨테이너 제거: {}", extractName(c));
             } catch (Exception e) {
                 log.warn("컨테이너 제거 실패: {}", extractName(c), e);
@@ -128,11 +136,11 @@ public class StateReconciler {
         });
     }
 
-    private void stopAndRemove(Container container) {
+    private void stopAndRemove(DockerClient client, Container container) {
         String name = extractName(container);
         try {
-            dockerClient.stopContainerCmd(container.getId()).exec();
-            dockerClient.removeContainerCmd(container.getId()).exec();
+            client.stopContainerCmd(container.getId()).exec();
+            client.removeContainerCmd(container.getId()).exec();
             log.info("초과 컨테이너 제거 완료: {}", name);
         } catch (Exception e) {
             log.error("컨테이너 제거 실패: {}", name, e);
