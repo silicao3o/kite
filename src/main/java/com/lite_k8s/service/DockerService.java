@@ -48,7 +48,7 @@ public class DockerService {
 
     public ContainerDeathEvent buildDeathEvent(String containerId, String action, String nodeId) {
         DockerClient client = resolveClient(nodeId);
-        return buildDeathEventWithClient(containerId, action, client);
+        return buildDeathEventWithClient(containerId, action, client, nodeId);
     }
 
     private DockerClient resolveClient(String nodeId) {
@@ -60,7 +60,21 @@ public class DockerService {
                 .orElse(dockerClient);
     }
 
-    private ContainerDeathEvent buildDeathEventWithClient(String containerId, String action, DockerClient client) {
+    // nodeId로 사람이 읽을 수 있는 노드 이름을 조회 — 이메일 알림 등에서 표시용
+    // nodeId가 null이거나 NodeRegistry가 없으면 "local" 반환 (로컬 단일 모드)
+    private String resolveNodeName(String nodeId) {
+        if (nodeId == null || nodeRegistry == null) {
+            return "local";
+        }
+        return nodeRegistry.findById(nodeId)
+                .map(Node::getName)
+                .orElse("unknown");
+    }
+
+    private ContainerDeathEvent buildDeathEventWithClient(String containerId, String action, DockerClient client, String nodeId) {
+        // nodeId → 사람이 읽을 수 있는 노드 이름 변환
+        String nodeName = resolveNodeName(nodeId);
+
         try {
             InspectContainerResponse inspection = client.inspectContainerCmd(containerId).exec();
             InspectContainerResponse.ContainerState state = inspection.getState();
@@ -84,6 +98,8 @@ public class DockerService {
                     .action(action)
                     .lastLogs(lastLogs)
                     .labels(inspection.getConfig().getLabels())
+                    .nodeId(nodeId)        // 노드 식별자
+                    .nodeName(nodeName)    // 사람이 읽을 수 있는 노드 이름 (이메일 알림용)
                     .build();
 
         } catch (Exception e) {
@@ -94,6 +110,8 @@ public class DockerService {
                     .deathTime(LocalDateTime.now())
                     .action(action)
                     .lastLogs("로그 조회 실패: " + e.getMessage())
+                    .nodeId(nodeId)        // 예외 시에도 노드 정보는 유지
+                    .nodeName(nodeName)
                     .build();
         }
     }

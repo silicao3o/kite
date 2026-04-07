@@ -1,10 +1,13 @@
 package com.lite_k8s.service;
 
 import com.lite_k8s.model.ContainerDeathEvent;
+import com.lite_k8s.model.ContainerInfo;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -19,6 +22,11 @@ import java.util.Arrays;
 public class EmailNotificationService {
 
     private final JavaMailSender mailSender;
+    // DockerService 의존성 — containerId로 노드 이름을 조회하기 위함 (event가 없는 알림용)
+    // @Lazy: 순환 의존성 방지
+    @Autowired
+    @Lazy
+    private DockerService dockerService;
 
     @Value("${docker.monitor.notification.email.to}")
     private String recipientEmail;
@@ -42,6 +50,29 @@ public class EmailNotificationService {
     private String sanitizeHeader(String value) {
         if (value == null) return "";
         return value.replaceAll("[\r\n]", "");
+    }
+
+    // event.getNodeName()을 우선 사용, 없으면 yml의 serverName으로 fallback
+    // 멀티노드 환경에서는 노드 이름(res, dev 등), 로컬 환경에서는 serverName 표시
+    private String resolveNodeNameForDisplay(String nodeName) {
+        if (nodeName == null || nodeName.isBlank()) {
+            return serverName;
+        }
+        return nodeName;
+    }
+
+    // containerId로 노드 이름 조회 (event가 없는 알림용 — 자가치유, 임계치, crash loop 등)
+    // DockerService에서 컨테이너 정보를 가져와서 nodeName을 반환
+    private String findNodeNameByContainerId(String containerId) {
+        try {
+            ContainerInfo container = dockerService.getContainer(containerId);
+            if (container != null && container.getNodeName() != null && !container.getNodeName().isBlank()) {
+                return container.getNodeName();
+            }
+        } catch (Exception e) {
+            log.warn("노드 이름 조회 실패: {}", containerId, e);
+        }
+        return serverName; // fallback: yml의 serverName
     }
 
     @Async
@@ -68,11 +99,13 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            // containerId로 노드 이름 조회 (멀티노드 환경에서 어느 노드인지 표시)
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
-            helper.setSubject(String.format("[MAX RESTARTS] %s - 최대 재시작 횟수 초과 (%s)", sanitizeHeader(containerName), sanitizeHeader(serverName)));
-            helper.setText(buildMaxRestartsExceededContent(containerName, containerId, maxRestarts), true);
+            helper.setSubject(String.format("[MAX RESTARTS] %s - 최대 재시작 횟수 초과 (%s)", sanitizeHeader(containerName), sanitizeHeader(nodeDisplay)));
+            helper.setText(buildMaxRestartsExceededContent(containerName, containerId, maxRestarts, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("최대 재시작 초과 알림 전송 완료: {}", containerName);
@@ -87,11 +120,12 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
-            helper.setSubject(String.format("[RESTART FAILED] %s - 자가치유 실패 (%s)", sanitizeHeader(containerName), sanitizeHeader(serverName)));
-            helper.setText(buildRestartFailedContent(containerName, containerId), true);
+            helper.setSubject(String.format("[RESTART FAILED] %s - 자가치유 실패 (%s)", sanitizeHeader(containerName), sanitizeHeader(nodeDisplay)));
+            helper.setText(buildRestartFailedContent(containerName, containerId, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("재시작 실패 알림 전송 완료: {}", containerName);
@@ -106,11 +140,12 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
-            helper.setSubject(String.format("[CPU HIGH] %s - CPU 사용률 %.1f%% (%s)", sanitizeHeader(containerName), currentCpu, sanitizeHeader(serverName)));
-            helper.setText(buildThresholdAlertContent("CPU", containerName, containerId, currentCpu, threshold), true);
+            helper.setSubject(String.format("[CPU HIGH] %s - CPU 사용률 %.1f%% (%s)", sanitizeHeader(containerName), currentCpu, sanitizeHeader(nodeDisplay)));
+            helper.setText(buildThresholdAlertContent("CPU", containerName, containerId, currentCpu, threshold, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("CPU 임계치 알림 전송 완료: {} ({}%)", containerName, String.format("%.1f", currentCpu));
@@ -125,11 +160,12 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
-            helper.setSubject(String.format("[MEMORY HIGH] %s - 메모리 사용률 %.1f%% (%s)", sanitizeHeader(containerName), currentMemory, sanitizeHeader(serverName)));
-            helper.setText(buildThresholdAlertContent("메모리", containerName, containerId, currentMemory, threshold), true);
+            helper.setSubject(String.format("[MEMORY HIGH] %s - 메모리 사용률 %.1f%% (%s)", sanitizeHeader(containerName), currentMemory, sanitizeHeader(nodeDisplay)));
+            helper.setText(buildThresholdAlertContent("메모리", containerName, containerId, currentMemory, threshold, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("메모리 임계치 알림 전송 완료: {} ({}%)", containerName, String.format("%.1f", currentMemory));
@@ -144,12 +180,13 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
             helper.setSubject(String.format("[RESTART LOOP] %s - %d분 내 %d회 재시작 (%s)",
-                    sanitizeHeader(containerName), windowMinutes, restartCount, sanitizeHeader(serverName)));
-            helper.setText(buildRestartLoopContent(containerName, containerId, restartCount, windowMinutes), true);
+                    sanitizeHeader(containerName), windowMinutes, restartCount, sanitizeHeader(nodeDisplay)));
+            helper.setText(buildRestartLoopContent(containerName, containerId, restartCount, windowMinutes, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("재시작 반복 알림 전송 완료: {} ({}회)", containerName, restartCount);
@@ -161,8 +198,10 @@ public class EmailNotificationService {
 
     private String buildSubject(ContainerDeathEvent event) {
         String emoji = event.isOomKilled() ? "[OOM]" : "[DOWN]";
+        // 컨테이너가 실제로 죽은 노드 이름 사용 (없으면 yml serverName으로 fallback)
+        String nodeDisplay = resolveNodeNameForDisplay(event.getNodeName());
         return String.format("%s 컨테이너 종료 알림: %s (%s)",
-                emoji, sanitizeHeader(event.getContainerName()), sanitizeHeader(serverName));
+                emoji, sanitizeHeader(event.getContainerName()), sanitizeHeader(nodeDisplay));
     }
 
     private String buildHtmlContent(ContainerDeathEvent event) {
@@ -188,7 +227,7 @@ public class EmailNotificationService {
                 </div>
                 <h3>마지막 로그 (최근 100줄)</h3>
                 <div class="log-box">%s</div>""",
-                escapeHtml(serverName),
+                escapeHtml(resolveNodeNameForDisplay(event.getNodeName())),
                 escapeHtml(event.getContainerName()),
                 shortId,
                 escapeHtml(event.getImageName() != null ? event.getImageName() : "N/A"),
@@ -268,7 +307,7 @@ public class EmailNotificationService {
                 .replace("'", "&#39;");
     }
 
-    private String buildMaxRestartsExceededContent(String containerName, String containerId, int maxRestarts) {
+    private String buildMaxRestartsExceededContent(String containerName, String containerId, int maxRestarts, String nodeDisplay) {
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""
                 <table class="info-table">
@@ -281,14 +320,14 @@ public class EmailNotificationService {
                     <strong>주의:</strong> 이 컨테이너는 최대 재시작 횟수에 도달하여 더 이상 자동 재시작되지 않습니다.
                     수동으로 확인이 필요합니다.
                 </div>""",
-                escapeHtml(serverName), escapeHtml(containerName), shortId, maxRestarts);
+                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId, maxRestarts);
         return buildEmailHtml("600px", "#dc3545", "최대 재시작 횟수 초과",
                 "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
                 body);
     }
 
     private String buildThresholdAlertContent(String type, String containerName, String containerId,
-                                                double current, double threshold) {
+                                                double current, double threshold, String nodeDisplay) {
         String color = current > threshold * 1.2 ? "#dc3545" : "#ffc107";
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""
@@ -302,7 +341,7 @@ public class EmailNotificationService {
                     <div class="metric-value">%.1f%%</div>
                     <div class="metric-label">현재 %s 사용률</div>
                 </div>""",
-                escapeHtml(serverName), escapeHtml(containerName), shortId, threshold, current, type);
+                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId, threshold, current, type);
         String extraStyles = "        .metric-box { background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 20px; text-align: center; }\n"
                 + "        .metric-value { font-size: 48px; font-weight: bold; color: " + color + "; }\n"
                 + "        .metric-label { color: #6c757d; margin-top: 5px; }\n";
@@ -314,12 +353,13 @@ public class EmailNotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String nodeDisplay = findNodeNameByContainerId(containerId);
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
             helper.setSubject(String.format("[CRASH LOOP] %s - 강제 정지됨 (%d분 내 %d회 재시작) (%s)",
-                    sanitizeHeader(containerName), windowMinutes, restartCount, sanitizeHeader(serverName)));
-            helper.setText(buildCrashLoopStoppedContent(containerName, containerId, restartCount, windowMinutes), true);
+                    sanitizeHeader(containerName), windowMinutes, restartCount, sanitizeHeader(nodeDisplay)));
+            helper.setText(buildCrashLoopStoppedContent(containerName, containerId, restartCount, windowMinutes, nodeDisplay), true);
 
             mailSender.send(message);
             log.info("Crash Loop 강제 정지 알림 전송 완료: {} ({}회)", containerName, restartCount);
@@ -329,7 +369,7 @@ public class EmailNotificationService {
         }
     }
 
-    private String buildCrashLoopStoppedContent(String containerName, String containerId, int restartCount, int windowMinutes) {
+    private String buildCrashLoopStoppedContent(String containerName, String containerId, int restartCount, int windowMinutes, String nodeDisplay) {
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""
                 <table class="info-table">
@@ -343,13 +383,13 @@ public class EmailNotificationService {
                     <strong>Crash Loop 감지:</strong> 컨테이너가 %d분 내 %d회 재시작되어 강제 정지되었습니다.<br>
                     애플리케이션 오류(DB 스키마 불일치, 설정 오류 등)를 확인한 후 수동으로 재시작하세요.
                 </div>""",
-                escapeHtml(serverName), escapeHtml(containerName), shortId, restartCount, windowMinutes, windowMinutes, restartCount);
+                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId, restartCount, windowMinutes, windowMinutes, restartCount);
         return buildEmailHtml("600px", "#dc3545", "Crash Loop — 컨테이너 강제 정지",
                 "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
                 body);
     }
 
-    private String buildRestartLoopContent(String containerName, String containerId, int restartCount, int windowMinutes) {
+    private String buildRestartLoopContent(String containerName, String containerId, int restartCount, int windowMinutes, String nodeDisplay) {
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""
                 <table class="info-table">
@@ -362,13 +402,13 @@ public class EmailNotificationService {
                     <strong>주의:</strong> 컨테이너가 짧은 시간 내에 여러 번 재시작되고 있습니다.
                     애플리케이션 오류나 리소스 문제를 점검해 주세요.
                 </div>""",
-                escapeHtml(serverName), escapeHtml(containerName), shortId, restartCount, windowMinutes);
+                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId, restartCount, windowMinutes);
         return buildEmailHtml("600px", "#dc3545", "재시작 반복 감지",
                 "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
                 body);
     }
 
-    private String buildRestartFailedContent(String containerName, String containerId) {
+    private String buildRestartFailedContent(String containerName, String containerId, String nodeDisplay) {
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
         String body = String.format("""
                 <table class="info-table">
@@ -379,9 +419,10 @@ public class EmailNotificationService {
                 <div class="warning-box">
                     <strong>주의:</strong> 컨테이너 재시작이 실패했습니다. 수동으로 확인이 필요합니다.
                 </div>""",
-                escapeHtml(serverName), escapeHtml(containerName), shortId);
+                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId);
         return buildEmailHtml("600px", "#dc3545", "자가치유 실패",
                 "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
                 body);
     }
+
 }

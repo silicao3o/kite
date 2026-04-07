@@ -178,11 +178,8 @@ public class DockerEventListener {
             String previousCause = pendingDeathCause.remove(containerId);
             log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
 
-            // 중복 알림 체크
-            if (!deduplicationService.shouldAlert(containerId, action)) {
-                log.info("중복 알림 스킵: containerId={}, action={}", containerId, action);
-                return;
-            }
+            // ※ 1차 dedup 체크 제거: 자가치유는 dedup과 무관하게 항상 실행되어야 crash loop 감지가 정상 작동함
+            //   dedup은 이메일 발송 직전에만 한 번 적용 (아래 sendAlert 부분)
 
             try {
                 // 컨테이너 정보 수집 (nodeId로 올바른 클라이언트 선택 — 라벨 포함)
@@ -203,15 +200,15 @@ public class DockerEventListener {
                 String deathReason = exitCodeAnalyzer.analyze(deathEvent);
                 deathEvent.setDeathReason(deathReason);
 
-                // 자가치유 시도 (dedup과 무관하게 항상 실행 — crash loop 감지를 위해)
+                // 자가치유 시도 — dedup과 무관하게 항상 실행 (RestartTracker가 crash loop 감지)
                 selfHealingService.handleContainerDeath(deathEvent);
 
-                // 이메일 알림 전송 (중복 방지 적용)
+                // 이메일 알림 전송 — 여기서 dedup 체크 (1번만 호출되므로 부수효과 문제 없음)
                 if (deduplicationService.shouldAlert(containerId, action)) {
                     notificationService.sendAlert(deathEvent);
                     log.info("컨테이너 종료 알림 전송 완료: {}", deathEvent.getContainerName());
                 } else {
-                    log.info("중복 알림 스킵: containerId={}, action={}", containerId, action);
+                    log.info("중복 알림 스킵 (이메일만): containerId={}, action={}", containerId, action);
                 }
 
                 // AI 사후 분석 리포트 생성 (비동기)

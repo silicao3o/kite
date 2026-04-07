@@ -107,13 +107,16 @@ docker:
       enabled: ${SELF_HEALING_ENABLED:true}
       reset-window-minutes: ${SELF_HEALING_RESET_WINDOW:30}
       rules:
-        - name-pattern: "demo-*"
+        - name-pattern: "engine*"
           max-restarts: 5
           restart-delay-seconds: 10
-        - name-pattern: "test-*"
+        - name-pattern: "*chat*"
           max-restarts: 3
           restart-delay-seconds: 2
-        - name-pattern: "web-*"
+        - name-pattern: "*admin-quvi*"
+          max-restarts: 5
+          restart-delay-seconds: 5
+        - name-pattern: "*quvi*"
           max-restarts: 5
           restart-delay-seconds: 5
       # node-name 사용 예시 (특정 노드의 컨테이너만 자가치유):
