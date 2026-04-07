@@ -2,6 +2,9 @@ package com.lite_k8s.update;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
+import com.lite_k8s.node.Node;
+import com.lite_k8s.node.NodeDockerClientFactory;
+import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.DockerContainerNames;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +28,8 @@ public class RollingUpdateService {
 
     private final DockerClient dockerClient;
     private final ContainerRecreator recreator;
+    private final NodeRegistry nodeRegistry;
+    private final NodeDockerClientFactory nodeClientFactory;
 
     @EventListener
     public void onImageUpdateDetected(ImageUpdateDetectedEvent event) {
@@ -33,7 +38,7 @@ public class RollingUpdateService {
                 event.getImageName(), "조회 중");
 
         // 패턴과 일치하는 모든 실행 중 컨테이너 수집
-        List<Container> targets = findMatchingContainers(watch.getContainerPattern());
+        List<Container> targets = findMatchingContainers(watch.getContainerPattern(), event.getNodeId());
 
         if (targets.isEmpty()) {
             log.warn("업데이트 대상 컨테이너 없음: 패턴={}", watch.getContainerPattern());
@@ -85,13 +90,21 @@ public class RollingUpdateService {
         return results;
     }
 
-    private List<Container> findMatchingContainers(String pattern) {
-        return dockerClient.listContainersCmd()
+    private List<Container> findMatchingContainers(String pattern, String nodeId) {
+        DockerClient client = resolveClient(nodeId);
+        return client.listContainersCmd()
                 .withShowAll(false)
                 .exec()
                 .stream()
                 .filter(c -> matchesPattern(extractName(c), pattern))
                 .toList();
+    }
+
+    private DockerClient resolveClient(String nodeId) {
+        if (nodeId == null) return dockerClient;
+        return nodeRegistry.findById(nodeId)
+                .map(nodeClientFactory::createClient)
+                .orElse(dockerClient);
     }
 
     private String extractName(Container container) {
