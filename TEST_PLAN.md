@@ -28,7 +28,7 @@ bash scripts/ghcr-setup.sh
 
 ```bash
 cd /Users/silica/docker-monitor
-docker compose -f docker-compose.test.yml --env-file .env.test up --build -d
+docker compose -f docker-compose.yml --env-file .env up --build -d
 ```
 
 ### Step 3 — 기동 확인 (1~2분 소요)
@@ -374,7 +374,7 @@ docker logs schedule-diary
 ```bash
 # GHCR 로그인 후 재시도
 echo "$GHCR_TOKEN" | docker login ghcr.io -u silicao3o --password-stdin
-docker compose -f docker-compose.test.yml --env-file .env.test pull
+docker compose -f docker-compose.test.yml --env-file .env pull
 ```
 
 ### exercise-auth DB 연결 오류
@@ -388,8 +388,8 @@ lsof -i :8082   # 포트 점유 프로세스 확인
 
 ### 전체 초기화
 ```bash
-docker compose -f docker-compose.test.yml --env-file .env.test down -v
-docker compose -f docker-compose.test.yml --env-file .env.test up --build -d
+docker compose -f docker-compose.test.yml --env-file .env down -v
+docker compose -f docker-compose.test.yml --env-file .env up --build -d
 ```
 
 ---
@@ -398,7 +398,7 @@ docker compose -f docker-compose.test.yml --env-file .env.test up --build -d
 
 ```bash
 # 스택 시작
-docker compose -f docker-compose.test.yml --env-file .env.test up --build -d
+docker compose -f docker-compose.test.yml --env-file .env up --build -d
 
 # 스택 상태
 bash scripts/test-scenarios.sh status
@@ -416,5 +416,5 @@ docker stop schedule-diary && docker rm schedule-diary
 bash scripts/ghcr-setup.sh
 
 # 전체 정리
-docker compose -f docker-compose.test.yml --env-file .env.test down
+docker compose -f docker-compose.test.yml --env-file .env down
 ```

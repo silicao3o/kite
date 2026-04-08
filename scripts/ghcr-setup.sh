@@ -9,7 +9,7 @@ GITHUB_USER="silicao3o"
 EXERCISE_AUTH_PATH="/Users/silica/IdeaProjects/exercise-auth"
 SCHEDULE_DIARY_PATH="/Users/silica/schedule-diary"
 
-# .env.test 에서 GHCR_TOKEN 로드
+# .env 에서 GHCR_TOKEN 로드
 if [ -f "$(dirname "$0")/../.env.test" ]; then
   export $(grep -v '^#' "$(dirname "$0")/../.env.test" | xargs)
 fi

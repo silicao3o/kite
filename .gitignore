@@ -70,7 +70,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-.env.test
+.env
 *.env
 application-local.yml
 application-local.properties
