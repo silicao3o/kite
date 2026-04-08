@@ -12,7 +12,7 @@
 #    2. GHCR 이미지 pull 권한 확인 (public or login 필요)
 #
 #  실행:
-#    docker compose -f docker-compose.test.yml --env-file .env.test up --build
+#    docker compose -f docker-compose.yml --env-file .env up --build
 #
 #  대시보드:
 #    http://localhost:8080   - Docker Monitor
@@ -69,6 +69,12 @@ services:
       AUTH_USERNAME: ${AUTH_USERNAME}
       AUTH_PASSWORD: ${AUTH_PASSWORD}
 
+      # ── SSH credential 암호화 키 (Phase 7.16) ────────────────────
+      # 생성: openssl rand -base64 32
+      # 노드 등록 시 sshPassword/sshPassphrase가 AES-256-GCM으로 암호화되어 DB에 저장됨
+      # 설정 안 하면 경고 로그 후 평문 저장 (개발용)
+      KITE_ENCRYPTION_KEY: ${KITE_ENCRYPTION_KEY:-}
+
       # ── AI 분석 ─────────────────────────────────────────────────
       AI_ENABLED: "true"
       AI_PROVIDER: ANTHROPIC
@@ -89,23 +95,6 @@ services:
       # ── Desired State (Phase 5.3) ────────────────────────────────
       DESIRED_STATE_ENABLED: "true"
       DESIRED_STATE_INTERVAL: "30"
-
-      # ── 다중 노드 (Phase 5.4) — 단일 호스트 비활성화 ─────────────
-      # ── Proxy (CP jump host) ──────────────────────────────────
-      DOCKER_MONITOR_NODES_PROXY_HOST: ${DOCKER_MONITOR_NODES_PROXY_HOST}
-      DOCKER_MONITOR_NODES_PROXY_PORT: ${DOCKER_MONITOR_NODES_PROXY_PORT}
-      DOCKER_MONITOR_NODES_PROXY_USER: ${DOCKER_MONITOR_NODES_PROXY_USER}
-      DOCKER_MONITOR_NODES_PROXY_KEY_PATH: ${DOCKER_MONITOR_NODES_PROXY_KEY_PATH}
-      # ── Nodes (SSH_PROXY) ─────────────────────────────────────
-      DOCKER_MONITOR_NODES_NODES_0_NAME: ${DOCKER_MONITOR_NODES_NODES_0_NAME}
-      DOCKER_MONITOR_NODES_NODES_0_HOST: ${DOCKER_MONITOR_NODES_NODES_0_HOST}
-      DOCKER_MONITOR_NODES_NODES_0_PORT: ${DOCKER_MONITOR_NODES_NODES_0_PORT}
-      DOCKER_MONITOR_NODES_NODES_0_CONNECTION_TYPE: ${DOCKER_MONITOR_NODES_NODES_0_CONNECTION_TYPE}
-      DOCKER_MONITOR_NODES_NODES_1_NAME: ${DOCKER_MONITOR_NODES_NODES_1_NAME}
-      DOCKER_MONITOR_NODES_NODES_1_HOST: ${DOCKER_MONITOR_NODES_NODES_1_HOST}
-      DOCKER_MONITOR_NODES_NODES_1_PORT: ${DOCKER_MONITOR_NODES_NODES_1_PORT}
-      DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE: ${DOCKER_MONITOR_NODES_NODES_1_CONNECTION_TYPE}
-      DOCKER_MONITOR_NODES_ENABLED: "true"
 
       # ── Multi Logs 프리셋 ────────────────────────────────────────
       MULTI_LOGS_PRESETS: ${MULTI_LOGS_PRESETS:-}
