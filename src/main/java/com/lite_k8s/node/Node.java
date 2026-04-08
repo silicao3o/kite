@@ -1,6 +1,5 @@
 package com.lite_k8s.node;
 
-import com.lite_k8s.crypto.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,15 +25,8 @@ public class Node {
     private NodeConnectionType connectionType = NodeConnectionType.SSH;
     private int sshPort;
     private String sshUser;
-
-    @Convert(converter = EncryptedStringConverter.class)
-    @Column(length = 1024)
     private String sshPassword;
-
     private String sshKeyPath;
-
-    @Convert(converter = EncryptedStringConverter.class)
-    @Column(length = 1024)
     private String sshPassphrase;
 
     @Enumerated(EnumType.STRING)

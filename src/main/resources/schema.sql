@@ -15,8 +15,6 @@ CREATE TABLE IF NOT EXISTS healing_events (
 );
 
 -- nodes
--- ssh_password, ssh_passphrase는 EncryptedStringConverter(AES-256-GCM)로 암호화 저장
--- 암호화 키: 환경변수 KITE_ENCRYPTION_KEY (base64 32 bytes)
 CREATE TABLE IF NOT EXISTS nodes (
     id                   VARCHAR(36)  PRIMARY KEY,
     name                 VARCHAR(255),
@@ -25,9 +23,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     connection_type      VARCHAR(10)  NOT NULL DEFAULT 'TCP',
     ssh_port             INTEGER      NOT NULL DEFAULT 0,
     ssh_user             VARCHAR(255),
-    ssh_password         VARCHAR(1024),
+    ssh_password         VARCHAR(255),
     ssh_key_path         VARCHAR(255),
-    ssh_passphrase       VARCHAR(1024),
+    ssh_passphrase       VARCHAR(255),
     status               VARCHAR(10)  NOT NULL DEFAULT 'UNKNOWN',
     cpu_usage_percent    DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     memory_usage_percent DOUBLE PRECISION NOT NULL DEFAULT 0.0,

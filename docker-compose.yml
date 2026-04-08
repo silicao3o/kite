@@ -69,12 +69,6 @@ services:
       AUTH_USERNAME: ${AUTH_USERNAME}
       AUTH_PASSWORD: ${AUTH_PASSWORD}
 
-      # ── SSH credential 암호화 키 (Phase 7.16) ────────────────────
-      # 생성: openssl rand -base64 32
-      # 노드 등록 시 sshPassword/sshPassphrase가 AES-256-GCM으로 암호화되어 DB에 저장됨
-      # 설정 안 하면 경고 로그 후 평문 저장 (개발용)
-      KITE_ENCRYPTION_KEY: ${KITE_ENCRYPTION_KEY:-}
-
       # ── AI 분석 ─────────────────────────────────────────────────
       AI_ENABLED: "true"
       AI_PROVIDER: ANTHROPIC
