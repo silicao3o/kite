@@ -103,6 +103,17 @@ CREATE TABLE IF NOT EXISTS pending_approvals (
     resolved_at    TIMESTAMP
 );
 
+-- self_healing_rules
+CREATE TABLE IF NOT EXISTS self_healing_rules (
+    id                    VARCHAR(36)  PRIMARY KEY,
+    name_pattern          VARCHAR(255),
+    max_restarts          INTEGER      NOT NULL DEFAULT 3,
+    restart_delay_seconds INTEGER      NOT NULL DEFAULT 0,
+    node_name             VARCHAR(255),
+    enabled               BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMP    NOT NULL
+);
+
 -- ai_settings (단일 행: id = 'default')
 CREATE TABLE IF NOT EXISTS ai_settings (
     id                VARCHAR(36)   PRIMARY KEY DEFAULT 'default',

@@ -14,11 +14,13 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HealingRuleMatcherTest {
 
     @Mock private NodeRegistry nodeRegistry;
+    @Mock private SelfHealingRuleService ruleService;
 
     private HealingRuleMatcher matcher;
     private SelfHealingProperties properties;
@@ -26,7 +28,8 @@ class HealingRuleMatcherTest {
     @BeforeEach
     void setUp() {
         properties = new SelfHealingProperties();
-        matcher = new HealingRuleMatcher(properties, nodeRegistry);
+        matcher = new HealingRuleMatcher(properties, nodeRegistry, ruleService);
+        lenient().when(ruleService.findAllActive()).thenReturn(List.of());
     }
 
     @Test
@@ -110,6 +113,39 @@ class HealingRuleMatcherTest {
 
         assertThat(result).isPresent();
         verifyNoInteractions(nodeRegistry);
+    }
+
+    @Test
+    void shouldMatchDbRule_WhenYamlRulesEmpty() {
+        SelfHealingProperties.Rule dbRule = new SelfHealingProperties.Rule();
+        dbRule.setNamePattern("api-*");
+        dbRule.setMaxRestarts(7);
+        when(ruleService.findAllActive()).thenReturn(List.of(dbRule));
+
+        Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("api-gateway");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getMaxRestarts()).isEqualTo(7);
+    }
+
+    @Test
+    void shouldPreferDbRule_WhenNamePatternConflictsWithYaml() {
+        // YAML rule
+        SelfHealingProperties.Rule yamlRule = new SelfHealingProperties.Rule();
+        yamlRule.setNamePattern("engine*");
+        yamlRule.setMaxRestarts(3);
+        properties.setRules(List.of(yamlRule));
+
+        // DB rule with same pattern but different maxRestarts → DB wins
+        SelfHealingProperties.Rule dbRule = new SelfHealingProperties.Rule();
+        dbRule.setNamePattern("engine*");
+        dbRule.setMaxRestarts(10);
+        when(ruleService.findAllActive()).thenReturn(List.of(dbRule));
+
+        Optional<SelfHealingProperties.Rule> result = matcher.findMatchingRule("engine-worker");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getMaxRestarts()).isEqualTo(10);
     }
 
     @Test
