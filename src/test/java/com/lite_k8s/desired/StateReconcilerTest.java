@@ -39,7 +39,7 @@ class StateReconcilerTest {
     @BeforeEach
     void setUp() {
         properties = new DesiredStateProperties();
-        reconciler = new StateReconciler(properties, dockerClient, containerFactory, nodeRegistry, nodeClientFactory, desiredStateService);
+        reconciler = new StateReconciler(properties, dockerClient, containerFactory, nodeRegistry, nodeClientFactory, desiredStateService, new com.lite_k8s.service.OwnActionTracker());
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(true)).thenReturn(listContainersCmd);

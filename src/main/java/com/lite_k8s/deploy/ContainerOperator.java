@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.HostConfig;
+import com.lite_k8s.service.OwnActionTracker;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -14,9 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 public class ContainerOperator {
 
     private final DockerClient dockerClient;
+    private final OwnActionTracker ownActionTracker;
 
     public ContainerOperator(DockerClient dockerClient) {
+        this(dockerClient, new OwnActionTracker());
+    }
+
+    public ContainerOperator(DockerClient dockerClient, OwnActionTracker ownActionTracker) {
         this.dockerClient = dockerClient;
+        this.ownActionTracker = ownActionTracker;
     }
 
     /**
@@ -52,6 +59,7 @@ public class ContainerOperator {
     /** 컨테이너 중지 */
     public boolean stop(String containerId) {
         try {
+            ownActionTracker.markOwnAction(containerId);
             dockerClient.stopContainerCmd(containerId).exec();
             return true;
         } catch (Exception e) {

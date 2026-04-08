@@ -42,7 +42,7 @@ class ContainerRecreatorTest {
 
     @BeforeEach
     void setUp() {
-        recreator = new ContainerRecreator(dockerClient, nodeRegistry, nodeClientFactory);
+        recreator = new ContainerRecreator(dockerClient, nodeRegistry, nodeClientFactory, new com.lite_k8s.service.OwnActionTracker());
     }
 
     @Test

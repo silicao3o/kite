@@ -26,6 +26,7 @@ public class ContainerRecreateService {
     private final DockerClient dockerClient;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final OwnActionTracker ownActionTracker;
 
     @Value("${GHCR_TOKEN:}")
     private String ghcrToken;
@@ -75,6 +76,7 @@ public class ContainerRecreateService {
 
         pullImage(client, config.imageName());
 
+        ownActionTracker.markOwnAction(containerId);
         client.stopContainerCmd(containerId).exec();
         client.removeContainerCmd(containerId).exec();
 

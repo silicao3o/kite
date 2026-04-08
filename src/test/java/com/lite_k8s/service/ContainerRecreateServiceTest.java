@@ -41,7 +41,7 @@ class ContainerRecreateServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ContainerRecreateService(dockerClient, nodeRegistry, nodeClientFactory);
+        service = new ContainerRecreateService(dockerClient, nodeRegistry, nodeClientFactory, new com.lite_k8s.service.OwnActionTracker());
     }
 
     @Test

@@ -32,14 +32,22 @@ public class DockerService {
     private final DockerClient dockerClient;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final OwnActionTracker ownActionTracker;
 
     @Value("${docker.monitor.log-tail-lines:50}")
     private int logTailLines;
 
     public DockerService(DockerClient dockerClient, NodeRegistry nodeRegistry, NodeDockerClientFactory nodeClientFactory) {
+        this(dockerClient, nodeRegistry, nodeClientFactory, new OwnActionTracker());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DockerService(DockerClient dockerClient, NodeRegistry nodeRegistry,
+                         NodeDockerClientFactory nodeClientFactory, OwnActionTracker ownActionTracker) {
         this.dockerClient = dockerClient;
         this.nodeRegistry = nodeRegistry;
         this.nodeClientFactory = nodeClientFactory;
+        this.ownActionTracker = ownActionTracker;
     }
 
     public ContainerDeathEvent buildDeathEvent(String containerId, String action) {
@@ -359,6 +367,7 @@ public class DockerService {
 
     public boolean stopContainer(String containerId, DockerClient client) {
         try {
+            ownActionTracker.markOwnAction(containerId);
             client.stopContainerCmd(containerId).exec();
             log.info("컨테이너 강제 정지 성공: {}", containerId);
             return true;
@@ -386,6 +395,7 @@ public class DockerService {
 
     public boolean restartContainer(String containerId, DockerClient client) {
         try {
+            ownActionTracker.markOwnAction(containerId);
             client.startContainerCmd(containerId).exec();
             log.info("컨테이너 재시작 성공: {}", containerId);
             return true;

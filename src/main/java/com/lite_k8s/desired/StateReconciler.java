@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import com.lite_k8s.service.OwnActionTracker;
 import com.lite_k8s.util.DockerContainerNames;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class StateReconciler {
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
     private final DesiredStateService desiredStateService;
+    private final OwnActionTracker ownActionTracker;
 
     @Scheduled(fixedDelayString =
             "#{${docker.monitor.desired-state.reconcile-interval-seconds:30} * 1000}")
@@ -167,6 +169,7 @@ public class StateReconciler {
     private void stopAndRemove(DockerClient client, Container container) {
         String name = extractName(container);
         try {
+            ownActionTracker.markOwnAction(container.getId());
             client.stopContainerCmd(container.getId()).exec();
             client.removeContainerCmd(container.getId()).exec();
             log.info("초과 컨테이너 제거 완료: {}", name);

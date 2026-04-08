@@ -7,6 +7,7 @@ import com.github.dockerjava.api.model.HostConfig;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import com.lite_k8s.service.OwnActionTracker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class ContainerRecreator {
     private final DockerClient dockerClient;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final OwnActionTracker ownActionTracker;
 
     /**
      * 컨테이너를 새 이미지로 재생성 (로컬)
@@ -53,6 +55,7 @@ public class ContainerRecreator {
             log.info("컨테이너 업데이트 시작: {} ({})", containerName, newDigest);
 
             // 2. 기존 컨테이너 중지
+            ownActionTracker.markOwnAction(containerId);
             client.stopContainerCmd(containerId).exec();
             log.debug("컨테이너 중지 완료: {}", containerName);
 

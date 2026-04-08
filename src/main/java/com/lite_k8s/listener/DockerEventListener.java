@@ -10,6 +10,8 @@ import com.lite_k8s.service.AlertDeduplicationService;
 import com.lite_k8s.service.ContainerFilterService;
 import com.lite_k8s.service.DockerService;
 import com.lite_k8s.service.EmailNotificationService;
+import com.lite_k8s.service.IntentionalDeathClassifier;
+import com.lite_k8s.service.OwnActionTracker;
 import com.lite_k8s.service.SelfHealingService;
 import com.lite_k8s.incident.IncidentReportService;
 import com.github.dockerjava.api.DockerClient;
@@ -45,6 +47,8 @@ public class DockerEventListener {
     private final IncidentReportService incidentReportService;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final OwnActionTracker ownActionTracker;
+    private final IntentionalDeathClassifier intentionalDeathClassifier;
 
     private Closeable eventStream; // 로컬 단일 모드 스트림
     private final Map<String, Closeable> nodeStreams = new ConcurrentHashMap<>(); // 노드별 스트림
@@ -64,7 +68,9 @@ public class DockerEventListener {
             SelfHealingService selfHealingService,
             IncidentReportService incidentReportService,
             NodeRegistry nodeRegistry,
-            NodeDockerClientFactory nodeClientFactory) {
+            NodeDockerClientFactory nodeClientFactory,
+            OwnActionTracker ownActionTracker,
+            IntentionalDeathClassifier intentionalDeathClassifier) {
         this.dockerClient = dockerClient;
         this.dockerService = dockerService;
         this.exitCodeAnalyzer = exitCodeAnalyzer;
@@ -76,6 +82,8 @@ public class DockerEventListener {
         this.incidentReportService = incidentReportService;
         this.nodeRegistry = nodeRegistry;
         this.nodeClientFactory = nodeClientFactory;
+        this.ownActionTracker = ownActionTracker;
+        this.intentionalDeathClassifier = intentionalDeathClassifier;
     }
 
     // 기존 테스트 호환 생성자 (nodeRegistry=null → 로컬 단일 모드)
@@ -91,14 +99,33 @@ public class DockerEventListener {
             IncidentReportService incidentReportService) {
         this(dockerClient, dockerService, exitCodeAnalyzer, notificationService, monitorProperties,
                 containerFilterService, deduplicationService, selfHealingService, incidentReportService,
-                null, null);
+                null, null, new OwnActionTracker(), new IntentionalDeathClassifier());
+    }
+
+    // 멀티 노드 테스트용 생성자 (OwnActionTracker + Classifier는 실제 인스턴스 사용)
+    DockerEventListener(
+            DockerClient dockerClient,
+            DockerService dockerService,
+            ExitCodeAnalyzer exitCodeAnalyzer,
+            EmailNotificationService notificationService,
+            MonitorProperties monitorProperties,
+            ContainerFilterService containerFilterService,
+            AlertDeduplicationService deduplicationService,
+            SelfHealingService selfHealingService,
+            IncidentReportService incidentReportService,
+            NodeRegistry nodeRegistry,
+            NodeDockerClientFactory nodeClientFactory) {
+        this(dockerClient, dockerService, exitCodeAnalyzer, notificationService, monitorProperties,
+                containerFilterService, deduplicationService, selfHealingService, incidentReportService,
+                nodeRegistry, nodeClientFactory, new OwnActionTracker(), new IntentionalDeathClassifier());
     }
 
     // kill → die, oom → kill → die 순서로 이벤트가 발생하므로
     // 최종 이벤트인 die만 처리하여 중복 트리거를 방지한다.
     // exit code는 die 시점에 확정되며, OOM 여부는 inspect의 oomKilled 플래그로 판별한다.
+    // stop 이벤트는 사용자의 docker stop 여부를 판별하기 위한 선행 신호로 기록한다.
     private static final Set<String> DEATH_ACTIONS = Set.of("die");
-    private static final Set<String> PRE_DEATH_ACTIONS = Set.of("kill", "oom");
+    private static final Set<String> PRE_DEATH_ACTIONS = Set.of("kill", "oom", "stop");
 
     @PostConstruct
     public void startListening() {
@@ -178,6 +205,13 @@ public class DockerEventListener {
             String previousCause = pendingDeathCause.remove(containerId);
             log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
 
+            // 우리 자신의 API 호출로 인한 종료는 전체 플로우 스킵
+            // (self-heal, recreate, reconcile 등이 방금 restart한 결과로 생긴 이벤트)
+            if (ownActionTracker != null && ownActionTracker.isOwnAction(containerId)) {
+                log.info("자체 액션으로 인한 종료 이벤트 — 플로우 스킵: containerId={}", containerId);
+                return;
+            }
+
             // ※ 1차 dedup 체크 제거: 자가치유는 dedup과 무관하게 항상 실행되어야 crash loop 감지가 정상 작동함
             //   dedup은 이메일 발송 직전에만 한 번 적용 (아래 sendAlert 부분)
 
@@ -199,6 +233,19 @@ public class DockerEventListener {
                 // Exit Code 분석하여 종료 원인 설정
                 String deathReason = exitCodeAnalyzer.analyze(deathEvent);
                 deathEvent.setDeathReason(deathReason);
+
+                // 의도적 종료 판정 (사용자의 docker stop/kill 등)
+                if (intentionalDeathClassifier != null) {
+                    intentionalDeathClassifier.classify(deathEvent);
+                }
+
+                // intentional이면 자가치유와 알림 모두 스킵 (사용자의 명시적 명령을 되돌리지 않음)
+                if (deathEvent.isIntentional()) {
+                    log.info("의도적 종료 — 자가치유/알림 스킵: containerId={}, reason={}",
+                            containerId, deathEvent.getIntentionalReason());
+                    incidentReportService.createReport(deathEvent);
+                    return;
+                }
 
                 // 자가치유 시도 — dedup과 무관하게 항상 실행 (RestartTracker가 crash loop 감지)
                 selfHealingService.handleContainerDeath(deathEvent);

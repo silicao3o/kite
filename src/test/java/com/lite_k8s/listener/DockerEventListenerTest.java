@@ -384,6 +384,101 @@ class DockerEventListenerTest {
     }
 
     @Test
+    @DisplayName("7.14: 자체 액션으로 인한 die 이벤트는 전체 플로우 스킵")
+    void handleEvent_WhenOwnAction_ShouldSkipEverything() {
+        // given
+        setupEventsCmdMock();
+
+        com.lite_k8s.service.OwnActionTracker ownActionTracker =
+                mock(com.lite_k8s.service.OwnActionTracker.class);
+        com.lite_k8s.service.IntentionalDeathClassifier classifier =
+                new com.lite_k8s.service.IntentionalDeathClassifier();
+
+        DockerEventListener listener = new DockerEventListener(
+                dockerClient, dockerService, exitCodeAnalyzer, notificationService,
+                monitorProperties, containerFilterService, deduplicationService,
+                selfHealingService, incidentReportService, null, null,
+                ownActionTracker, classifier);
+
+        when(ownActionTracker.isOwnAction("container123")).thenReturn(true);
+
+        // when
+        listener.startListening();
+        verify(eventsCmd).exec(callbackCaptor.capture());
+        ResultCallback<Event> callback = callbackCaptor.getValue();
+
+        Event dieEvent = createDockerEvent("die", "container123");
+        callback.onNext(dieEvent);
+
+        // then - 자체 액션이므로 buildDeathEvent조차 호출되지 않음
+        verify(dockerService, never()).buildDeathEvent(anyString(), anyString(), any());
+        verify(selfHealingService, never()).handleContainerDeath(any());
+        verify(notificationService, never()).sendAlert(any());
+        verify(incidentReportService, never()).createReport(any());
+    }
+
+    @Test
+    @DisplayName("7.14: intentional(stop 이벤트 선행)으로 판정되면 self-heal과 알림 모두 스킵")
+    void handleEvent_WhenIntentional_ShouldSkipHealAndAlert() {
+        // given
+        setupEventsCmdMock();
+
+        ContainerDeathEvent deathEvent = ContainerDeathEvent.builder()
+                .containerId("container123")
+                .containerName("web-1")
+                .exitCode(143L)
+                .oomKilled(false)
+                .action("die")
+                .build();
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
+        lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("SIGTERM");
+
+        // when — 먼저 stop 이벤트 수신 → pendingDeathCause에 저장
+        dockerEventListener.startListening();
+        verify(eventsCmd).exec(callbackCaptor.capture());
+        ResultCallback<Event> callback = callbackCaptor.getValue();
+
+        callback.onNext(createDockerEvent("stop", "container123"));
+        callback.onNext(createDockerEvent("die", "container123"));
+
+        // then - intentional 판정되어 self-heal / 알림 스킵
+        verify(selfHealingService, never()).handleContainerDeath(any());
+        verify(notificationService, never()).sendAlert(any());
+        verify(incidentReportService).createReport(deathEvent);
+        assertThat(deathEvent.isIntentional()).isTrue();
+        assertThat(deathEvent.getIntentionalReason()).isEqualTo("stop-event-precedent");
+    }
+
+    @Test
+    @DisplayName("7.14: intentional이 아니면 기존 플로우 그대로 (self-heal + 알림)")
+    void handleEvent_WhenNotIntentional_ShouldProceedNormally() {
+        // given
+        setupEventsCmdMock();
+
+        ContainerDeathEvent deathEvent = ContainerDeathEvent.builder()
+                .containerId("container123")
+                .containerName("web-1")
+                .exitCode(1L)
+                .oomKilled(false)
+                .action("die")
+                .build();
+        when(dockerService.buildDeathEvent(anyString(), anyString(), any())).thenReturn(deathEvent);
+        lenient().when(exitCodeAnalyzer.analyze(any())).thenReturn("app error");
+
+        // when
+        dockerEventListener.startListening();
+        verify(eventsCmd).exec(callbackCaptor.capture());
+        ResultCallback<Event> callback = callbackCaptor.getValue();
+
+        callback.onNext(createDockerEvent("die", "container123"));
+
+        // then
+        verify(selfHealingService).handleContainerDeath(deathEvent);
+        verify(notificationService).sendAlert(deathEvent);
+        assertThat(deathEvent.isIntentional()).isFalse();
+    }
+
+    @Test
     @DisplayName("로컬 단일 모드에서 buildDeathEvent에 nodeId=null 전달")
     void handleEvent_LocalMode_ShouldPassNullNodeIdToBuildDeathEvent() {
         // given
