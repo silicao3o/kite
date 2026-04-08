@@ -239,21 +239,20 @@ public class DockerEventListener {
                     intentionalDeathClassifier.classify(deathEvent);
                 }
 
-                // intentional이면 자가치유와 알림 모두 스킵 (사용자의 명시적 명령을 되돌리지 않음)
+                // 자가치유: intentional이면 스킵 (사용자의 명시적 명령을 되돌리지 않음)
+                // 알림: sendAlert 내부에서 규칙+intentional 게이트 (notifyIntentional 규칙으로 override 가능)
                 if (deathEvent.isIntentional()) {
-                    log.info("의도적 종료 — 자가치유/알림 스킵: containerId={}, reason={}",
+                    log.info("의도적 종료 — 자가치유 스킵: containerId={}, reason={}",
                             containerId, deathEvent.getIntentionalReason());
-                    incidentReportService.createReport(deathEvent);
-                    return;
+                } else {
+                    // 자가치유 시도 — dedup과 무관하게 항상 실행 (RestartTracker가 crash loop 감지)
+                    selfHealingService.handleContainerDeath(deathEvent);
                 }
 
-                // 자가치유 시도 — dedup과 무관하게 항상 실행 (RestartTracker가 crash loop 감지)
-                selfHealingService.handleContainerDeath(deathEvent);
-
-                // 이메일 알림 전송 — 여기서 dedup 체크 (1번만 호출되므로 부수효과 문제 없음)
+                // 이메일 알림 전송 — dedup 체크 후 sendAlert에 위임 (sendAlert 내부에서 규칙+intentional 게이트)
                 if (deduplicationService.shouldAlert(containerId, action)) {
                     notificationService.sendAlert(deathEvent);
-                    log.info("컨테이너 종료 알림 전송 완료: {}", deathEvent.getContainerName());
+                    log.info("컨테이너 종료 알림 요청 완료: {}", deathEvent.getContainerName());
                 } else {
                     log.info("중복 알림 스킵 (이메일만): containerId={}, action={}", containerId, action);
                 }

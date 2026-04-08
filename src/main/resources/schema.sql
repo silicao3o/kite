@@ -114,6 +114,18 @@ CREATE TABLE IF NOT EXISTS self_healing_rules (
     created_at            TIMESTAMP    NOT NULL
 );
 
+-- notification_rules (Phase 7.15)
+CREATE TABLE IF NOT EXISTS notification_rules (
+    id                  VARCHAR(36)  PRIMARY KEY,
+    name_pattern        VARCHAR(255),
+    node_name           VARCHAR(255),
+    mode                VARCHAR(10)  NOT NULL DEFAULT 'INCLUDE'
+        CHECK (mode IN ('INCLUDE', 'EXCLUDE')),
+    notify_intentional  BOOLEAN      NOT NULL DEFAULT FALSE,
+    enabled             BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMP    NOT NULL
+);
+
 -- ai_settings (단일 행: id = 'default')
 CREATE TABLE IF NOT EXISTS ai_settings (
     id                VARCHAR(36)   PRIMARY KEY DEFAULT 'default',

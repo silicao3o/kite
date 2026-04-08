@@ -16,6 +16,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +54,43 @@ class EmailNotificationServiceTest {
 
         // then
         verify(mailSender).createMimeMessage();
+        verify(mailSender).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("7.15: NotificationRuleService.shouldNotify가 false면 이메일 스킵")
+    void sendAlert_WhenRuleGateReturnsFalse_ShouldSkipEmail() {
+        // given
+        NotificationRuleService ruleService = mock(NotificationRuleService.class);
+        when(ruleService.shouldNotify(any(), any(), any(), anyBoolean())).thenReturn(false);
+        ReflectionTestUtils.setField(emailNotificationService, "notificationRuleService", ruleService);
+
+        ContainerDeathEvent event = createTestEvent();
+
+        // when
+        emailNotificationService.sendAlert(event);
+
+        // then - 메일 발송되지 않음
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("7.15: intentional=true 이벤트도 sendAlert에 전달되고 규칙에 따라 판정")
+    void sendAlert_WhenIntentional_ShouldPassIntentionalToRuleService() {
+        // given
+        NotificationRuleService ruleService = mock(NotificationRuleService.class);
+        when(ruleService.shouldNotify(any(), any(), any(), eq(true))).thenReturn(true);
+        ReflectionTestUtils.setField(emailNotificationService, "notificationRuleService", ruleService);
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        ContainerDeathEvent event = createTestEvent();
+        event.setIntentional(true);
+
+        // when
+        emailNotificationService.sendAlert(event);
+
+        // then
+        verify(ruleService).shouldNotify(any(), any(), any(), eq(true));
         verify(mailSender).send(any(MimeMessage.class));
     }
 

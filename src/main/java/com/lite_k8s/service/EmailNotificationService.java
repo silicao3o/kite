@@ -28,6 +28,11 @@ public class EmailNotificationService {
     @Lazy
     private DockerService dockerService;
 
+    // 알림 규칙 서비스 (Phase 7.15) — 알림 대상 컨테이너 동적 필터링
+    @Autowired(required = false)
+    @Lazy
+    private NotificationRuleService notificationRuleService;
+
     @Value("${docker.monitor.notification.email.to}")
     private String recipientEmail;
 
@@ -77,6 +82,17 @@ public class EmailNotificationService {
 
     @Async
     public void sendAlert(ContainerDeathEvent event) {
+        // Phase 7.15: 알림 규칙 + intentional 게이트
+        if (notificationRuleService != null && !notificationRuleService.shouldNotify(
+                event.getContainerName(),
+                event.getNodeName(),
+                event.getLabels(),
+                event.isIntentional())) {
+            log.info("알림 규칙에 의해 이메일 스킵: container={}, intentional={}",
+                    event.getContainerName(), event.isIntentional());
+            return;
+        }
+
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

@@ -418,8 +418,8 @@ class DockerEventListenerTest {
     }
 
     @Test
-    @DisplayName("7.14: intentional(stop 이벤트 선행)으로 판정되면 self-heal과 알림 모두 스킵")
-    void handleEvent_WhenIntentional_ShouldSkipHealAndAlert() {
+    @DisplayName("7.14/7.15: intentional(stop 이벤트 선행) → self-heal 스킵, sendAlert는 호출 (내부 게이트)")
+    void handleEvent_WhenIntentional_ShouldSkipHealingButDelegateToSendAlert() {
         // given
         setupEventsCmdMock();
 
@@ -441,9 +441,9 @@ class DockerEventListenerTest {
         callback.onNext(createDockerEvent("stop", "container123"));
         callback.onNext(createDockerEvent("die", "container123"));
 
-        // then - intentional 판정되어 self-heal / 알림 스킵
+        // then - intentional 판정되어 self-heal 스킵, sendAlert는 호출 (sendAlert 내부에서 규칙 게이트)
         verify(selfHealingService, never()).handleContainerDeath(any());
-        verify(notificationService, never()).sendAlert(any());
+        verify(notificationService).sendAlert(deathEvent);
         verify(incidentReportService).createReport(deathEvent);
         assertThat(deathEvent.isIntentional()).isTrue();
         assertThat(deathEvent.getIntentionalReason()).isEqualTo("stop-event-precedent");
