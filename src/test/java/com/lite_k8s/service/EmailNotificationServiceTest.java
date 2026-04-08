@@ -14,8 +14,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -58,40 +60,77 @@ class EmailNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("7.15: NotificationRuleService.shouldNotify가 false면 이메일 스킵")
-    void sendAlert_WhenRuleGateReturnsFalse_ShouldSkipEmail() {
-        // given
-        NotificationRuleService ruleService = mock(NotificationRuleService.class);
-        when(ruleService.shouldNotify(any(), any(), any(), anyBoolean())).thenReturn(false);
-        ReflectionTestUtils.setField(emailNotificationService, "notificationRuleService", ruleService);
-
+    @DisplayName("7.17: 글로벌 관리자(yml)만 있으면 해당 주소로 1통 발송")
+    void sendAlert_WithOnlyGlobalAdmin_ShouldSendOnce() {
         ContainerDeathEvent event = createTestEvent();
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-        // when
         emailNotificationService.sendAlert(event);
 
-        // then - 메일 발송되지 않음
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("7.17: 수신자가 없으면(글로벌 관리자 빈칸 + 구독 없음) 발송 안 함")
+    void sendAlert_WhenNoRecipients_ShouldSkip() {
+        ReflectionTestUtils.setField(emailNotificationService, "recipientEmail", "");
+        ContainerDeathEvent event = createTestEvent();
+
+        emailNotificationService.sendAlert(event);
+
         verify(mailSender, never()).send(any(MimeMessage.class));
     }
 
     @Test
-    @DisplayName("7.15: intentional=true 이벤트도 sendAlert에 전달되고 규칙에 따라 판정")
-    void sendAlert_WhenIntentional_ShouldPassIntentionalToRuleService() {
-        // given
-        NotificationRuleService ruleService = mock(NotificationRuleService.class);
-        when(ruleService.shouldNotify(any(), any(), any(), eq(true))).thenReturn(true);
-        ReflectionTestUtils.setField(emailNotificationService, "notificationRuleService", ruleService);
+    @DisplayName("7.17: 글로벌 관리자 + 구독자 합산 — 중복 제거 후 각각 발송")
+    void sendAlert_WithGlobalAdminAndSubscribers_ShouldSendToEach() {
+        EmailSubscriptionService subService = mock(EmailSubscriptionService.class);
+        when(subService.findRecipientsFor(any(), any(), anyBoolean()))
+                .thenReturn(Set.of("alice@example.com", "bob@example.com"));
+        ReflectionTestUtils.setField(emailNotificationService, "emailSubscriptionService", subService);
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        ContainerDeathEvent event = createTestEvent();
+
+        emailNotificationService.sendAlert(event);
+
+        // 글로벌(admin@example.com) + alice + bob = 3개
+        verify(mailSender, times(3)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("7.17: 글로벌 관리자와 구독자 이메일이 중복되면 1통만 발송")
+    void sendAlert_DuplicateEmail_ShouldDeduplicate() {
+        EmailSubscriptionService subService = mock(EmailSubscriptionService.class);
+        when(subService.findRecipientsFor(any(), any(), anyBoolean()))
+                .thenReturn(Set.of("admin@example.com")); // yml 관리자와 동일
+        ReflectionTestUtils.setField(emailNotificationService, "emailSubscriptionService", subService);
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        ContainerDeathEvent event = createTestEvent();
+
+        emailNotificationService.sendAlert(event);
+
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    @DisplayName("7.17: intentional=true는 findRecipientsFor에 intentional 플래그 전달")
+    void sendAlert_Intentional_ShouldPassIntentionalFlag() {
+        EmailSubscriptionService subService = mock(EmailSubscriptionService.class);
+        when(subService.findRecipientsFor(any(), any(), eq(true)))
+                .thenReturn(Set.of());
+        ReflectionTestUtils.setField(emailNotificationService, "emailSubscriptionService", subService);
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         ContainerDeathEvent event = createTestEvent();
         event.setIntentional(true);
 
-        // when
         emailNotificationService.sendAlert(event);
 
-        // then
-        verify(ruleService).shouldNotify(any(), any(), any(), eq(true));
-        verify(mailSender).send(any(MimeMessage.class));
+        verify(subService).findRecipientsFor(any(), any(), eq(true));
+        // 글로벌 관리자만 받음 (구독자 빈 Set 반환)
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
     }
 
     @Test
@@ -120,7 +159,7 @@ class EmailNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("여러 수신자에게 알림 전송")
+    @DisplayName("여러 수신자에게 알림 전송 (7.17: 개별 발송)")
     void sendAlert_WithMultipleRecipients_ShouldSendToAll() {
         // given
         ReflectionTestUtils.setField(emailNotificationService, "recipientEmail", "admin1@example.com,admin2@example.com");
@@ -130,8 +169,8 @@ class EmailNotificationServiceTest {
         // when
         emailNotificationService.sendAlert(event);
 
-        // then
-        verify(mailSender).send(any(MimeMessage.class));
+        // then - 7.17: 수신자 수만큼 개별 발송
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
     }
 
     @Test

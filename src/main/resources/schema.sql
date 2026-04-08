@@ -116,16 +116,20 @@ CREATE TABLE IF NOT EXISTS self_healing_rules (
     created_at            TIMESTAMP    NOT NULL
 );
 
--- notification_rules (Phase 7.15)
-CREATE TABLE IF NOT EXISTS notification_rules (
+-- Phase 7.15 notification_rules 테이블 제거 (Phase 7.17에서 email_subscriptions로 교체)
+DROP TABLE IF EXISTS notification_rules;
+
+-- email_subscriptions (Phase 7.17) — 수신자별 컨테이너/노드 구독 라우팅
+CREATE TABLE IF NOT EXISTS email_subscriptions (
     id                  VARCHAR(36)  PRIMARY KEY,
-    name_pattern        VARCHAR(255),
+    email               VARCHAR(255) NOT NULL,
+    container_pattern   VARCHAR(255),
     node_name           VARCHAR(255),
-    mode                VARCHAR(10)  NOT NULL DEFAULT 'INCLUDE'
-        CHECK (mode IN ('INCLUDE', 'EXCLUDE')),
     notify_intentional  BOOLEAN      NOT NULL DEFAULT FALSE,
     enabled             BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at          TIMESTAMP    NOT NULL
+    created_at          TIMESTAMP    NOT NULL,
+    CONSTRAINT chk_subscription_target
+        CHECK (container_pattern IS NOT NULL OR node_name IS NOT NULL)
 );
 
 -- ai_settings (단일 행: id = 'default')

@@ -28,10 +28,10 @@ public class EmailNotificationService {
     @Lazy
     private DockerService dockerService;
 
-    // 알림 규칙 서비스 (Phase 7.15) — 알림 대상 컨테이너 동적 필터링
+    // 이메일 구독 서비스 (Phase 7.17) — 수신자별 컨테이너/노드 구독 라우팅
     @Autowired(required = false)
     @Lazy
-    private NotificationRuleService notificationRuleService;
+    private EmailSubscriptionService emailSubscriptionService;
 
     @Value("${docker.monitor.notification.email.to}")
     private String recipientEmail;
@@ -80,33 +80,58 @@ public class EmailNotificationService {
         return serverName; // fallback: yml의 serverName
     }
 
+    /**
+     * 컨테이너 종료 알림 전송 (Phase 7.17).
+     *
+     * 수신자 구성:
+     *  1. 글로벌 관리자 (yml `docker.monitor.notification.email.to`) — 항상 포함
+     *  2. DB 구독 (EmailSubscription) 매칭 수신자들
+     *  3. 중복 제거 후 각 수신자에게 개별 MimeMessage 전송
+     */
     @Async
     public void sendAlert(ContainerDeathEvent event) {
-        // Phase 7.15: 알림 규칙 + intentional 게이트
-        if (notificationRuleService != null && !notificationRuleService.shouldNotify(
-                event.getContainerName(),
-                event.getNodeName(),
-                event.getLabels(),
-                event.isIntentional())) {
-            log.info("알림 규칙에 의해 이메일 스킵: container={}, intentional={}",
-                    event.getContainerName(), event.isIntentional());
+        java.util.Set<String> recipients = new java.util.LinkedHashSet<>();
+
+        // 1. 글로벌 관리자 (yml 설정) 추가
+        for (String addr : parseRecipients()) {
+            if (addr != null && !addr.isBlank()) recipients.add(addr);
+        }
+
+        // 2. DB 구독자 추가
+        if (emailSubscriptionService != null) {
+            try {
+                recipients.addAll(emailSubscriptionService.findRecipientsFor(
+                        event.getContainerName(),
+                        event.getNodeName(),
+                        event.isIntentional()));
+            } catch (Exception e) {
+                log.warn("이메일 구독자 조회 실패 — 글로벌 관리자만 발송: {}", e.getMessage());
+            }
+        }
+
+        if (recipients.isEmpty()) {
+            log.info("이메일 수신자 없음 — 발송 스킵: container={}", event.getContainerName());
             return;
         }
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        // 3. 각 수신자에게 개별 발송
+        for (String recipient : recipients) {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail);
-            helper.setTo(parseRecipients());
-            helper.setSubject(buildSubject(event));
-            helper.setText(buildHtmlContent(event), true);
+                helper.setFrom(fromEmail);
+                helper.setTo(recipient);
+                helper.setSubject(buildSubject(event));
+                helper.setText(buildHtmlContent(event), true);
 
-            mailSender.send(message);
-            log.info("알림 이메일 전송 완료: {}", event.getContainerName());
-
-        } catch (Exception e) {
-            log.error("이메일 전송 실패: {}", event.getContainerName(), e);
+                mailSender.send(message);
+                log.info("알림 이메일 전송 완료: container={}, to={}",
+                        event.getContainerName(), recipient);
+            } catch (Exception e) {
+                log.error("이메일 전송 실패: container={}, to={}",
+                        event.getContainerName(), recipient, e);
+            }
         }
     }
 
