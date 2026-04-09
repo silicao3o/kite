@@ -83,6 +83,7 @@ public class EmailSubscriptionService {
     }
 
     public List<EmailSubscriptionEntity> findAll() {
-        return repository.findAll();
+        // 비활성화된 구독은 화면에 표시하지 않음 (soft delete 의도와 일치)
+        return repository.findByEnabled(true);
     }
 }

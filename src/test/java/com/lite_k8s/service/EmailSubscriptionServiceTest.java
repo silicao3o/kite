@@ -190,11 +190,14 @@ class EmailSubscriptionServiceTest {
     }
 
     @Test
-    void findAll_shouldDelegate() {
+    void findAll_shouldReturnOnlyEnabled() {
+        // findAll은 화면 표시용 — 비활성화된 구독은 제외
         EmailSubscriptionEntity existing = sub("a@b.com", "x-*", null, false);
-        when(repository.findAll()).thenReturn(List.of(existing));
+        when(repository.findByEnabled(true)).thenReturn(List.of(existing));
 
         assertThat(service.findAll()).containsExactly(existing);
+        verify(repository).findByEnabled(true);
+        verify(repository, never()).findAll();
     }
 
     private EmailSubscriptionEntity sub(String email, String pattern, String nodeName, boolean notifyIntentional) {
