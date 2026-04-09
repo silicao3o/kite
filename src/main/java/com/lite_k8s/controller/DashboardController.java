@@ -35,7 +35,7 @@ public class DashboardController {
     private final LogSearchService logSearchService;
     private final MultiLogsProperties multiLogsProperties;
 
-    @GetMapping("/")
+    @GetMapping("/containers")
     public String dashboard(Model model,
                            @RequestParam(defaultValue = "true") boolean showAll) {
         List<ContainerInfo> containers = metricsScheduler.getCachedContainers();
@@ -110,7 +110,7 @@ public class DashboardController {
     public String containerDetail(@PathVariable String id, Model model) {
         ContainerInfo container = dockerService.getContainer(id);
         if (container == null) {
-            return "redirect:/";
+            return "redirect:/containers";
         }
 
         setHealingInfo(container);
@@ -176,7 +176,8 @@ public class DashboardController {
         return healingEventRepository.findAll();
     }
 
-    @GetMapping("/multi-logs")
+    // 메인 화면 — 로그인 후 기본 진입점. /multi-logs는 backward compat 용도로 유지
+    @GetMapping({"/", "/multi-logs"})
     public String multiLogs(Model model) {
         model.addAttribute("containers", metricsScheduler.getCachedContainers());
         model.addAttribute("presets", multiLogsProperties.getPresets());

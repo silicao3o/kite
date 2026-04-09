@@ -90,6 +90,15 @@ services:
       DESIRED_STATE_ENABLED: "true"
       DESIRED_STATE_INTERVAL: "30"
 
+      # ── 다중 노드 (Phase 5.4) — 단일 호스트 비활성화 ─────────────
+      # ── Proxy (CP jump host) ──────────────────────────────────
+      DOCKER_MONITOR_NODES_PROXY_HOST: ${DOCKER_MONITOR_NODES_PROXY_HOST}
+      DOCKER_MONITOR_NODES_PROXY_PORT: ${DOCKER_MONITOR_NODES_PROXY_PORT}
+      DOCKER_MONITOR_NODES_PROXY_USER: ${DOCKER_MONITOR_NODES_PROXY_USER}
+      DOCKER_MONITOR_NODES_PROXY_KEY_PATH: ${DOCKER_MONITOR_NODES_PROXY_KEY_PATH}
+      # ── Nodes — DB 기반 관리(NodeManagementController/UI)로 전환됨, env 등록 사용 안 함 ─────
+      DOCKER_MONITOR_NODES_ENABLED: "true"
+
       # ── Multi Logs 프리셋 ────────────────────────────────────────
       MULTI_LOGS_PRESETS: ${MULTI_LOGS_PRESETS:-}
 
