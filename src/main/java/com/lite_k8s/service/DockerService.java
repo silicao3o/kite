@@ -408,7 +408,41 @@ public class DockerService {
         }
     }
 
-    private ContainerInfo toContainerInfo(InspectContainerResponse inspection) {
+    // 자가치유 실패 원인 캡처용 — 기존 boolean 메서드는 다른 호출자(HealthCheckScheduler, ContainerRestartHandler)
+    // 영향 없도록 그대로 두고, 자가치유 흐름에서만 이 메서드를 사용한다.
+    public RestartResult restartContainerWithReason(String containerId, String nodeId) {
+        DockerClient client = resolveClient(nodeId);
+        try {
+            client.startContainerCmd(containerId).exec();
+            log.info("컨테이너 재시작 성공: {}", containerId);
+            return RestartResult.ok();
+        } catch (com.github.dockerjava.api.exception.NotModifiedException e) {
+            log.info("컨테이너 이미 실행 중 (재시작 불필요): {}", containerId);
+            return RestartResult.ok();
+        } catch (NotFoundException e) {
+            log.error("컨테이너 재시작 실패 (찾을 수 없음): {}", containerId, e);
+            return RestartResult.failure("컨테이너를 찾을 수 없음 (삭제되었거나 잘못된 ID)");
+        } catch (Exception e) {
+            // Docker 데몬이 주는 실제 메시지를 그대로 보존 (port already allocated, image not found 등)
+            log.error("컨테이너 재시작 실패: {}", containerId, e);
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return RestartResult.failure(e.getClass().getSimpleName() + ": " + message);
+        }
+    }
+
+    // 재시작 결과 + 실패 원인을 함께 전달하기 위한 작은 record
+    // 주의: 팩토리 메서드 이름은 컴포넌트 접근자(success(), failureReason())와 충돌하면 안 됨
+    //       — 그래서 success()가 아닌 ok()로 명명. failure(String)는 파라미터가 있어 충돌 없음.
+    public record RestartResult(boolean success, String failureReason) {
+        public static RestartResult ok() {
+            return new RestartResult(true, null);
+        }
+        public static RestartResult failure(String reason) {
+            return new RestartResult(false, reason);
+        }
+    }
+
+    private ContainerInfo toContainerInfo(InspectContainerResponse inspection, String nodeId, String nodeName) {
         String name = DockerContainerNames.stripLeadingSlash(inspection.getName());
 
         InspectContainerResponse.ContainerState state = inspection.getState();

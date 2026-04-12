@@ -157,22 +157,24 @@ public class EmailNotificationService {
     }
 
     @Async
-    public void sendRestartFailedAlert(String containerName, String containerId) {
+    public void sendRestartFailedAlert(ContainerDeathEvent event, String restartFailureReason) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            String nodeDisplay = findNodeNameByContainerId(containerId);
+            // event에 이미 nodeName이 들어있으므로 우회 조회 없이 바로 사용
+            String nodeDisplay = resolveNodeNameForDisplay(event.getNodeName());
 
             helper.setFrom(fromEmail);
             helper.setTo(parseRecipients());
-            helper.setSubject(String.format("[RESTART FAILED] %s - 자가치유 실패 (%s)", sanitizeHeader(containerName), sanitizeHeader(nodeDisplay)));
-            helper.setText(buildRestartFailedContent(containerName, containerId, nodeDisplay), true);
+            helper.setSubject(String.format("[RESTART FAILED] %s - 자가치유 실패 (%s)",
+                    sanitizeHeader(event.getContainerName()), sanitizeHeader(nodeDisplay)));
+            helper.setText(buildRestartFailedContent(event, restartFailureReason, nodeDisplay), true);
 
             mailSender.send(message);
-            log.info("재시작 실패 알림 전송 완료: {}", containerName);
+            log.info("재시작 실패 알림 전송 완료: {}", event.getContainerName());
 
         } catch (Exception e) {
-            log.error("이메일 전송 실패: {}", containerName, e);
+            log.error("이메일 전송 실패: {}", event.getContainerName(), e);
         }
     }
 
@@ -449,21 +451,63 @@ public class EmailNotificationService {
                 body);
     }
 
-    private String buildRestartFailedContent(String containerName, String containerId, String nodeDisplay) {
+    private String buildRestartFailedContent(ContainerDeathEvent event, String restartFailureReason, String nodeDisplay) {
+        String containerId = event.getContainerId();
         String shortId = escapeHtml(containerId != null ? containerId.substring(0, Math.min(12, containerId.length())) : "N/A");
+        String exitBadge = event.getExitCode() != null && event.getExitCode() != 0 ? "badge-danger" : "badge-warning";
+        String truncatedLogs = truncateLogs(event.getLastLogs(), 100);
+
         String body = String.format("""
                 <table class="info-table">
                     <tr><th>서버</th><td>%s</td></tr>
                     <tr><th>컨테이너 이름</th><td><strong>%s</strong></td></tr>
                     <tr><th>컨테이너 ID</th><td><code>%s</code></td></tr>
+                    <tr><th>이미지</th><td>%s</td></tr>
+                    <tr><th>종료 시간</th><td>%s</td></tr>
+                    <tr><th>Exit Code</th><td><span class="badge %s">%s</span></td></tr>
+                    <tr><th>OOM Killed</th><td>%s</td></tr>
                 </table>
+
+                <div class="reason-box">
+                    <h3>① 죽음 원인 (왜 죽었나)</h3>
+                    <pre style="margin: 0; white-space: pre-wrap;">%s</pre>
+                </div>
+
+                <div class="restart-fail-box">
+                    <h3>② 재시작 실패 원인 (왜 살리지 못했나)</h3>
+                    <pre style="margin: 0; white-space: pre-wrap;">%s</pre>
+                </div>
+
+                <h3>마지막 로그 (최근 100줄)</h3>
+                <div class="log-box">%s</div>
+
                 <div class="warning-box">
-                    <strong>주의:</strong> 컨테이너 재시작이 실패했습니다. 수동으로 확인이 필요합니다.
+                    <strong>주의:</strong> 자가치유가 실패했습니다. 위 두 원인을 확인 후 수동 조치가 필요합니다.
                 </div>""",
-                escapeHtml(nodeDisplay), escapeHtml(containerName), shortId);
-        return buildEmailHtml("600px", "#dc3545", "자가치유 실패",
-                "        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }\n",
-                body);
+                escapeHtml(nodeDisplay),
+                escapeHtml(event.getContainerName()),
+                shortId,
+                escapeHtml(event.getImageName() != null ? event.getImageName() : "N/A"),
+                event.getDeathTime() != null ? event.getDeathTime().format(DATE_FORMAT) : "N/A",
+                exitBadge,
+                event.getExitCode() != null ? event.getExitCode() : "N/A",
+                event.isOomKilled() ? "<span class='badge badge-danger'>YES</span>" : "NO",
+                escapeHtml(event.getDeathReason() != null ? event.getDeathReason() : "분석 정보 없음"),
+                escapeHtml(restartFailureReason != null ? restartFailureReason : "원인 정보 없음"),
+                escapeHtml(truncatedLogs));
+
+        String extraStyles = """
+                        .reason-box { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px; margin-bottom: 15px; }
+                        .reason-box h3 { margin-top: 0; color: #856404; }
+                        .restart-fail-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-bottom: 20px; }
+                        .restart-fail-box h3 { margin-top: 0; color: #721c24; }
+                        .log-box { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; }
+                        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+                        .badge-danger { background: #dc3545; color: white; }
+                        .badge-warning { background: #ffc107; color: black; }
+                        .warning-box { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 15px; margin-top: 20px; }
+                """;
+        return buildEmailHtml("700px", "#dc3545", "자가치유 실패", extraStyles, body);
     }
 
 }

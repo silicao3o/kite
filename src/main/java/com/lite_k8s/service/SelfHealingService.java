@@ -66,17 +66,19 @@ public class SelfHealingService {
             }
         }
 
-        boolean success = dockerService.restartContainer(containerId, event.getNodeId());
-        if (success) {
+        DockerService.RestartResult result = dockerService.restartContainerWithReason(containerId, event.getNodeId());
+        if (result.success()) {
             restartTracker.recordRestart(containerId);
             log.info("자가치유 완료: {}", event.getContainerName());
             saveHealingEvent(event, true, "자가치유 성공");
             // Crash Loop 감지 및 강제 정지 체크
             restartLoopAlertService.checkAndHandle(containerId, event.getContainerName(), event.getNodeId());
         } else {
-            log.error("자가치유 실패: {}", event.getContainerName());
-            saveHealingEvent(event, false, "자가치유 실패");
-            emailNotificationService.sendRestartFailedAlert(event.getContainerName(), containerId);
+            // 실패 원인을 로그/DB/이메일 모두에 일관되게 기록
+            String failureReason = result.failureReason();
+            log.error("자가치유 실패: {} — {}", event.getContainerName(), failureReason);
+            saveHealingEvent(event, false, "자가치유 실패: " + failureReason);
+            emailNotificationService.sendRestartFailedAlert(event, failureReason);
         }
     }
 

@@ -77,7 +77,7 @@ class SelfHealingServiceTest {
 
         // then
         verify(ruleMatcher, never()).findMatchingRule(anyString());
-        verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
+        verify(dockerService, never()).restartContainerWithReason(anyString(), nullable(String.class));
     }
 
     @Test
@@ -93,7 +93,7 @@ class SelfHealingServiceTest {
 
         // then
         verify(ruleMatcher).findMatchingRule(eq("db-server"), any());
-        verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
+        verify(dockerService, never()).restartContainerWithReason(anyString(), nullable(String.class));
     }
 
     @Test
@@ -109,7 +109,7 @@ class SelfHealingServiceTest {
 
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.ok());
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -117,7 +117,7 @@ class SelfHealingServiceTest {
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(dockerService).restartContainer("abc123", (String) null);
+        verify(dockerService).restartContainerWithReason("abc123", (String) null);
         verify(restartTracker).recordRestart("abc123");
     }
 
@@ -140,7 +140,7 @@ class SelfHealingServiceTest {
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
+        verify(dockerService, never()).restartContainerWithReason(anyString(), nullable(String.class));
     }
 
     @Test
@@ -155,7 +155,7 @@ class SelfHealingServiceTest {
 
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.failure("test failure"));
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -163,7 +163,7 @@ class SelfHealingServiceTest {
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(dockerService).restartContainer("abc123", (String) null);
+        verify(dockerService).restartContainerWithReason("abc123", (String) null);
         verify(restartTracker, never()).recordRestart(anyString());
     }
 
@@ -191,7 +191,7 @@ class SelfHealingServiceTest {
 
         when(labelReader.readHealingConfig(labels)).thenReturn(Optional.of(labelRule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 5)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.ok());
 
         // when
         selfHealingService.handleContainerDeath(event);
@@ -199,7 +199,7 @@ class SelfHealingServiceTest {
         // then
         verify(labelReader).readHealingConfig(labels);
         verify(ruleMatcher, never()).findMatchingRule(anyString()); // yml 규칙은 체크 안함
-        verify(dockerService).restartContainer("abc123", (String) null);
+        verify(dockerService).restartContainerWithReason("abc123", (String) null);
     }
 
     @Test
@@ -225,7 +225,7 @@ class SelfHealingServiceTest {
 
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(ymlRule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.ok());
 
         // when
         selfHealingService.handleContainerDeath(event);
@@ -233,7 +233,7 @@ class SelfHealingServiceTest {
         // then
         verify(labelReader).readHealingConfig(any());
         verify(ruleMatcher).findMatchingRule(eq("web-server"), any()); // yml 규칙 체크
-        verify(dockerService).restartContainer("abc123", (String) null);
+        verify(dockerService).restartContainerWithReason("abc123", (String) null);
     }
 
     @Test
@@ -260,7 +260,7 @@ class SelfHealingServiceTest {
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
+        verify(dockerService, never()).restartContainerWithReason(anyString(), nullable(String.class));
     }
 
     // === 이력 저장 테스트 ===
@@ -279,7 +279,7 @@ class SelfHealingServiceTest {
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
         when(restartTracker.getRestartCount("abc123")).thenReturn(1);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.ok());
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -306,7 +306,7 @@ class SelfHealingServiceTest {
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.failure("test failure"));
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -334,7 +334,7 @@ class SelfHealingServiceTest {
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(true);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.ok());
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -344,7 +344,7 @@ class SelfHealingServiceTest {
         long elapsed = System.currentTimeMillis() - startTime;
 
         // then
-        verify(dockerService).restartContainer("abc123", (String) null);
+        verify(dockerService).restartContainerWithReason("abc123", (String) null);
         // 최소 900ms 이상 걸렸는지 확인 (약간의 오차 허용)
         org.assertj.core.api.Assertions.assertThat(elapsed).isGreaterThanOrEqualTo(900);
     }
@@ -372,7 +372,7 @@ class SelfHealingServiceTest {
 
         // then
         verify(emailNotificationService).sendMaxRestartsExceededAlert("web-server", "abc123", 3);
-        verify(dockerService, never()).restartContainer(anyString(), nullable(String.class));
+        verify(dockerService, never()).restartContainerWithReason(anyString(), nullable(String.class));
     }
 
     @Test
@@ -388,7 +388,7 @@ class SelfHealingServiceTest {
         when(labelReader.readHealingConfig(any())).thenReturn(Optional.empty());
         when(ruleMatcher.findMatchingRule(eq("web-server"), any())).thenReturn(Optional.of(rule));
         when(restartTracker.isMaxRestartsExceeded("abc123", 3)).thenReturn(false);
-        when(dockerService.restartContainer("abc123", (String) null)).thenReturn(false);
+        when(dockerService.restartContainerWithReason("abc123", (String) null)).thenReturn(DockerService.RestartResult.failure("test failure"));
 
         ContainerDeathEvent event = createDeathEvent("abc123", "web-server");
 
@@ -396,6 +396,6 @@ class SelfHealingServiceTest {
         selfHealingService.handleContainerDeath(event);
 
         // then
-        verify(emailNotificationService).sendRestartFailedAlert("web-server", "abc123");
+        verify(emailNotificationService).sendRestartFailedAlert(eq(event), eq("test failure"));
     }
 }

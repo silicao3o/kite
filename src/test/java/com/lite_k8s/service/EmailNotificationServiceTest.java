@@ -281,13 +281,14 @@ class EmailNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("재시작 실패 시 알림 전송")
+    @DisplayName("재시작 실패 시 알림 전송 — 죽음 정보 + 실패 원인 모두 포함")
     void sendRestartFailedAlert_ShouldSendEmail() {
         // given
+        ContainerDeathEvent event = createTestEvent();
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
         // when
-        emailNotificationService.sendRestartFailedAlert("web-server", "abc123");
+        emailNotificationService.sendRestartFailedAlert(event, "Bind for 0.0.0.0:8080 failed: port is already allocated");
 
         // then
         verify(mailSender).send(any(MimeMessage.class));
