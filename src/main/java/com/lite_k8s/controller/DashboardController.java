@@ -11,6 +11,7 @@ import com.lite_k8s.service.LogSearchService;
 import com.lite_k8s.service.MetricsScheduler;
 import com.lite_k8s.service.RestartTracker;
 import com.lite_k8s.model.LogSearchResult;
+import com.lite_k8s.node.NodeRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -34,15 +35,29 @@ public class DashboardController {
     private final MetricsScheduler metricsScheduler;
     private final LogSearchService logSearchService;
     private final MultiLogsProperties multiLogsProperties;
+    private final NodeRegistry nodeRegistry;
 
     @GetMapping("/containers")
     public String dashboard(Model model,
-                           @RequestParam(defaultValue = "true") boolean showAll) {
+                           @RequestParam(defaultValue = "true") boolean showAll,
+                           @RequestParam(required = false) String nodeId) {
         List<ContainerInfo> containers = metricsScheduler.getCachedContainers();
         if (!showAll) {
             containers = containers.stream()
                     .filter(c -> "running".equalsIgnoreCase(c.getState()))
                     .toList();
+        }
+
+        if (nodeId != null) {
+            if ("local".equals(nodeId)) {
+                containers = containers.stream()
+                        .filter(c -> c.getNodeId() == null)
+                        .toList();
+            } else {
+                containers = containers.stream()
+                        .filter(c -> nodeId.equals(c.getNodeId()))
+                        .toList();
+            }
         }
 
         // 자가치유 상태 및 메트릭 설정
@@ -61,6 +76,8 @@ public class DashboardController {
         model.addAttribute("stoppedCount", stoppedCount);
         model.addAttribute("showAll", showAll);
         model.addAttribute("healingEnabled", selfHealingProperties.isEnabled());
+        model.addAttribute("nodes", nodeRegistry.findAll());
+        model.addAttribute("selectedNodeId", nodeId);
 
         return "dashboard";
     }

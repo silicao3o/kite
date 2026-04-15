@@ -135,10 +135,18 @@
                 <div class="table-header">
                     <h3>Container List</h3>
                     <div class="table-actions">
+                        <select id="nodeFilter" class="node-filter-select" onchange="applyNodeFilter(this.value)">
+                            <option value="">All Nodes</option>
+                            <option value="local" th:selected="${selectedNodeId == 'local'}">local</option>
+                            <option th:each="node : ${nodes}"
+                                    th:value="${node.id}"
+                                    th:text="${node.name}"
+                                    th:selected="${node.id == selectedNodeId}">node</option>
+                        </select>
                         <label class="filter-toggle">
                             <input type="checkbox"
                                    th:checked="${showAll}"
-                                   onchange="window.location.href='/?showAll=' + this.checked">
+                                   onchange="applyShowAllFilter(this.checked)">
                             Show All
                         </label>
                     </div>
@@ -280,7 +288,22 @@
             }
         }
 
+        function getSelectedNodeId() {
+            const select = document.getElementById('nodeFilter');
+            return select ? select.value : '';
+        }
+
         function updateDashboard(containers) {
+            // 선택된 노드로 필터링
+            const selectedNodeId = getSelectedNodeId();
+            if (selectedNodeId) {
+                if (selectedNodeId === 'local') {
+                    containers = containers.filter(c => !c.nodeId);
+                } else {
+                    containers = containers.filter(c => c.nodeId === selectedNodeId);
+                }
+            }
+
             // 통계 업데이트
             const runningCount = containers.filter(c => c.state === 'running').length;
             const stoppedCount = containers.filter(c => c.state === 'exited').length;
@@ -342,6 +365,26 @@
                 .then(r => r.text())
                 .then(() => { btn.textContent = '✓ Done'; })
                 .catch(() => { btn.textContent = '✗ Failed'; btn.disabled = false; });
+        }
+
+        function buildFilterUrl(params) {
+            const url = new URL(window.location.href);
+            Object.entries(params).forEach(([key, value]) => {
+                if (value === null || value === '') {
+                    url.searchParams.delete(key);
+                } else {
+                    url.searchParams.set(key, value);
+                }
+            });
+            return url.pathname + '?' + url.searchParams.toString();
+        }
+
+        function applyNodeFilter(nodeId) {
+            window.location.href = buildFilterUrl({ nodeId: nodeId || null });
+        }
+
+        function applyShowAllFilter(showAll) {
+            window.location.href = buildFilterUrl({ showAll: showAll });
         }
 
         // 페이지 로드 시 WebSocket 연결
