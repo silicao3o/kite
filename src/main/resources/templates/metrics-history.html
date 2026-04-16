@@ -154,7 +154,8 @@
                     <h3>Resource Usage Trend</h3>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <select id="containerSelect" onchange="loadChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
-                            <option th:each="c : ${containers}" th:value="${c}" th:text="${c}"></option>
+                            <option th:each="c : ${containers}" th:value="${c}"
+                                    th:text="${containerNodeMap.containsKey(c)} ? ${c} + ' [' + ${containerNodeMap.get(c)} + ']' : ${c}"></option>
                         </select>
                         <select id="hoursSelect" onchange="onPresetChange()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
                             <option value="24" th:selected="${hours == 24}">Last 24h</option>
@@ -192,7 +193,8 @@
                     <h3>Hourly Aggregation</h3>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <select id="aggContainerSelect" onchange="loadAggChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
-                            <option th:each="c : ${containers}" th:value="${c}" th:text="${c}"></option>
+                            <option th:each="c : ${containers}" th:value="${c}"
+                                    th:text="${containerNodeMap.containsKey(c)} ? ${c} + ' [' + ${containerNodeMap.get(c)} + ']' : ${c}"></option>
                         </select>
                         <select id="aggTypeSelect" onchange="loadAggChart()" style="padding:6px 10px; border-radius:6px; border:1px solid #444; background:#1e1e2e; color:#cdd6f4;">
                             <option value="avg">Average</option>
@@ -261,6 +263,7 @@
                     const labels = data.map(d => new Date(d.collectedAt).toLocaleTimeString());
                     const cpuData = data.map(d => d.cpuPercent.toFixed(1));
                     const memData = data.map(d => d.memoryPercent.toFixed(1));
+                    const rawData = data;
 
                     if (chart) chart.destroy();
                     const ctx = document.getElementById('metricsChart').getContext('2d');
@@ -291,7 +294,20 @@
                                 y: { min: 0, max: 100, ticks: { color: '#cdd6f4' }, grid: { color: '#313244' } },
                                 x: { ticks: { color: '#cdd6f4', maxTicksLimit: 10 }, grid: { color: '#313244' } }
                             },
-                            plugins: { legend: { labels: { color: '#cdd6f4' } } }
+                            plugins: {
+                                legend: { labels: { color: '#cdd6f4' } },
+                                tooltip: {
+                                    callbacks: {
+                                        afterBody: function(context) {
+                                            const idx = context[0].dataIndex;
+                                            const d = rawData[idx];
+                                            if (!d) return '';
+                                            return 'Memory: ' + formatBytes(d.memoryUsage) + ' / ' + formatBytes(d.memoryLimit)
+                                                + '\nNet RX: ' + formatBytes(d.networkRxBytes) + '  TX: ' + formatBytes(d.networkTxBytes);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     });
                 });
@@ -304,33 +320,127 @@
             window.location.href = `/api/metrics-history/csv?container=${encodeURIComponent(container)}&hours=${hours}`;
         }
 
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        }
+
+        let gaugeBuilt = false;
+
+        function buildGaugeCards(gauges) {
+            const grid = document.getElementById('gaugeGrid');
+            if (!grid) return;
+
+            if (gauges.length === 0) {
+                grid.innerHTML = '<p style="color:#6c7086; padding:8px;">No running containers</p>';
+                return;
+            }
+
+            const grouped = {};
+            gauges.forEach(g => {
+                const node = g.nodeName || 'local';
+                if (!grouped[node]) grouped[node] = [];
+                grouped[node].push(g);
+            });
+
+            const nodePriority = {
+                'res': ['chat-quvi-qoq', 'quvi', 'admin-quvi', 'engine'],
+                'dev': ['chat-quvi-test', 'quvi', 'admin-quvi', 'engine']
+            };
+            Object.entries(grouped).forEach(([node, items]) => {
+                const priority = nodePriority[node];
+                if (priority) {
+                    items.sort((a, b) => {
+                        const ai = priority.indexOf(a.containerName);
+                        const bi = priority.indexOf(b.containerName);
+                        if (ai !== -1 && bi !== -1) return ai - bi;
+                        if (ai !== -1) return -1;
+                        if (bi !== -1) return 1;
+                        return a.containerName.localeCompare(b.containerName);
+                    });
+                } else {
+                    items.sort((a, b) => a.containerName.localeCompare(b.containerName));
+                }
+            });
+
+            const priorityNodes = ['res', 'dev', 'local'];
+            const sortedEntries = Object.entries(grouped).sort((a, b) => {
+                const ai = priorityNodes.indexOf(a[0]);
+                const bi = priorityNodes.indexOf(b[0]);
+                if (ai !== -1 && bi !== -1) return ai - bi;
+                if (ai !== -1) return -1;
+                if (bi !== -1) return 1;
+                return a[0].localeCompare(b[0]);
+            });
+
+            grid.innerHTML = sortedEntries.map(([node, items]) => `
+                <div style="width:100%;">
+                    <div style="font-size:13px; color:#6c7086; margin-bottom:8px; padding-left:4px;">
+                        <span style="color:#cba6f7; font-weight:600;">${node}</span>
+                        <span style="margin-left:6px;">${items.length} containers</span>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:12px;">
+                        ${items.map(g => `
+                            <div data-container-id="${g.containerId}" style="background:#1e1e2e; border:1px solid #313244; border-radius:8px; padding:16px; min-width:180px; flex:1;">
+                                <div style="font-weight:600; color:#cdd6f4; margin-bottom:12px;">${g.containerName}</div>
+                                <div style="margin-bottom:8px;">
+                                    <div style="display:flex; justify-content:space-between; color:#89b4fa; font-size:13px; margin-bottom:4px;">
+                                        <span>CPU</span><span class="gauge-cpu">${g.cpuPercent.toFixed(1)}%</span>
+                                    </div>
+                                    <div style="background:#313244; border-radius:4px; height:6px;">
+                                        <div class="gauge-cpu-bar" style="background:#89b4fa; border-radius:4px; height:6px; width:${Math.min(g.cpuPercent,100).toFixed(1)}%;"></div>
+                                    </div>
+                                    <div class="gauge-cpu-abs" style="color:#bac2de; font-size:12px; margin-top:4px;">${Math.round(g.cpuPercent / 100 * g.cpuCount * 1000)}m / ${g.cpuCount * 1000}m</div>
+                                </div>
+                                <div style="margin-bottom:8px;">
+                                    <div style="display:flex; justify-content:space-between; color:#a6e3a1; font-size:13px; margin-bottom:4px;">
+                                        <span>Memory</span><span class="gauge-mem">${g.memoryPercent.toFixed(1)}%</span>
+                                    </div>
+                                    <div style="background:#313244; border-radius:4px; height:6px;">
+                                        <div class="gauge-mem-bar" style="background:#a6e3a1; border-radius:4px; height:6px; width:${Math.min(g.memoryPercent,100).toFixed(1)}%;"></div>
+                                    </div>
+                                    <div class="gauge-mem-abs" style="color:#bac2de; font-size:12px; margin-top:4px;">${formatBytes(g.memoryUsage)} / ${formatBytes(g.memoryLimit)}</div>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; color:#9399b2; font-size:12px;">
+                                    <span class="gauge-net-rx">Net RX ${formatBytes(g.networkRxBytes)}</span>
+                                    <span class="gauge-net-tx">TX ${formatBytes(g.networkTxBytes)}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            gaugeBuilt = true;
+        }
+
+        function updateGaugeValues(gauges) {
+            gauges.forEach(g => {
+                const card = document.querySelector(`[data-container-id="${g.containerId}"]`);
+                if (!card) return;
+
+                card.querySelector('.gauge-cpu').textContent = g.cpuPercent.toFixed(1) + '%';
+                card.querySelector('.gauge-cpu-bar').style.width = Math.min(g.cpuPercent, 100).toFixed(1) + '%';
+                card.querySelector('.gauge-cpu-abs').textContent = Math.round(g.cpuPercent / 100 * g.cpuCount * 1000) + 'm / ' + (g.cpuCount * 1000) + 'm';
+                card.querySelector('.gauge-mem').textContent = g.memoryPercent.toFixed(1) + '%';
+                card.querySelector('.gauge-mem-bar').style.width = Math.min(g.memoryPercent, 100).toFixed(1) + '%';
+                card.querySelector('.gauge-mem-abs').textContent = formatBytes(g.memoryUsage) + ' / ' + formatBytes(g.memoryLimit);
+                card.querySelector('.gauge-net-rx').textContent = 'Net RX ' + formatBytes(g.networkRxBytes);
+                card.querySelector('.gauge-net-tx').textContent = 'TX ' + formatBytes(g.networkTxBytes);
+            });
+        }
+
         function loadGauges() {
             fetch('/api/gauges')
                 .then(r => r.json())
                 .then(gauges => {
-                    const grid = document.getElementById('gaugeGrid');
-                    if (!grid) return;
-                    grid.innerHTML = gauges.map(g => `
-                        <div style="background:#1e1e2e; border:1px solid #313244; border-radius:8px; padding:16px; min-width:180px; flex:1;">
-                            <div style="font-weight:600; color:#cdd6f4; margin-bottom:12px;">${g.containerName}</div>
-                            <div style="margin-bottom:8px;">
-                                <div style="display:flex; justify-content:space-between; color:#89b4fa; font-size:13px; margin-bottom:4px;">
-                                    <span>CPU</span><span>${g.cpuPercent.toFixed(1)}%</span>
-                                </div>
-                                <div style="background:#313244; border-radius:4px; height:6px;">
-                                    <div style="background:#89b4fa; border-radius:4px; height:6px; width:${Math.min(g.cpuPercent,100).toFixed(1)}%;"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div style="display:flex; justify-content:space-between; color:#a6e3a1; font-size:13px; margin-bottom:4px;">
-                                    <span>Memory</span><span>${g.memoryPercent.toFixed(1)}%</span>
-                                </div>
-                                <div style="background:#313244; border-radius:4px; height:6px;">
-                                    <div style="background:#a6e3a1; border-radius:4px; height:6px; width:${Math.min(g.memoryPercent,100).toFixed(1)}%;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('') || '<p style="color:#6c7086; padding:8px;">No running containers</p>';
+                    if (!gaugeBuilt) {
+                        buildGaugeCards(gauges);
+                    } else {
+                        updateGaugeValues(gauges);
+                    }
                 })
                 .catch(() => {});
         }

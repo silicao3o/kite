@@ -81,11 +81,14 @@ public class NodeRegistry {
         });
     }
 
-    public void updateMetrics(String nodeId, double cpu, double memory, int containers) {
+    public void updateMetrics(String nodeId, double cpu, double memory, int containers,
+                              long memoryUsage, long memoryLimit) {
         Node node = runtimeCache.get(nodeId);
         if (node != null) {
             node.setCpuUsagePercent(cpu);
             node.setMemoryUsagePercent(memory);
+            node.setMemoryUsage(memoryUsage);
+            node.setMemoryLimit(memoryLimit);
             node.setRunningContainers(containers);
             node.setLastHeartbeat(java.time.LocalDateTime.now());
         }

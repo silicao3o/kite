@@ -61,7 +61,8 @@ public class NodeHeartbeatChecker {
             long memTotal = info.getMemTotal() != null ? info.getMemTotal() : 1L;
             double memPercent = memTotal > 0 ? (totalMemUsage * 100.0 / memTotal) : 0.0;
 
-            nodeRegistry.updateMetrics(node.getId(), totalCpu, memPercent, running.size());
+            nodeRegistry.updateMetrics(node.getId(), totalCpu, memPercent, running.size(),
+                    totalMemUsage, memTotal);
             nodeRegistry.updateStatus(node.getId(), NodeStatus.HEALTHY);
             log.debug("[Heartbeat] {} → HEALTHY (컨테이너 {}개, CPU {:.1f}%, MEM {:.1f}%)",
                     node.getName(), running.size(), totalCpu, memPercent);

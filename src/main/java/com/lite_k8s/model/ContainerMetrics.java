@@ -13,6 +13,7 @@ public class ContainerMetrics {
 
     // CPU
     private double cpuPercent;
+    private int cpuCount;           // online CPUs
 
     // Memory
     private long memoryUsage;      // bytes

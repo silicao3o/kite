@@ -59,7 +59,7 @@ class NodeHeartbeatCheckerTest {
 
         checker.checkHeartbeats();
 
-        verify(nodeRegistry).updateMetrics(eq("n1"), eq(0.0), eq(0.0), eq(0));
+        verify(nodeRegistry).updateMetrics(eq("n1"), eq(0.0), eq(0.0), eq(0), eq(0L), anyLong());
         verify(nodeRegistry).updateStatus("n1", NodeStatus.HEALTHY);
         verify(eventPublisher, never()).publishEvent(any(NodeFailureEvent.class));
     }

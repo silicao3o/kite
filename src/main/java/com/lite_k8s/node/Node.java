@@ -51,6 +51,14 @@ public class Node {
     @Builder.Default
     private double memoryUsagePercent = 0.0;
 
+    @Transient
+    @Builder.Default
+    private long memoryUsage = 0L;       // bytes
+
+    @Transient
+    @Builder.Default
+    private long memoryLimit = 0L;       // bytes
+
     @Builder.Default
     private int runningContainers = 0;
 

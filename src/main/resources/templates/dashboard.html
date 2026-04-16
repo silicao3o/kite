@@ -340,6 +340,10 @@
                             memDisplay.className = 'metric-value' +
                                 (container.memoryPercent > 90 ? ' danger' : container.memoryPercent > 70 ? ' warning' : '');
                         }
+                        const memDetail = memoryCell.querySelector('.metric-detail');
+                        if (memDetail && container.memoryUsage !== undefined) {
+                            memDetail.textContent = formatBytes(container.memoryUsage) + ' / ' + formatBytes(container.memoryLimit);
+                        }
                     }
 
                     // 상태 업데이트
@@ -350,6 +354,13 @@
                     }
                 }
             });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
         }
 
         function updateImage(btn) {

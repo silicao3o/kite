@@ -10,10 +10,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.lite_k8s.model.ContainerInfo;
+import com.lite_k8s.service.MetricsScheduler;
+
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -23,6 +28,7 @@ public class MetricsHistoryController {
     private final MultiContainerMetricsService multiContainerMetricsService;
     private final HealingStatisticsService healingStatisticsService;
     private final MetricsCsvExporter csvExporter;
+    private final MetricsScheduler metricsScheduler;
     // [제거됨] private final IncidentTimelineService incidentTimelineService;
     // → incidents 페이지와 데이터가 중복되어 metrics-history에서는 표시하지 않음
 
@@ -34,7 +40,15 @@ public class MetricsHistoryController {
         // [제거됨] List<TimelineEntry> timeline = incidentTimelineService.getTimeline(7);
         // → 인시던트 타임라인은 incidents 페이지에서 페이지네이션과 함께 제공
 
+        Map<String, String> containerNodeMap = metricsScheduler.getCachedContainers().stream()
+                .collect(Collectors.toMap(
+                        ContainerInfo::getName,
+                        c -> c.getNodeName() != null ? c.getNodeName() : "local",
+                        (a, b) -> a,
+                        LinkedHashMap::new));
+
         model.addAttribute("containers", containers);
+        model.addAttribute("containerNodeMap", containerNodeMap);
         model.addAttribute("healingStats", healingStats);
         // [제거됨] model.addAttribute("timeline", timeline);
         model.addAttribute("hours", hours);

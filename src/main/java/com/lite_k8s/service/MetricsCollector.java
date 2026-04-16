@@ -83,6 +83,7 @@ public class MetricsCollector {
 
     private ContainerMetrics buildMetrics(String containerId, String containerName, Statistics stats) {
         double cpuPercent = calculateCpuPercent(stats);
+        int cpuCount = getOnlineCpuCount(stats);
         long memoryUsage = getMemoryUsage(stats);
         long memoryLimit = getMemoryLimit(stats);
         double memoryPercent = calculateMemoryPercent(memoryUsage, memoryLimit);
@@ -101,6 +102,7 @@ public class MetricsCollector {
                 .containerId(containerId)
                 .containerName(containerName)
                 .cpuPercent(cpuPercent)
+                .cpuCount(cpuCount)
                 .memoryUsage(memoryUsage)
                 .memoryLimit(memoryLimit)
                 .memoryPercent(memoryPercent)
@@ -108,6 +110,14 @@ public class MetricsCollector {
                 .networkTxBytes(networkTx)
                 .collectedAt(LocalDateTime.now())
                 .build();
+    }
+
+    private int getOnlineCpuCount(Statistics stats) {
+        CpuStatsConfig cpuStats = stats.getCpuStats();
+        if (cpuStats != null && cpuStats.getOnlineCpus() != null) {
+            return cpuStats.getOnlineCpus().intValue();
+        }
+        return 1;
     }
 
     private double calculateCpuPercent(Statistics stats) {
