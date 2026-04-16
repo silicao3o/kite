@@ -13,4 +13,6 @@ public class LogEntry {
     private String message;
     private String highlightedMessage;
     private int lineNumber;
+    private String threadName;
+    private String logger;
 }

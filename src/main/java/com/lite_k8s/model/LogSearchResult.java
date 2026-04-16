@@ -15,4 +15,5 @@ public class LogSearchResult {
     private LocalDateTime fromTime;
     private LocalDateTime toTime;
     private List<String> levels;
+    private List<String> availableThreads;
 }

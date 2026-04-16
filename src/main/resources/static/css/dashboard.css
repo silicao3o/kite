@@ -862,6 +862,20 @@ table td:nth-child(9) { overflow: visible; }
     font-style: italic;
 }
 
+.log-thread {
+    color: #b48ead;
+    font-weight: 500;
+}
+
+.log-line-number {
+    color: var(--text-muted);
+    user-select: none;
+    min-width: 3ch;
+    display: inline-block;
+    text-align: right;
+    margin-right: 8px;
+}
+
 mark {
     background-color: #fbbf24;
     color: #000;

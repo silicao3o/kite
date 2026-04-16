@@ -157,7 +157,11 @@ public class DashboardController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(required = false) List<String> levels) {
+            @RequestParam(required = false) List<String> levels,
+            @RequestParam(required = false) String threadName,
+            @RequestParam(required = false) String traceId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String nodeId) {
 
         java.time.LocalDateTime fromTime = null;
         java.time.LocalDateTime toTime = null;
@@ -169,7 +173,7 @@ public class DashboardController {
             toTime = java.time.LocalDateTime.parse(to);
         }
 
-        return logSearchService.search(id, keyword, fromTime, toTime, levels);
+        return logSearchService.search(id, keyword, fromTime, toTime, levels, threadName, traceId, name, nodeId);
     }
 
     @GetMapping("/healing-logs")

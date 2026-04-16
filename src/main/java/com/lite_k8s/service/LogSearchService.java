@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,31 +23,83 @@ public class LogSearchService {
 
     private final DockerService dockerService;
 
-    private static final Pattern LOG_PATTERN = Pattern.compile(
+    // 기존 단순 포맷: "2026-03-13T10:00:00.000Z INFO message"
+    private static final Pattern SIMPLE_LOG_PATTERN = Pattern.compile(
             "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.?\\d*Z?)\\s+(\\w+)?\\s*(.*)$"
+    );
+
+    // Spring Boot 포맷: "DockerTS AppTS LEVEL PID --- [app] [thread] logger : message"
+    private static final Pattern SPRING_BOOT_LOG_PATTERN = Pattern.compile(
+            "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z)\\s+" +     // Docker timestamp
+            "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+[+\\-]\\d{2}:\\d{2}\\s+" + // App timestamp
+            "(\\w+)\\s+\\d+\\s+---\\s+" +                                       // Level + PID + ---
+            "\\[[^\\]]+\\]\\s+" +                                                // [app-name]
+            "\\[([^\\]]+)\\]\\s+" +                                              // [thread-name]
+            "(\\S+)\\s+:\\s+" +                                                  // logger :
+            "(.*)$"                                                              // message
     );
 
     private static final List<String> LOG_LEVELS = List.of("TRACE", "DEBUG", "INFO", "WARN", "WARNING", "ERROR", "FATAL");
 
+    // 기존 API 호환용 오버로드
     public LogSearchResult search(String containerId, String keyword,
                                    LocalDateTime fromTime, LocalDateTime toTime,
                                    List<String> levels) {
-        String rawLogs = dockerService.getContainerLogs(containerId, null, null); // 검색 — name 없이 ID로 조회
-        List<LogEntry> entries = parseAndFilter(rawLogs, keyword, fromTime, toTime, levels);
+        return search(containerId, keyword, fromTime, toTime, levels, null, null, null, null);
+    }
+
+    // 스레드/traceId 필터 추가 오버로드
+    public LogSearchResult search(String containerId, String keyword,
+                                   LocalDateTime fromTime, LocalDateTime toTime,
+                                   List<String> levels, String threadName, String traceId) {
+        return search(containerId, keyword, fromTime, toTime, levels, threadName, traceId, null, null);
+    }
+
+    // 전체 파라미터 버전 (멀티노드 포함)
+    public LogSearchResult search(String containerId, String keyword,
+                                   LocalDateTime fromTime, LocalDateTime toTime,
+                                   List<String> levels, String threadName, String traceId,
+                                   String containerName, String nodeId) {
+        String rawLogs = dockerService.getContainerLogs(containerId, containerName, nodeId);
+        List<LogEntry> allEntries = parseAll(rawLogs);
+
+        // 사용 가능한 스레드 목록 수집 (필터 적용 전)
+        Set<String> threadSet = new LinkedHashSet<>();
+        for (LogEntry entry : allEntries) {
+            if (entry.getThreadName() != null) {
+                threadSet.add(entry.getThreadName());
+            }
+        }
+
+        // 필터 적용
+        List<LogEntry> filtered = new ArrayList<>();
+        for (LogEntry entry : allEntries) {
+            if (!matchesFilters(entry, keyword, fromTime, toTime, levels, threadName, traceId)) {
+                continue;
+            }
+
+            // 키워드 하이라이트
+            if (keyword != null && !keyword.isEmpty()) {
+                entry.setHighlightedMessage(highlightKeyword(entry.getMessage(), keyword));
+            } else {
+                entry.setHighlightedMessage(entry.getMessage());
+            }
+
+            filtered.add(entry);
+        }
 
         return LogSearchResult.builder()
-                .entries(entries)
-                .totalCount(entries.size())
+                .entries(filtered)
+                .totalCount(filtered.size())
                 .keyword(keyword)
                 .fromTime(fromTime)
                 .toTime(toTime)
                 .levels(levels)
+                .availableThreads(new ArrayList<>(threadSet))
                 .build();
     }
 
-    private List<LogEntry> parseAndFilter(String rawLogs, String keyword,
-                                           LocalDateTime fromTime, LocalDateTime toTime,
-                                           List<String> levels) {
+    private List<LogEntry> parseAll(String rawLogs) {
         if (rawLogs == null || rawLogs.isEmpty()) {
             return List.of();
         }
@@ -61,43 +115,52 @@ public class LogSearchService {
             }
 
             LogEntry entry = parseLine(line, lineNumber);
-            if (entry == null) {
-                continue;
+            if (entry != null) {
+                result.add(entry);
             }
-
-            // 필터 적용
-            if (!matchesFilters(entry, keyword, fromTime, toTime, levels)) {
-                continue;
-            }
-
-            // 키워드 하이라이트
-            if (keyword != null && !keyword.isEmpty()) {
-                entry.setHighlightedMessage(highlightKeyword(entry.getMessage(), keyword));
-            } else {
-                entry.setHighlightedMessage(entry.getMessage());
-            }
-
-            result.add(entry);
         }
 
         return result;
     }
 
     private LogEntry parseLine(String line, int lineNumber) {
-        Matcher matcher = LOG_PATTERN.matcher(line);
+        // 1. Spring Boot 포맷 시도
+        Matcher springMatcher = SPRING_BOOT_LOG_PATTERN.matcher(line);
+        if (springMatcher.matches()) {
+            String timestampStr = springMatcher.group(1);
+            String level = springMatcher.group(2).toUpperCase();
+            String threadName = springMatcher.group(3).trim();
+            String logger = springMatcher.group(4).trim();
+            String message = springMatcher.group(5);
+
+            if (level.equals("WARNING")) {
+                level = "WARN";
+            }
+
+            return LogEntry.builder()
+                    .timestamp(parseTimestamp(timestampStr))
+                    .level(level)
+                    .threadName(threadName)
+                    .logger(logger)
+                    .message(message)
+                    .lineNumber(lineNumber)
+                    .build();
+        }
+
+        // 2. 기존 단순 포맷 fallback
+        Matcher simpleMatcher = SIMPLE_LOG_PATTERN.matcher(line);
 
         LocalDateTime timestamp = null;
         String level = "INFO";
         String message = line;
 
-        if (matcher.matches()) {
-            String timestampStr = matcher.group(1);
-            String possibleLevel = matcher.group(2);
-            String content = matcher.group(3);
+        if (simpleMatcher.matches()) {
+            String timestampStr = simpleMatcher.group(1);
+            String possibleLevel = simpleMatcher.group(2);
+            String content = simpleMatcher.group(3);
 
             timestamp = parseTimestamp(timestampStr);
 
-            // 레벨 판별
             if (possibleLevel != null && LOG_LEVELS.contains(possibleLevel.toUpperCase())) {
                 level = possibleLevel.toUpperCase();
                 message = possibleLevel + " " + (content != null ? content : "");
@@ -106,11 +169,9 @@ public class LogSearchService {
                 if (message.isEmpty()) {
                     message = line;
                 }
-                // 메시지에서 레벨 추출 시도
                 level = extractLevelFromMessage(message);
             }
         } else {
-            // 타임스탬프 없는 라인 - 레벨만 추출 시도
             level = extractLevelFromMessage(line);
         }
 
@@ -125,8 +186,12 @@ public class LogSearchService {
     private LocalDateTime parseTimestamp(String timestampStr) {
         try {
             if (timestampStr.endsWith("Z")) {
+                // 나노초 정밀도 처리: "2026-04-16T04:09:22.682981716Z" → 밀리초까지만 사용
+                String withoutZ = timestampStr.substring(0, timestampStr.length() - 1);
+                // 밀리초까지만 잘라서 파싱 (최대 23자: yyyy-MM-ddTHH:mm:ss.SSS)
+                String trimmed = withoutZ.length() > 23 ? withoutZ.substring(0, 23) : withoutZ;
                 return LocalDateTime.parse(
-                        timestampStr.substring(0, Math.min(23, timestampStr.length() - 1)),
+                        trimmed,
                         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS]")
                 );
             }
@@ -148,7 +213,7 @@ public class LogSearchService {
 
     private boolean matchesFilters(LogEntry entry, String keyword,
                                     LocalDateTime fromTime, LocalDateTime toTime,
-                                    List<String> levels) {
+                                    List<String> levels, String threadName, String traceId) {
         // 키워드 필터
         if (keyword != null && !keyword.isEmpty()) {
             if (!entry.getMessage().toLowerCase().contains(keyword.toLowerCase())) {
@@ -172,6 +237,20 @@ public class LogSearchService {
                     .map(String::toUpperCase)
                     .toList();
             if (!upperLevels.contains(entry.getLevel())) {
+                return false;
+            }
+        }
+
+        // 스레드명 필터
+        if (threadName != null && !threadName.isEmpty()) {
+            if (!threadName.equals(entry.getThreadName())) {
+                return false;
+            }
+        }
+
+        // traceId 필터 (메시지에서 workflowId 등 검색)
+        if (traceId != null && !traceId.isEmpty()) {
+            if (!entry.getMessage().contains(traceId)) {
                 return false;
             }
         }
