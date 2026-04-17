@@ -147,3 +147,30 @@ CREATE TABLE IF NOT EXISTS ai_settings (
 
 -- ai_settings 기본 행 삽입
 INSERT INTO ai_settings (id) VALUES ('default') ON CONFLICT DO NOTHING;
+
+-- image_watches (이미지 감시 설정)
+CREATE TABLE IF NOT EXISTS image_watches (
+    id                VARCHAR(36)  PRIMARY KEY,
+    image             VARCHAR(255) NOT NULL,
+    tag               VARCHAR(50)  NOT NULL DEFAULT 'latest',
+    container_pattern VARCHAR(255),
+    max_unavailable   INTEGER      NOT NULL DEFAULT 1,
+    enabled           BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at        TIMESTAMP    NOT NULL
+);
+
+-- image_update_history (이미지 업데이트 이력)
+CREATE TABLE IF NOT EXISTS image_update_history (
+    id              VARCHAR(36)  PRIMARY KEY,
+    watch_id        VARCHAR(36)  NOT NULL,
+    image           VARCHAR(255) NOT NULL,
+    tag             VARCHAR(50),
+    previous_digest VARCHAR(255),
+    new_digest      VARCHAR(255),
+    status          VARCHAR(10)  NOT NULL
+        CHECK (status IN ('DETECTED', 'SUCCESS', 'FAILED')),
+    node_name       VARCHAR(255),
+    container_name  VARCHAR(255),
+    message         TEXT,
+    created_at      TIMESTAMP    NOT NULL
+);

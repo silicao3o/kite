@@ -1,7 +1,6 @@
 package com.lite_k8s.update;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.command.ListContainersCmd;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,21 +15,18 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ImageUpdatePollerTest {
 
-    @Mock
-    private GhcrClient ghcrClient;
-    @Mock
-    private DockerClient dockerClient;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-    @Mock
-    private ListContainersCmd listContainersCmd;
+    @Mock private GhcrClient ghcrClient;
+    @Mock private DockerClient dockerClient;
+    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private ListContainersCmd listContainersCmd;
+    @Mock private ImageWatchService watchService;
+    @Mock private ImageUpdateHistoryService historyService;
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
@@ -38,7 +34,8 @@ class ImageUpdatePollerTest {
     @BeforeEach
     void setUp() {
         properties = new ImageWatchProperties();
-        poller = new ImageUpdatePoller(properties, ghcrClient, dockerClient, eventPublisher);
+        poller = new ImageUpdatePoller(properties, watchService, ghcrClient, dockerClient,
+                eventPublisher, historyService);
     }
 
     @Test
@@ -52,15 +49,31 @@ class ImageUpdatePollerTest {
     }
 
     @Test
+    @DisplayName("15. ImageUpdatePoller가 DB에서 와치 목록을 가져온다")
+    void pollAll_UsesWatchServiceInsteadOfProperties() {
+        properties.setEnabled(true);
+
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
+        when(watchService.findEnabled()).thenReturn(List.of(watch));
+        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn(null);
+
+        poller.pollAll();
+
+        verify(watchService).findEnabled();
+    }
+
+    @Test
     @DisplayName("digest 변경 감지 시 이벤트 발행")
     void checkWatch_WhenDigestChanged_PublishesUpdateEvent() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/myorg/myapp");
-        watch.setTag("latest");
-        watch.setContainerPattern("myapp-.*");
-        properties.setEnabled(true);
-        properties.setWatches(List.of(watch));
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
 
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
@@ -73,11 +86,10 @@ class ImageUpdatePollerTest {
 
         when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest"))
                 .thenReturn("sha256:newdigest");
+        when(historyService.record(any())).thenReturn(null);
 
-        // when
         poller.checkWatch(watch);
 
-        // then
         ArgumentCaptor<ImageUpdateDetectedEvent> captor =
                 ArgumentCaptor.forClass(ImageUpdateDetectedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
@@ -90,13 +102,47 @@ class ImageUpdatePollerTest {
     }
 
     @Test
+    @DisplayName("16. 새 digest 감지 시 DETECTED 이력을 저장한다")
+    void checkWatch_WhenDigestChanged_RecordsDetectedHistory() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getId()).thenReturn("abc123");
+        when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        ArgumentCaptor<ImageUpdateHistoryEntity> captor =
+                ArgumentCaptor.forClass(ImageUpdateHistoryEntity.class);
+        verify(historyService).record(captor.capture());
+
+        ImageUpdateHistoryEntity history = captor.getValue();
+        assertThat(history.getWatchId()).isEqualTo(watch.getId());
+        assertThat(history.getStatus()).isEqualTo(ImageUpdateHistoryEntity.Status.DETECTED);
+        assertThat(history.getPreviousDigest()).isEqualTo("sha256:old");
+        assertThat(history.getNewDigest()).isEqualTo("sha256:new");
+        assertThat(history.getContainerName()).isEqualTo("myapp-1");
+    }
+
+    @Test
     @DisplayName("digest 동일 시 이벤트 미발행")
     void checkWatch_WhenDigestSame_DoesNotPublishEvent() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/myorg/myapp");
-        watch.setTag("latest");
-        watch.setContainerPattern("myapp-.*");
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
@@ -105,25 +151,22 @@ class ImageUpdatePollerTest {
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
-
         when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest"))
                 .thenReturn("sha256:samedigest");
 
-        // when
         poller.checkWatch(watch);
 
-        // then
         verifyNoInteractions(eventPublisher);
     }
 
     @Test
     @DisplayName("패턴 불일치 컨테이너는 무시")
     void checkWatch_WhenContainerNameNotMatchingPattern_Ignores() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/myorg/myapp");
-        watch.setTag("latest");
-        watch.setContainerPattern("myapp-.*");
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/other-service"});
@@ -131,31 +174,26 @@ class ImageUpdatePollerTest {
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
-
         when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
 
-        // when
         poller.checkWatch(watch);
 
-        // then - 패턴 불일치로 이벤트 없음
         verifyNoInteractions(eventPublisher);
     }
 
     @Test
     @DisplayName("GHCR 조회 실패 시 이벤트 미발행")
     void checkWatch_WhenGhcrReturnsNull_DoesNotPublishEvent() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/myorg/myapp");
-        watch.setTag("latest");
-        watch.setContainerPattern("myapp-.*");
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
 
         when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn(null);
 
-        // when
         poller.checkWatch(watch);
 
-        // then - GHCR 실패로 조기 리턴, 이벤트 없음
         verifyNoInteractions(eventPublisher, dockerClient);
     }
 }

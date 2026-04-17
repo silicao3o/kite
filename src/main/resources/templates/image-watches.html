@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23326ce5'/><path d='M16 5 L26 16 L16 22 L6 16 Z' fill='white' fill-opacity='0.95'/><path d='M16 22 L13.5 27 M16 22 L18.5 27' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-opacity='0.6'/><circle cx='16' cy='16' r='2' fill='%23326ce5'/></svg>">
+    <title>kite · Image Watches</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .watch-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .watch-table th, .watch-table td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); text-align: left; font-size: .9rem; }
+        .watch-table th { font-weight: 600; color: var(--text-muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+        .watch-table tr:hover td { background: var(--surface); }
+        .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+        .form-row { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: .3rem; }
+        .form-group label { font-size: .82rem; color: var(--text-muted); }
+        .form-group input { padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: .9rem; width: 220px; }
+        .form-group input[type="number"] { width: 80px; }
+        .btn-add { padding: .45rem 1.1rem; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+        .btn-delete { padding: .3rem .75rem; background: transparent; border: 1px solid #f87171; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .btn-history { padding: .3rem .75rem; background: transparent; border: 1px solid var(--primary); color: var(--primary); border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .badge-enabled { background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+        .badge-disabled { background: #f3f4f6; color: #6b7280; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+        .badge-image { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
+        .badge-pattern { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
+        .badge-tag { background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+        .section-title { font-weight: 600; margin-bottom: .75rem; }
+        #addError { color: #ef4444; font-size: .85rem; margin-top: .5rem; display: none; }
+        .info-box { background: #eff6ff; border-left: 3px solid #3b82f6; padding: .9rem 1.1rem; margin-bottom: 1.5rem; border-radius: 6px; font-size: .88rem; color: #1e40af; }
+        .info-box strong { color: #1e3a8a; }
+        .info-box ul { margin: .4rem 0 0 1.2rem; padding: 0; }
+        .info-box li { margin-bottom: .2rem; }
+        .info-box code { background: rgba(30, 64, 175, 0.1); padding: 1px 5px; border-radius: 3px; font-size: .85em; }
+
+        /* History modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 1000; }
+        .modal-content { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; max-width: 700px; width: 90%; margin: 5vh auto; padding: 1.5rem; max-height: 80vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .modal-header h3 { margin: 0; font-size: 1.1rem; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+        .history-item { padding: .6rem .8rem; border-bottom: 1px solid var(--border); font-size: .85rem; }
+        .history-item:last-child { border-bottom: none; }
+        .badge-detected { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+        .badge-success { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+        .badge-failed { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+        .digest { font-family: monospace; font-size: .78rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg viewBox="0 0 32 32" fill="none">
+                    <path d="M16 3 L28 16 L16 24 L4 16 Z" fill="white" fill-opacity="0.95"/>
+                    <path d="M16 24 L13 30 M16 24 L19 30" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.6"/>
+                    <circle cx="16" cy="16" r="2.5" fill="#326ce5"/>
+                    <path d="M4 16 L28 16" stroke="#326ce5" stroke-width="1" stroke-opacity="0.4"/>
+                    <path d="M16 3 L16 24" stroke="#326ce5" stroke-width="1" stroke-opacity="0.4"/>
+                </svg>
+            </div>
+            <h1>Kite</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Workloads</div>
+                <a href="/multi-logs" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+                    Multi Logs
+                </a>
+                <a href="/containers" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Containers
+                </a>
+                <a href="/nodes" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                    Nodes
+                </a>
+                <a href="/desired-state" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+                    Desired State
+                </a>
+                <a href="/image-watches" class="nav-item active">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Image Watches
+                </a>
+                <a href="/self-healing-rules" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Self-Healing Rules
+                </a>
+                <a href="/email-subscriptions" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Email Subscriptions
+                </a>
+                <a href="/healing-logs" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Healing Logs
+                </a>
+                <a href="/incidents" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    Incident Reports
+                </a>
+                <a href="/suggestions" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    Suggestions
+                </a>
+                <a href="/metrics-history" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Metrics History
+                </a>
+                <a href="/ai-settings" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+                    AI Settings
+                </a>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Image Watches</h2>
+            <p>GHCR 이미지 자동 업데이트 감시 설정 — 새 이미지 감지 시 롤링 업데이트 자동 실행</p>
+        </div>
+
+        <div class="info-box">
+            <strong>이미지 와치 원리</strong>
+            <ul>
+                <li><code>image</code>: GHCR 이미지 경로 (예: <code>ghcr.io/org/app</code>)</li>
+                <li><code>tag</code>: 감시할 태그 (기본 <code>latest</code>)</li>
+                <li><code>containerPattern</code>: 업데이트 대상 컨테이너 이름 패턴 (정규식)</li>
+                <li><code>maxUnavailable</code>: 동시 업데이트 컨테이너 수 (기본 1 = 순차)</li>
+                <li>폴링 주기와 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
+            </ul>
+        </div>
+
+        <div class="add-form">
+            <div class="section-title">와치 추가</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>이미지 *</label>
+                    <input type="text" id="image" placeholder="ghcr.io/org/app" />
+                </div>
+                <div class="form-group">
+                    <label>태그</label>
+                    <input type="text" id="tag" placeholder="latest" />
+                </div>
+                <div class="form-group">
+                    <label>컨테이너 패턴</label>
+                    <input type="text" id="containerPattern" placeholder="app-.*" />
+                </div>
+                <div class="form-group">
+                    <label>maxUnavailable</label>
+                    <input type="number" id="maxUnavailable" value="1" min="1" />
+                </div>
+                <button class="btn-add" onclick="addWatch()">추가</button>
+            </div>
+            <div id="addError"></div>
+        </div>
+
+        <div id="watchList">
+            <div class="empty-state" id="emptyState" style="display:none;">
+                <p>등록된 이미지 와치가 없습니다.</p>
+                <p style="font-size:.85rem;">와치를 추가하면 GHCR 이미지 변경을 자동으로 감지하여 컨테이너를 업데이트합니다.</p>
+            </div>
+            <table class="watch-table" id="watchTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>이미지</th>
+                        <th>태그</th>
+                        <th>컨테이너 패턴</th>
+                        <th>maxUnavailable</th>
+                        <th>상태</th>
+                        <th>생성일</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="watchBody"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- History Modal -->
+<div class="modal-overlay" id="historyModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="historyTitle">업데이트 이력</h3>
+            <button class="modal-close" onclick="closeHistory()">&times;</button>
+        </div>
+        <div id="historyList">
+            <div class="empty-state">이력이 없습니다.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadWatches() {
+    const res = await fetch('/api/image-watches');
+    const watches = await res.json();
+    const emptyState = document.getElementById('emptyState');
+    const table = document.getElementById('watchTable');
+    const tbody = document.getElementById('watchBody');
+
+    tbody.innerHTML = '';
+    if (watches.length === 0) {
+        emptyState.style.display = 'block';
+        table.style.display = 'none';
+        return;
+    }
+    emptyState.style.display = 'none';
+    table.style.display = 'table';
+
+    watches.forEach(w => {
+        const tr = document.createElement('tr');
+        const createdAt = w.createdAt ? new Date(w.createdAt).toLocaleString('ko-KR') : '-';
+        tr.innerHTML = `
+            <td><span class="badge-image">${escapeHtml(w.image)}</span></td>
+            <td><span class="badge-tag">${escapeHtml(w.tag)}</span></td>
+            <td>${w.containerPattern ? '<span class="badge-pattern">' + escapeHtml(w.containerPattern) + '</span>' : '<span style="color:var(--text-muted)">-</span>'}</td>
+            <td>${w.maxUnavailable}</td>
+            <td><span class="${w.enabled ? 'badge-enabled' : 'badge-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
+            <td style="font-size:.82rem; color:var(--text-muted);">${createdAt}</td>
+            <td>
+                <button class="btn-history" onclick="showHistory('${w.id}', '${escapeHtml(w.image)}')">이력</button>
+                <button class="btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function addWatch() {
+    const image = document.getElementById('image').value.trim();
+    const tag = document.getElementById('tag').value.trim();
+    const containerPattern = document.getElementById('containerPattern').value.trim();
+    const maxUnavailable = parseInt(document.getElementById('maxUnavailable').value) || 1;
+    const errEl = document.getElementById('addError');
+
+    if (!image) {
+        errEl.style.display = 'block';
+        errEl.textContent = '이미지는 필수입니다.';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    const body = { image, maxUnavailable };
+    if (tag) body.tag = tag;
+    if (containerPattern) body.containerPattern = containerPattern;
+
+    const res = await fetch('/api/image-watches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+        document.getElementById('image').value = '';
+        document.getElementById('tag').value = '';
+        document.getElementById('containerPattern').value = '';
+        document.getElementById('maxUnavailable').value = '1';
+        loadWatches();
+    } else {
+        const msg = await res.text();
+        errEl.style.display = 'block';
+        errEl.textContent = '추가 실패: ' + msg;
+    }
+}
+
+async function deleteWatch(id) {
+    if (!confirm('이 와치를 비활성화 하시겠습니까?')) return;
+    await fetch(`/api/image-watches/${id}`, { method: 'DELETE' });
+    loadWatches();
+}
+
+async function showHistory(watchId, imageName) {
+    document.getElementById('historyTitle').textContent = `업데이트 이력 — ${imageName}`;
+    const modal = document.getElementById('historyModal');
+    const listEl = document.getElementById('historyList');
+    modal.style.display = 'block';
+
+    const res = await fetch(`/api/image-watches/${watchId}/history`);
+    const history = await res.json();
+
+    if (history.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">이력이 없습니다.</div>';
+        return;
+    }
+
+    listEl.innerHTML = history.map(h => {
+        const statusClass = h.status === 'SUCCESS' ? 'badge-success' : h.status === 'FAILED' ? 'badge-failed' : 'badge-detected';
+        const time = h.createdAt ? new Date(h.createdAt).toLocaleString('ko-KR') : '-';
+        const prev = h.previousDigest ? shortenDigest(h.previousDigest) : '-';
+        const next = h.newDigest ? shortenDigest(h.newDigest) : '-';
+        return `
+            <div class="history-item">
+                <span class="${statusClass}">${h.status}</span>
+                ${h.containerName ? ' <strong>' + escapeHtml(h.containerName) + '</strong>' : ''}
+                ${h.nodeName ? ' <span class="badge-pattern">@' + escapeHtml(h.nodeName) + '</span>' : ''}
+                <br>
+                <span class="digest">${prev} → ${next}</span>
+                ${h.message ? '<br><span style="color:var(--text-muted);font-size:.8rem;">' + escapeHtml(h.message) + '</span>' : ''}
+                <span style="float:right;font-size:.78rem;color:var(--text-muted);">${time}</span>
+            </div>`;
+    }).join('');
+}
+
+function closeHistory() {
+    document.getElementById('historyModal').style.display = 'none';
+}
+
+function shortenDigest(digest) {
+    if (!digest) return '-';
+    return digest.length > 19 ? digest.substring(0, 19) + '...' : digest;
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Close modal on outside click
+document.getElementById('historyModal').addEventListener('click', function(e) {
+    if (e.target === this) closeHistory();
+});
+
+document.addEventListener('DOMContentLoaded', loadWatches);
+</script>
+<script src="/js/sidebar-toggle.js"></script>
+</body>
+</html>

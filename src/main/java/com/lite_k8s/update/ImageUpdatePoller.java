@@ -15,42 +15,50 @@ import java.util.List;
 
 /**
  * GHCR 이미지 digest 변경을 주기적으로 폴링
- * 새 버전 감지 시 ImageUpdateDetectedEvent 발행
+ * DB에서 활성 와치를 조회하여 새 버전 감지 시 ImageUpdateDetectedEvent 발행
  */
 @Slf4j
 @Component
 public class ImageUpdatePoller {
 
     private final ImageWatchProperties properties;
+    private final ImageWatchService watchService;
     private final GhcrClient ghcrClient;
     private final DockerClient dockerClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final ImageUpdateHistoryService historyService;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
 
     @Autowired
     public ImageUpdatePoller(
             ImageWatchProperties properties,
+            ImageWatchService watchService,
             GhcrClient ghcrClient,
             DockerClient dockerClient,
             ApplicationEventPublisher eventPublisher,
+            ImageUpdateHistoryService historyService,
             NodeRegistry nodeRegistry,
             NodeDockerClientFactory nodeClientFactory) {
         this.properties = properties;
+        this.watchService = watchService;
         this.ghcrClient = ghcrClient;
         this.dockerClient = dockerClient;
         this.eventPublisher = eventPublisher;
+        this.historyService = historyService;
         this.nodeRegistry = nodeRegistry;
         this.nodeClientFactory = nodeClientFactory;
     }
 
-    // 기존 테스트 호환 생성자
+    // 테스트 호환 생성자
     ImageUpdatePoller(
             ImageWatchProperties properties,
+            ImageWatchService watchService,
             GhcrClient ghcrClient,
             DockerClient dockerClient,
-            ApplicationEventPublisher eventPublisher) {
-        this(properties, ghcrClient, dockerClient, eventPublisher, null, null);
+            ApplicationEventPublisher eventPublisher,
+            ImageUpdateHistoryService historyService) {
+        this(properties, watchService, ghcrClient, dockerClient, eventPublisher, historyService, null, null);
     }
 
     @Scheduled(fixedDelayString = "#{${docker.monitor.image-watch.poll-interval-seconds:300} * 1000}")
@@ -59,8 +67,9 @@ public class ImageUpdatePoller {
             return;
         }
 
-        log.debug("이미지 업데이트 폴링 시작: {}개 감시 중", properties.getWatches().size());
-        for (ImageWatchProperties.ImageWatch watch : properties.getWatches()) {
+        List<ImageWatchEntity> watches = watchService.findEnabled();
+        log.debug("이미지 업데이트 폴링 시작: {}개 감시 중", watches.size());
+        for (ImageWatchEntity watch : watches) {
             try {
                 checkWatch(watch);
             } catch (Exception e) {
@@ -69,7 +78,7 @@ public class ImageUpdatePoller {
         }
     }
 
-    void checkWatch(ImageWatchProperties.ImageWatch watch) {
+    void checkWatch(ImageWatchEntity watch) {
         String latestDigest = ghcrClient.getLatestDigest(watch.getImage(), watch.getTag());
         if (latestDigest == null) {
             log.warn("GHCR digest 조회 실패: {}:{}", watch.getImage(), watch.getTag());
@@ -79,20 +88,18 @@ public class ImageUpdatePoller {
         List<Node> nodes = nodeRegistry != null ? nodeRegistry.findAll() : List.of();
 
         if (!nodes.isEmpty()) {
-            // 멀티 노드 모드: 노드별 컨테이너 확인
             for (Node node : nodes) {
                 DockerClient client = nodeClientFactory.createClient(node);
                 List<Container> containers = client.listContainersCmd().withShowAll(false).exec();
                 checkContainers(containers, watch, latestDigest, node.getId());
             }
         } else {
-            // 로컬 단일 모드 (기존 동작)
             List<Container> containers = dockerClient.listContainersCmd().withShowAll(false).exec();
             checkContainers(containers, watch, latestDigest, null);
         }
     }
 
-    private void checkContainers(List<Container> containers, ImageWatchProperties.ImageWatch watch,
+    private void checkContainers(List<Container> containers, ImageWatchEntity watch,
                                   String latestDigest, String nodeId) {
         for (Container container : containers) {
             String name = extractName(container);
@@ -104,6 +111,17 @@ public class ImageUpdatePoller {
             if (!latestDigest.equals(currentDigest)) {
                 log.info("새 이미지 감지: {} ({} → {})", name,
                         shorten(currentDigest), shorten(latestDigest));
+
+                // DETECTED 이력 저장
+                historyService.record(ImageUpdateHistoryEntity.builder()
+                        .watchId(watch.getId())
+                        .image(watch.getImage())
+                        .tag(watch.getTag())
+                        .previousDigest(currentDigest)
+                        .newDigest(latestDigest)
+                        .status(ImageUpdateHistoryEntity.Status.DETECTED)
+                        .containerName(name)
+                        .build());
 
                 eventPublisher.publishEvent(new ImageUpdateDetectedEvent(
                         container.getId(),

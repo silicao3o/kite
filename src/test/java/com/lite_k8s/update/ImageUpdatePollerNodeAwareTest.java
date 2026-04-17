@@ -35,6 +35,8 @@ class ImageUpdatePollerNodeAwareTest {
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory nodeClientFactory;
     @Mock private ListContainersCmd remoteListCmd;
+    @Mock private ImageWatchService watchService;
+    @Mock private ImageUpdateHistoryService historyService;
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
@@ -49,22 +51,23 @@ class ImageUpdatePollerNodeAwareTest {
                 .id("node-b").name("vm-b").host("192.168.1.20").port(2375)
                 .status(NodeStatus.HEALTHY).build();
 
-        poller = new ImageUpdatePoller(properties, ghcrClient, localClient, eventPublisher,
-                nodeRegistry, nodeClientFactory);
+        poller = new ImageUpdatePoller(properties, watchService, ghcrClient, localClient,
+                eventPublisher, historyService, nodeRegistry, nodeClientFactory);
     }
 
     @Test
     @DisplayName("노드 등록 시 원격 노드의 컨테이너도 digest 비교")
     void checkWatch_WhenNodesRegistered_ShouldCheckRemoteContainers() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/foo/bar");
-        watch.setTag("latest");
-        watch.setContainerPattern("my-app");
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/foo/bar")
+                .tag("latest")
+                .containerPattern("my-app")
+                .build();
 
         when(nodeRegistry.findAll()).thenReturn(List.of(remoteNode));
         when(nodeClientFactory.createClient(remoteNode)).thenReturn(remoteClient);
         when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
 
         Container remoteContainer = mock(Container.class);
         when(remoteContainer.getId()).thenReturn("remote-c1");
@@ -75,28 +78,25 @@ class ImageUpdatePollerNodeAwareTest {
         when(remoteListCmd.withShowAll(false)).thenReturn(remoteListCmd);
         when(remoteListCmd.exec()).thenReturn(List.of(remoteContainer));
 
-        // when
         poller.checkWatch(watch);
 
-        // then: 원격 노드 컨테이너에서 새 이미지 감지 → 이벤트 발행
         ArgumentCaptor<ImageUpdateDetectedEvent> captor = ArgumentCaptor.forClass(ImageUpdateDetectedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         ImageUpdateDetectedEvent event = captor.getValue();
         assertThat(event.getNodeId()).isEqualTo("node-b");
         assertThat(event.getContainerId()).isEqualTo("remote-c1");
 
-        // 로컬 클라이언트 사용 안 함
         verify(localClient, never()).listContainersCmd();
     }
 
     @Test
     @DisplayName("노드 미등록 시 로컬 클라이언트 폴백")
     void checkWatch_WhenNoNodesRegistered_ShouldUseLocalClient() {
-        // given
-        ImageWatchProperties.ImageWatch watch = new ImageWatchProperties.ImageWatch();
-        watch.setImage("ghcr.io/foo/bar");
-        watch.setTag("latest");
-        watch.setContainerPattern("my-app");
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/foo/bar")
+                .tag("latest")
+                .containerPattern("my-app")
+                .build();
 
         when(nodeRegistry.findAll()).thenReturn(List.of());
         when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
@@ -106,10 +106,8 @@ class ImageUpdatePollerNodeAwareTest {
         when(localListCmd.withShowAll(false)).thenReturn(localListCmd);
         when(localListCmd.exec()).thenReturn(List.of());
 
-        // when
         poller.checkWatch(watch);
 
-        // then: 로컬 클라이언트 사용
         verify(localClient).listContainersCmd();
         verify(remoteClient, never()).listContainersCmd();
     }

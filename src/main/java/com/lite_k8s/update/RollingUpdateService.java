@@ -2,7 +2,6 @@ package com.lite_k8s.update;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
-import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.DockerContainerNames;
@@ -19,7 +18,7 @@ import java.util.List;
  *
  * - ImageUpdateDetectedEvent를 수신하여 업데이트 시작
  * - maxUnavailable 설정에 따라 순차/병렬 업데이트
- * - 업데이트 실패 시 실패 기록 (롤백은 ContainerRecreator가 처리)
+ * - 업데이트 결과를 이력에 저장
  */
 @Slf4j
 @Service
@@ -30,14 +29,14 @@ public class RollingUpdateService {
     private final ContainerRecreator recreator;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final ImageUpdateHistoryService historyService;
 
     @EventListener
     public void onImageUpdateDetected(ImageUpdateDetectedEvent event) {
-        ImageWatchProperties.ImageWatch watch = event.getWatch();
+        ImageWatchEntity watch = event.getWatch();
         log.info("Rolling Update 시작: {} ({}개 컨테이너)",
                 event.getImageName(), "조회 중");
 
-        // 패턴과 일치하는 모든 실행 중 컨테이너 수집
         List<Container> targets = findMatchingContainers(watch.getContainerPattern(), event.getNodeId());
 
         if (targets.isEmpty()) {
@@ -52,19 +51,14 @@ public class RollingUpdateService {
         log.info("Rolling Update 완료: 성공={}, 실패={}", success, failed);
     }
 
-    /**
-     * Rolling Update 실행
-     * maxUnavailable 만큼씩 배치로 업데이트
-     */
     List<UpdateResult> executeRollingUpdate(
             List<Container> targets,
-            ImageWatchProperties.ImageWatch watch,
+            ImageWatchEntity watch,
             String newDigest) {
 
         List<UpdateResult> results = new ArrayList<>();
         int maxUnavailable = Math.max(1, watch.getMaxUnavailable());
 
-        // maxUnavailable 단위로 배치 처리
         for (int i = 0; i < targets.size(); i += maxUnavailable) {
             int end = Math.min(i + maxUnavailable, targets.size());
             List<Container> batch = targets.subList(i, end);
@@ -79,15 +73,38 @@ public class RollingUpdateService {
 
                 if (ok) {
                     results.add(UpdateResult.success(container.getId(), name, oldDigest, newDigest));
+                    recordHistory(watch, name, oldDigest, newDigest,
+                            ImageUpdateHistoryEntity.Status.SUCCESS, null);
                 } else {
+                    String errorMsg = "재생성 실패";
                     log.error("업데이트 실패: {} → 이후 컨테이너는 유지", name);
-                    results.add(UpdateResult.failure(
-                            container.getId(), name, oldDigest, newDigest, "재생성 실패"));
+                    results.add(UpdateResult.failure(container.getId(), name, oldDigest, newDigest, errorMsg));
+                    recordHistory(watch, name, oldDigest, newDigest,
+                            ImageUpdateHistoryEntity.Status.FAILED, errorMsg);
                 }
             }
         }
 
         return results;
+    }
+
+    private void recordHistory(ImageWatchEntity watch, String containerName,
+                                String oldDigest, String newDigest,
+                                ImageUpdateHistoryEntity.Status status, String message) {
+        try {
+            historyService.record(ImageUpdateHistoryEntity.builder()
+                    .watchId(watch.getId())
+                    .image(watch.getImage())
+                    .tag(watch.getTag())
+                    .previousDigest(oldDigest)
+                    .newDigest(newDigest)
+                    .status(status)
+                    .containerName(containerName)
+                    .message(message)
+                    .build());
+        } catch (Exception e) {
+            log.error("이력 저장 실패: {}", containerName, e);
+        }
     }
 
     private List<Container> findMatchingContainers(String pattern, String nodeId) {

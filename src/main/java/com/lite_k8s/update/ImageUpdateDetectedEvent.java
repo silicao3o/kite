@@ -15,7 +15,7 @@ public class ImageUpdateDetectedEvent {
     private final String tag;
     private final String currentDigest;
     private final String newDigest;
-    private final ImageWatchProperties.ImageWatch watch;
+    private final ImageWatchEntity watch;
     private final String nodeId; // null = 로컬 단일 모드
 
     public ImageUpdateDetectedEvent(
@@ -25,7 +25,7 @@ public class ImageUpdateDetectedEvent {
             String tag,
             String currentDigest,
             String newDigest,
-            ImageWatchProperties.ImageWatch watch) {
+            ImageWatchEntity watch) {
         this(containerId, containerName, imageName, tag, currentDigest, newDigest, watch, null);
     }
 
@@ -36,7 +36,7 @@ public class ImageUpdateDetectedEvent {
             String tag,
             String currentDigest,
             String newDigest,
-            ImageWatchProperties.ImageWatch watch,
+            ImageWatchEntity watch,
             String nodeId) {
         this.containerId = containerId;
         this.containerName = containerName;
