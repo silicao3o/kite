@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,15 +29,19 @@ public class ImageWatchController {
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
+                .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
                 .build();
 
-        return ResponseEntity.status(201).body(watchService.save(entity));
+        ImageWatchEntity saved = watchService.save(entity);
+        return ResponseEntity.status(201).body(toMaskedResponse(saved));
     }
 
     @GetMapping
-    public List<ImageWatchEntity> list() {
-        return watchService.findAll();
+    public List<Map<String, Object>> list() {
+        return watchService.findAll().stream()
+                .map(this::toMaskedResponse)
+                .toList();
     }
 
     @PutMapping("/{id}")
@@ -51,7 +56,14 @@ public class ImageWatchController {
         if (body.containsKey("containerPattern")) entity.setContainerPattern(asString(body.get("containerPattern")));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
-        return ResponseEntity.ok(watchService.save(entity));
+        if (body.containsKey("ghcrToken")) {
+            String token = asString(body.get("ghcrToken"));
+            // 마스킹된 값이면 기존 토큰 유지
+            if (!isMasked(token)) {
+                entity.setGhcrToken(token);
+            }
+        }
+        return ResponseEntity.ok(toMaskedResponse(watchService.save(entity)));
     }
 
     @DeleteMapping("/{id}")
@@ -63,6 +75,29 @@ public class ImageWatchController {
     @GetMapping("/{id}/history")
     public List<ImageUpdateHistoryEntity> history(@PathVariable String id) {
         return historyService.findByWatchId(id);
+    }
+
+    private Map<String, Object> toMaskedResponse(ImageWatchEntity entity) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", entity.getId());
+        map.put("image", entity.getImage());
+        map.put("tag", entity.getTag());
+        map.put("containerPattern", entity.getContainerPattern());
+        map.put("maxUnavailable", entity.getMaxUnavailable());
+        map.put("ghcrToken", maskToken(entity.getGhcrToken()));
+        map.put("enabled", entity.isEnabled());
+        map.put("createdAt", entity.getCreatedAt());
+        return map;
+    }
+
+    static String maskToken(String token) {
+        if (token == null || token.isEmpty()) return null;
+        if (token.length() <= 4) return "****";
+        return token.substring(0, 4) + "****";
+    }
+
+    private boolean isMasked(String token) {
+        return token != null && token.endsWith("****");
     }
 
     private String asString(Object value) {

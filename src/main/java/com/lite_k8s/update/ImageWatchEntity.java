@@ -34,6 +34,9 @@ public class ImageWatchEntity {
     @Builder.Default
     private int maxUnavailable = 1;
 
+    /** GHCR 인증 토큰 (null이면 글로벌 설정 폴백) */
+    private String ghcrToken;
+
     @Builder.Default
     private boolean enabled = true;
 

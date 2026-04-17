@@ -35,13 +35,22 @@ public class GhcrClient {
     }
 
     /**
-     * 이미지의 최신 digest 조회 (SHA256 해시)
-     *
-     * @param imageRef ghcr.io/owner/image 형태의 이미지 참조
-     * @param tag      태그 (latest, v1.2.3 등)
-     * @return sha256:... 형태의 digest, 실패 시 null
+     * 이미지의 최신 digest 조회 (글로벌 PAT 사용)
      */
     public String getLatestDigest(String imageRef, String tag) {
+        return getLatestDigest(imageRef, tag, null);
+    }
+
+    /**
+     * 이미지의 최신 digest 조회 (SHA256 해시)
+     *
+     * @param imageRef      ghcr.io/owner/image 형태의 이미지 참조
+     * @param tag           태그 (latest, v1.2.3 등)
+     * @param overrideToken 와치별 토큰 (null이면 글로벌 PAT 폴백)
+     * @return sha256:... 형태의 digest, 실패 시 null
+     */
+    public String getLatestDigest(String imageRef, String tag, String overrideToken) {
+        String effectiveToken = resolveToken(overrideToken);
         String url = buildUrl(imageRef, tag);
         try {
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
@@ -50,8 +59,8 @@ public class GhcrClient {
                     .timeout(Duration.ofSeconds(15))
                     .GET();
 
-            if (!isAnonymous()) {
-                String bearerToken = exchangeToken(imageRef);
+            if (!isAnonymous(overrideToken)) {
+                String bearerToken = exchangeToken(imageRef, effectiveToken);
                 if (bearerToken != null) {
                     requestBuilder.header("Authorization", "Bearer " + bearerToken);
                 }
@@ -81,18 +90,23 @@ public class GhcrClient {
     }
 
     /**
+     * GHCR 토큰 교환 (글로벌 PAT 사용)
+     */
+    String exchangeToken(String imageRef) {
+        return exchangeToken(imageRef, pat);
+    }
+
+    /**
      * GHCR 토큰 교환: Basic(username:PAT) → Bearer token
      * imageRef에서 owner를 추출하여 scope를 구성
      */
-    String exchangeToken(String imageRef) {
+    String exchangeToken(String imageRef, String effectiveToken) {
         String repoPath = imageRef.replaceFirst("^ghcr\\.io/", "");
-        // owner/image에서 owner 추출
         String owner = repoPath.contains("/") ? repoPath.split("/")[0] : repoPath;
         String scope = "repository:" + repoPath + ":pull";
         String tokenUrl = "https://ghcr.io/token?service=ghcr.io&scope=" + scope;
 
-        // username은 imageRef의 owner로 사용
-        String basic = Base64.getEncoder().encodeToString((owner + ":" + pat).getBytes());
+        String basic = Base64.getEncoder().encodeToString((owner + ":" + effectiveToken).getBytes());
 
         try {
             HttpResponse<String> resp = httpClient.send(
@@ -136,5 +150,18 @@ public class GhcrClient {
 
     boolean isAnonymous() {
         return pat == null || pat.isEmpty();
+    }
+
+    /**
+     * 오버라이드 토큰 고려한 anonymous 판별
+     * @param overrideToken null이면 글로벌 PAT 사용
+     */
+    boolean isAnonymous(String overrideToken) {
+        String effective = resolveToken(overrideToken);
+        return effective == null || effective.isEmpty();
+    }
+
+    private String resolveToken(String overrideToken) {
+        return (overrideToken != null && !overrideToken.isEmpty()) ? overrideToken : pat;
     }
 }

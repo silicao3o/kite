@@ -79,7 +79,7 @@ public class ImageUpdatePoller {
     }
 
     void checkWatch(ImageWatchEntity watch) {
-        String latestDigest = ghcrClient.getLatestDigest(watch.getImage(), watch.getTag());
+        String latestDigest = ghcrClient.getLatestDigest(watch.getImage(), watch.getTag(), watch.getGhcrToken());
         if (latestDigest == null) {
             log.warn("GHCR digest 조회 실패: {}:{}", watch.getImage(), watch.getTag());
             return;

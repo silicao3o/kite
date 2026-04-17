@@ -58,4 +58,17 @@ class ImageWatchEntityTest {
         ImageWatchEntity entity = new ImageWatchEntity();
         assertThat(entity.getTag()).isEqualTo("latest");
     }
+
+    @Test
+    @DisplayName("ImageWatchEntity에 ghcrToken 필드가 있다 (기본 null)")
+    void hasGhcrTokenField() {
+        ImageWatchEntity entity = new ImageWatchEntity();
+        assertThat(entity.getGhcrToken()).isNull();
+
+        ImageWatchEntity withToken = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .ghcrToken("ghp_abc123")
+                .build();
+        assertThat(withToken.getGhcrToken()).isEqualTo("ghp_abc123");
+    }
 }

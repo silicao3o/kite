@@ -59,7 +59,7 @@ class ImageUpdatePollerTest {
                 .containerPattern("myapp-.*")
                 .build();
         when(watchService.findEnabled()).thenReturn(List.of(watch));
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn(null);
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
 
         poller.pollAll();
 
@@ -84,7 +84,7 @@ class ImageUpdatePollerTest {
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
 
-        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest"))
+        when(ghcrClient.getLatestDigest(eq("ghcr.io/myorg/myapp"), eq("latest"), any()))
                 .thenReturn("sha256:newdigest");
         when(historyService.record(any())).thenReturn(null);
 
@@ -118,7 +118,7 @@ class ImageUpdatePollerTest {
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
         when(historyService.record(any())).thenReturn(null);
 
         poller.checkWatch(watch);
@@ -151,7 +151,7 @@ class ImageUpdatePollerTest {
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
-        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest"))
+        when(ghcrClient.getLatestDigest(eq("ghcr.io/myorg/myapp"), eq("latest"), any()))
                 .thenReturn("sha256:samedigest");
 
         poller.checkWatch(watch);
@@ -174,7 +174,7 @@ class ImageUpdatePollerTest {
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(container));
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
 
         poller.checkWatch(watch);
 
@@ -190,10 +190,45 @@ class ImageUpdatePollerTest {
                 .containerPattern("myapp-.*")
                 .build();
 
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn(null);
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
 
         poller.checkWatch(watch);
 
         verifyNoInteractions(eventPublisher, dockerClient);
+    }
+
+    @Test
+    @DisplayName("와치에 ghcrToken이 있으면 해당 토큰으로 digest를 조회한다")
+    void checkWatch_WithWatchToken_UsesWatchToken() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .ghcrToken("ghp_watch_specific")
+                .build();
+
+        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_watch_specific"))
+                .thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(ghcrClient).getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_watch_specific");
+    }
+
+    @Test
+    @DisplayName("와치에 ghcrToken이 없으면 null로 전달하여 글로벌 폴백한다")
+    void checkWatch_WithoutWatchToken_PassesNull() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build(); // ghcrToken = null
+
+        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest", null))
+                .thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(ghcrClient).getLatestDigest("ghcr.io/myorg/myapp", "latest", null);
     }
 }

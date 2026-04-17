@@ -66,7 +66,7 @@ class ImageUpdatePollerNodeAwareTest {
 
         when(nodeRegistry.findAll()).thenReturn(List.of(remoteNode));
         when(nodeClientFactory.createClient(remoteNode)).thenReturn(remoteClient);
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
         when(historyService.record(any())).thenReturn(null);
 
         Container remoteContainer = mock(Container.class);
@@ -99,7 +99,7 @@ class ImageUpdatePollerNodeAwareTest {
                 .build();
 
         when(nodeRegistry.findAll()).thenReturn(List.of());
-        when(ghcrClient.getLatestDigest(anyString(), anyString())).thenReturn("sha256:new");
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
 
         ListContainersCmd localListCmd = mock(ListContainersCmd.class);
         when(localClient.listContainersCmd()).thenReturn(localListCmd);

@@ -133,7 +133,8 @@
                 <li><code>tag</code>: 감시할 태그 (기본 <code>latest</code>)</li>
                 <li><code>containerPattern</code>: 업데이트 대상 컨테이너 이름 패턴 (정규식)</li>
                 <li><code>maxUnavailable</code>: 동시 업데이트 컨테이너 수 (기본 1 = 순차)</li>
-                <li>폴링 주기와 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
+                <li><code>GHCR 토큰</code>: 와치별 PAT 설정 가능 (비어있으면 글로벌 설정 폴백)</li>
+                <li>폴링 주기와 글로벌 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
             </ul>
         </div>
 
@@ -151,6 +152,10 @@
                 <div class="form-group">
                     <label>컨테이너 패턴</label>
                     <input type="text" id="containerPattern" placeholder="app-.*" />
+                </div>
+                <div class="form-group">
+                    <label>GHCR 토큰 (선택)</label>
+                    <input type="password" id="ghcrToken" placeholder="ghp_..." />
                 </div>
                 <div class="form-group">
                     <label>maxUnavailable</label>
@@ -173,6 +178,7 @@
                         <th>태그</th>
                         <th>컨테이너 패턴</th>
                         <th>maxUnavailable</th>
+                        <th>토큰</th>
                         <th>상태</th>
                         <th>생성일</th>
                         <th></th>
@@ -222,6 +228,7 @@ async function loadWatches() {
             <td><span class="badge-tag">${escapeHtml(w.tag)}</span></td>
             <td>${w.containerPattern ? '<span class="badge-pattern">' + escapeHtml(w.containerPattern) + '</span>' : '<span style="color:var(--text-muted)">-</span>'}</td>
             <td>${w.maxUnavailable}</td>
+            <td>${w.ghcrToken ? '<span class="badge-enabled" style="font-size:.72rem;">설정됨</span>' : '<span style="color:var(--text-muted);font-size:.82rem;">글로벌</span>'}</td>
             <td><span class="${w.enabled ? 'badge-enabled' : 'badge-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
             <td style="font-size:.82rem; color:var(--text-muted);">${createdAt}</td>
             <td>
@@ -236,6 +243,7 @@ async function addWatch() {
     const image = document.getElementById('image').value.trim();
     const tag = document.getElementById('tag').value.trim();
     const containerPattern = document.getElementById('containerPattern').value.trim();
+    const ghcrToken = document.getElementById('ghcrToken').value.trim();
     const maxUnavailable = parseInt(document.getElementById('maxUnavailable').value) || 1;
     const errEl = document.getElementById('addError');
 
@@ -249,6 +257,7 @@ async function addWatch() {
     const body = { image, maxUnavailable };
     if (tag) body.tag = tag;
     if (containerPattern) body.containerPattern = containerPattern;
+    if (ghcrToken) body.ghcrToken = ghcrToken;
 
     const res = await fetch('/api/image-watches', {
         method: 'POST',
@@ -260,6 +269,7 @@ async function addWatch() {
         document.getElementById('image').value = '';
         document.getElementById('tag').value = '';
         document.getElementById('containerPattern').value = '';
+        document.getElementById('ghcrToken').value = '';
         document.getElementById('maxUnavailable').value = '1';
         loadWatches();
     } else {

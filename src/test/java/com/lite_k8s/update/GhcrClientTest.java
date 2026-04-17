@@ -48,4 +48,22 @@ class GhcrClientTest {
     void isAnonymous_WhenTokenProvided_ReturnsFalse() {
         assertThat(client.isAnonymous()).isFalse();
     }
+
+    @Test
+    @DisplayName("overrideToken이 있으면 해당 토큰의 isAnonymous 판별")
+    void isAnonymousWithToken_WhenOverrideProvided() {
+        GhcrClient anonymous = new GhcrClient("");
+        // 글로벌은 anonymous지만 override 토큰이 있으면 false
+        assertThat(anonymous.isAnonymous("override-token")).isFalse();
+    }
+
+    @Test
+    @DisplayName("overrideToken이 null이면 글로벌 PAT로 폴백")
+    void isAnonymousWithToken_WhenNull_FallsBackToGlobal() {
+        // 글로벌 토큰이 있는 client
+        assertThat(client.isAnonymous(null)).isFalse();
+        // 글로벌 토큰이 없는 client
+        GhcrClient anonymous = new GhcrClient("");
+        assertThat(anonymous.isAnonymous(null)).isTrue();
+    }
 }
