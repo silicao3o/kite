@@ -4,10 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/image-watches")
@@ -28,7 +25,8 @@ public class ImageWatchController {
                 .image(image)
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
-                .nodeName(asString(body.get("nodeName")))
+                .nodeNames(asStringList(body.get("nodeNames")))
+                .pollIntervalSeconds(asInteger(body.get("pollIntervalSeconds")))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
                 .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
@@ -55,7 +53,8 @@ public class ImageWatchController {
         if (body.containsKey("image")) entity.setImage(asString(body.get("image")));
         if (body.containsKey("tag")) entity.setTag(asString(body.get("tag")));
         if (body.containsKey("containerPattern")) entity.setContainerPattern(asString(body.get("containerPattern")));
-        if (body.containsKey("nodeName")) entity.setNodeName(asString(body.get("nodeName")));
+        if (body.containsKey("nodeNames")) entity.setNodeNames(asStringList(body.get("nodeNames")));
+        if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInteger(body.get("pollIntervalSeconds")));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
@@ -85,7 +84,8 @@ public class ImageWatchController {
         map.put("image", entity.getImage());
         map.put("tag", entity.getTag());
         map.put("containerPattern", entity.getContainerPattern());
-        map.put("nodeName", entity.getNodeName());
+        map.put("nodeNames", entity.getNodeNames() != null ? entity.getNodeNames() : List.of());
+        map.put("pollIntervalSeconds", entity.getPollIntervalSeconds());
         map.put("maxUnavailable", entity.getMaxUnavailable());
         map.put("ghcrToken", maskToken(entity.getGhcrToken()));
         map.put("enabled", entity.isEnabled());
@@ -117,9 +117,24 @@ public class ImageWatchController {
         try { return Integer.parseInt(value.toString()); } catch (NumberFormatException e) { return defaultValue; }
     }
 
+    private Integer asInteger(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(value.toString()); } catch (NumberFormatException e) { return null; }
+    }
+
     private boolean asBoolean(Object value) {
         if (value == null) return false;
         if (value instanceof Boolean b) return b;
         return Boolean.parseBoolean(value.toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> asStringList(Object value) {
+        if (value == null) return new ArrayList<>();
+        if (value instanceof List<?> list) {
+            return list.stream().map(Object::toString).toList();
+        }
+        return new ArrayList<>();
     }
 }

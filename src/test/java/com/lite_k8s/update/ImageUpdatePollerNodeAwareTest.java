@@ -113,38 +113,48 @@ class ImageUpdatePollerNodeAwareTest {
     }
 
     @Test
-    @DisplayName("nodeName이 지정된 와치는 해당 노드만 체크한다")
-    void checkWatch_WithNodeName_OnlyChecksTargetNode() {
+    @DisplayName("nodeNames에 특정 노드가 지정되면 해당 노드들만 체크한다")
+    void checkWatch_WithNodeNames_OnlyChecksTargetNodes() {
         Node nodeA = Node.builder()
                 .id("node-a").name("vm-a").host("192.168.1.10").port(2375)
+                .status(NodeStatus.HEALTHY).build();
+        Node nodeC = Node.builder()
+                .id("node-c").name("vm-c").host("192.168.1.30").port(2375)
                 .status(NodeStatus.HEALTHY).build();
 
         ImageWatchEntity watch = ImageWatchEntity.builder()
                 .image("ghcr.io/foo/bar")
                 .tag("latest")
                 .containerPattern("my-app")
-                .nodeName("vm-b")  // remoteNode의 name
+                .nodeNames(List.of("vm-b", "vm-c"))  // vm-a는 제외
                 .build();
 
-        when(nodeRegistry.findAll()).thenReturn(List.of(nodeA, remoteNode));
+        when(nodeRegistry.findAll()).thenReturn(List.of(nodeA, remoteNode, nodeC));
         when(nodeClientFactory.createClient(remoteNode)).thenReturn(remoteClient);
+        DockerClient nodeCClient = mock(DockerClient.class);
+        when(nodeClientFactory.createClient(nodeC)).thenReturn(nodeCClient);
         when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
 
         when(remoteClient.listContainersCmd()).thenReturn(remoteListCmd);
         when(remoteListCmd.withShowAll(false)).thenReturn(remoteListCmd);
         when(remoteListCmd.exec()).thenReturn(List.of());
+        ListContainersCmd nodeCListCmd = mock(ListContainersCmd.class);
+        when(nodeCClient.listContainersCmd()).thenReturn(nodeCListCmd);
+        when(nodeCListCmd.withShowAll(false)).thenReturn(nodeCListCmd);
+        when(nodeCListCmd.exec()).thenReturn(List.of());
 
         poller.checkWatch(watch);
 
-        // nodeA는 체크하지 않음 (vm-a != vm-b)
+        // nodeA(vm-a)는 체크하지 않음
         verify(nodeClientFactory, never()).createClient(nodeA);
-        // remoteNode(vm-b)만 체크
+        // remoteNode(vm-b)와 nodeC(vm-c)만 체크
         verify(nodeClientFactory).createClient(remoteNode);
+        verify(nodeClientFactory).createClient(nodeC);
     }
 
     @Test
-    @DisplayName("nodeName이 null인 와치는 모든 노드를 체크한다")
-    void checkWatch_WithoutNodeName_ChecksAllNodes() {
+    @DisplayName("nodeNames가 비어있으면 모든 노드를 체크한다")
+    void checkWatch_WithEmptyNodeNames_ChecksAllNodes() {
         Node nodeA = Node.builder()
                 .id("node-a").name("vm-a").host("192.168.1.10").port(2375)
                 .status(NodeStatus.HEALTHY).build();
@@ -155,7 +165,7 @@ class ImageUpdatePollerNodeAwareTest {
                 .image("ghcr.io/foo/bar")
                 .tag("latest")
                 .containerPattern("my-app")
-                .build(); // nodeName = null
+                .build(); // nodeNames = empty list
 
         when(nodeRegistry.findAll()).thenReturn(List.of(nodeA, remoteNode));
         when(nodeClientFactory.createClient(nodeA)).thenReturn(nodeAClient);

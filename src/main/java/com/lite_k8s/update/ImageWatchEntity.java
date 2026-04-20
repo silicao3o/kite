@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -34,8 +36,15 @@ public class ImageWatchEntity {
     @Builder.Default
     private int maxUnavailable = 1;
 
-    /** 대상 노드 이름 (null이면 전체 노드) */
-    private String nodeName;
+    /** 대상 노드 이름 목록 (빈 리스트면 전체 노드) */
+    @Convert(converter = StringListConverter.class)
+    @Column(name = "node_names", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> nodeNames = new ArrayList<>();
+
+    /** 와치별 폴링 주기 (초, null이면 글로벌 기본값 사용) */
+    @Column(name = "poll_interval_seconds")
+    private Integer pollIntervalSeconds;
 
     /** GHCR 인증 토큰 (null이면 글로벌 설정 폴백) */
     private String ghcrToken;

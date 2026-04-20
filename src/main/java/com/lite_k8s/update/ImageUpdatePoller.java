@@ -11,7 +11,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * GHCR 이미지 digest 변경을 주기적으로 폴링
@@ -29,6 +32,8 @@ public class ImageUpdatePoller {
     private final ImageUpdateHistoryService historyService;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+
+    private final Map<String, Instant> lastPolledAt = new ConcurrentHashMap<>();
 
     @Autowired
     public ImageUpdatePoller(
@@ -71,11 +76,34 @@ public class ImageUpdatePoller {
         log.debug("이미지 업데이트 폴링 시작: {}개 감시 중", watches.size());
         for (ImageWatchEntity watch : watches) {
             try {
+                if (!isDueForPolling(watch)) {
+                    log.debug("폴링 주기 미도래: {} ({}초)", watch.getImage(), getEffectiveInterval(watch));
+                    continue;
+                }
                 checkWatch(watch);
+                lastPolledAt.put(watch.getId(), Instant.now());
             } catch (Exception e) {
                 log.error("이미지 감시 오류: {}", watch.getImage(), e);
             }
         }
+    }
+
+    boolean isDueForPolling(ImageWatchEntity watch) {
+        Integer watchInterval = watch.getPollIntervalSeconds();
+        if (watchInterval == null) {
+            // 글로벌 주기 사용 → 항상 폴링 (스케줄러가 글로벌 주기로 호출)
+            return true;
+        }
+        Instant last = lastPolledAt.get(watch.getId());
+        if (last == null) return true;
+        long elapsed = Instant.now().getEpochSecond() - last.getEpochSecond();
+        return elapsed >= watchInterval;
+    }
+
+    int getEffectiveInterval(ImageWatchEntity watch) {
+        return watch.getPollIntervalSeconds() != null
+                ? watch.getPollIntervalSeconds()
+                : properties.getPollIntervalSeconds();
     }
 
     void checkWatch(ImageWatchEntity watch) {
@@ -86,11 +114,11 @@ public class ImageUpdatePoller {
         }
 
         List<Node> nodes = nodeRegistry != null ? nodeRegistry.findAll() : List.of();
+        List<String> targetNodeNames = watch.getNodeNames() != null ? watch.getNodeNames() : List.of();
 
         if (!nodes.isEmpty()) {
             for (Node node : nodes) {
-                // nodeName이 지정되어 있으면 해당 노드만 체크
-                if (watch.getNodeName() != null && !watch.getNodeName().equals(node.getName())) {
+                if (!targetNodeNames.isEmpty() && !targetNodeNames.contains(node.getName())) {
                     continue;
                 }
                 DockerClient client = nodeClientFactory.createClient(node);

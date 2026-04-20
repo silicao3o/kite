@@ -3,6 +3,8 @@ package com.lite_k8s.update;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.*;
 
 class ImageWatchEntityTest {
@@ -60,16 +62,29 @@ class ImageWatchEntityTest {
     }
 
     @Test
-    @DisplayName("ImageWatchEntity에 nodeName 필드가 있다 (기본 null = 전체 노드)")
-    void hasNodeNameField() {
+    @DisplayName("ImageWatchEntity에 nodeNames 필드가 있다 (기본 빈 리스트 = 전체 노드)")
+    void hasNodeNamesField() {
         ImageWatchEntity entity = new ImageWatchEntity();
-        assertThat(entity.getNodeName()).isNull();
+        assertThat(entity.getNodeNames()).isEmpty();
 
-        ImageWatchEntity withNode = ImageWatchEntity.builder()
+        ImageWatchEntity withNodes = ImageWatchEntity.builder()
                 .image("ghcr.io/org/app")
-                .nodeName("worker-1")
+                .nodeNames(List.of("worker-1", "worker-2"))
                 .build();
-        assertThat(withNode.getNodeName()).isEqualTo("worker-1");
+        assertThat(withNodes.getNodeNames()).containsExactly("worker-1", "worker-2");
+    }
+
+    @Test
+    @DisplayName("ImageWatchEntity에 pollIntervalSeconds 필드가 있다 (기본 null)")
+    void hasPollIntervalSecondsField() {
+        ImageWatchEntity entity = new ImageWatchEntity();
+        assertThat(entity.getPollIntervalSeconds()).isNull();
+
+        ImageWatchEntity withInterval = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .pollIntervalSeconds(60)
+                .build();
+        assertThat(withInterval.getPollIntervalSeconds()).isEqualTo(60);
     }
 
     @Test

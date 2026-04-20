@@ -135,7 +135,9 @@
                 <li><code>containerPattern</code>: 업데이트 대상 컨테이너 이름 패턴 (정규식)</li>
                 <li><code>maxUnavailable</code>: 동시 업데이트 컨테이너 수 (기본 1 = 순차)</li>
                 <li><code>GHCR 토큰</code>: 와치별 PAT 설정 가능 (비어있으면 글로벌 설정 폴백)</li>
-                <li>폴링 주기와 글로벌 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
+                <li><code>nodeNames</code>: 대상 노드 목록 (쉼표 구분, 비어있으면 전체 노드)</li>
+                <li><code>pollIntervalSeconds</code>: 와치별 폴링 주기 (초, 비어있으면 글로벌 기본값)</li>
+                <li>글로벌 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
             </ul>
         </div>
 
@@ -155,8 +157,12 @@
                     <input type="text" id="containerPattern" placeholder="app-.*" />
                 </div>
                 <div class="form-group">
-                    <label>노드 이름 (선택)</label>
-                    <input type="text" id="nodeName" placeholder="전체 노드" />
+                    <label>노드 목록 (쉼표 구분)</label>
+                    <input type="text" id="nodeNames" placeholder="worker-1, worker-2" />
+                </div>
+                <div class="form-group">
+                    <label>폴링 주기 (초)</label>
+                    <input type="number" id="pollIntervalSeconds" placeholder="글로벌 기본값" min="10" />
                 </div>
                 <div class="form-group">
                     <label>GHCR 토큰 (선택)</label>
@@ -183,6 +189,7 @@
                         <th>태그</th>
                         <th>컨테이너 패턴</th>
                         <th>노드</th>
+                        <th>폴링 주기</th>
                         <th>maxUnavailable</th>
                         <th>토큰</th>
                         <th>상태</th>
@@ -229,11 +236,18 @@ async function loadWatches() {
     watches.forEach(w => {
         const tr = document.createElement('tr');
         const createdAt = w.createdAt ? new Date(w.createdAt).toLocaleString('ko-KR') : '-';
+        const nodeNames = w.nodeNames && w.nodeNames.length > 0
+            ? w.nodeNames.map(n => '<span class="badge-node">' + escapeHtml(n) + '</span>').join(' ')
+            : '<span style="color:var(--text-muted)">전체</span>';
+        const pollInterval = w.pollIntervalSeconds
+            ? w.pollIntervalSeconds + '초'
+            : '<span style="color:var(--text-muted)">글로벌</span>';
         tr.innerHTML = `
             <td><span class="badge-image">${escapeHtml(w.image)}</span></td>
             <td><span class="badge-tag">${escapeHtml(w.tag)}</span></td>
             <td>${w.containerPattern ? '<span class="badge-pattern">' + escapeHtml(w.containerPattern) + '</span>' : '<span style="color:var(--text-muted)">-</span>'}</td>
-            <td>${w.nodeName ? '<span class="badge-node">' + escapeHtml(w.nodeName) + '</span>' : '<span style="color:var(--text-muted)">전체</span>'}</td>
+            <td>${nodeNames}</td>
+            <td>${pollInterval}</td>
             <td>${w.maxUnavailable}</td>
             <td>${w.ghcrToken ? '<span class="badge-enabled" style="font-size:.72rem;">설정됨</span>' : '<span style="color:var(--text-muted);font-size:.82rem;">글로벌</span>'}</td>
             <td><span class="${w.enabled ? 'badge-enabled' : 'badge-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
@@ -261,12 +275,15 @@ async function addWatch() {
     }
     errEl.style.display = 'none';
 
-    const nodeName = document.getElementById('nodeName').value.trim();
+    const nodeNamesStr = document.getElementById('nodeNames').value.trim();
+    const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const pollIntervalStr = document.getElementById('pollIntervalSeconds').value.trim();
+    const pollIntervalSeconds = pollIntervalStr ? parseInt(pollIntervalStr) : null;
 
-    const body = { image, maxUnavailable };
+    const body = { image, maxUnavailable, nodeNames };
     if (tag) body.tag = tag;
     if (containerPattern) body.containerPattern = containerPattern;
-    if (nodeName) body.nodeName = nodeName;
+    if (pollIntervalSeconds) body.pollIntervalSeconds = pollIntervalSeconds;
     if (ghcrToken) body.ghcrToken = ghcrToken;
 
     const res = await fetch('/api/image-watches', {
@@ -279,7 +296,8 @@ async function addWatch() {
         document.getElementById('image').value = '';
         document.getElementById('tag').value = '';
         document.getElementById('containerPattern').value = '';
-        document.getElementById('nodeName').value = '';
+        document.getElementById('nodeNames').value = '';
+        document.getElementById('pollIntervalSeconds').value = '';
         document.getElementById('ghcrToken').value = '';
         document.getElementById('maxUnavailable').value = '1';
         loadWatches();

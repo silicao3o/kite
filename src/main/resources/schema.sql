@@ -150,15 +150,16 @@ INSERT INTO ai_settings (id) VALUES ('default') ON CONFLICT DO NOTHING;
 
 -- image_watches (이미지 감시 설정)
 CREATE TABLE IF NOT EXISTS image_watches (
-    id                VARCHAR(36)  PRIMARY KEY,
-    image             VARCHAR(255) NOT NULL,
-    tag               VARCHAR(50)  NOT NULL DEFAULT 'latest',
-    container_pattern VARCHAR(255),
-    node_name         VARCHAR(255),
-    max_unavailable   INTEGER      NOT NULL DEFAULT 1,
-    ghcr_token        VARCHAR(255),
-    enabled           BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at        TIMESTAMP    NOT NULL
+    id                     VARCHAR(36)  PRIMARY KEY,
+    image                  VARCHAR(255) NOT NULL,
+    tag                    VARCHAR(50)  NOT NULL DEFAULT 'latest',
+    container_pattern      VARCHAR(255),
+    node_names             TEXT         NOT NULL DEFAULT '[]',
+    poll_interval_seconds  INTEGER,
+    max_unavailable        INTEGER      NOT NULL DEFAULT 1,
+    ghcr_token             VARCHAR(255),
+    enabled                BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at             TIMESTAMP    NOT NULL
 );
 
 -- image_update_history (이미지 업데이트 이력)

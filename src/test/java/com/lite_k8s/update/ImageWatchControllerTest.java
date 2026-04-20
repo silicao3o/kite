@@ -204,4 +204,92 @@ class ImageWatchControllerTest {
 
         verify(watchService).save(argThat(e -> "ghp_brand_new_token".equals(e.getGhcrToken())));
     }
+
+    @Test
+    @DisplayName("POST에서 nodeNames 배열을 저장할 수 있다")
+    void create_WithNodeNames() throws Exception {
+        ImageWatchEntity saved = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .nodeNames(List.of("worker-1", "worker-2"))
+                .build();
+        when(watchService.save(any())).thenReturn(saved);
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/app",
+                                "nodeNames", List.of("worker-1", "worker-2")
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nodeNames.length()").value(2))
+                .andExpect(jsonPath("$.nodeNames[0]").value("worker-1"))
+                .andExpect(jsonPath("$.nodeNames[1]").value("worker-2"));
+
+        verify(watchService).save(argThat(e ->
+                e.getNodeNames().size() == 2
+                && e.getNodeNames().contains("worker-1")
+                && e.getNodeNames().contains("worker-2")
+        ));
+    }
+
+    @Test
+    @DisplayName("POST에서 pollIntervalSeconds를 저장할 수 있다")
+    void create_WithPollIntervalSeconds() throws Exception {
+        ImageWatchEntity saved = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .pollIntervalSeconds(60)
+                .build();
+        when(watchService.save(any())).thenReturn(saved);
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/app",
+                                "pollIntervalSeconds", 60
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pollIntervalSeconds").value(60));
+
+        verify(watchService).save(argThat(e -> Integer.valueOf(60).equals(e.getPollIntervalSeconds())));
+    }
+
+    @Test
+    @DisplayName("PUT에서 nodeNames와 pollIntervalSeconds를 수정할 수 있다")
+    void update_WithNodeNamesAndPollInterval() throws Exception {
+        ImageWatchEntity entity = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .build();
+        when(watchService.findById(entity.getId())).thenReturn(Optional.of(entity));
+        when(watchService.save(any())).thenReturn(entity);
+
+        mockMvc.perform(put("/api/image-watches/" + entity.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "nodeNames", List.of("node-1", "node-2"),
+                                "pollIntervalSeconds", 120
+                        ))))
+                .andExpect(status().isOk());
+
+        verify(watchService).save(argThat(e ->
+                e.getNodeNames().contains("node-1")
+                && Integer.valueOf(120).equals(e.getPollIntervalSeconds())
+        ));
+    }
+
+    @Test
+    @DisplayName("GET 응답에 nodeNames와 pollIntervalSeconds가 포함된다")
+    void list_IncludesNodeNamesAndPollInterval() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/app")
+                        .nodeNames(List.of("worker-1"))
+                        .pollIntervalSeconds(120)
+                        .build()
+        ));
+
+        mockMvc.perform(get("/api/image-watches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].nodeNames[0]").value("worker-1"))
+                .andExpect(jsonPath("$[0].pollIntervalSeconds").value(120));
+    }
 }
