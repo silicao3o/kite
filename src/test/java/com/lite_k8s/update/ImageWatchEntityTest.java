@@ -60,6 +60,19 @@ class ImageWatchEntityTest {
     }
 
     @Test
+    @DisplayName("ImageWatchEntity에 nodeName 필드가 있다 (기본 null = 전체 노드)")
+    void hasNodeNameField() {
+        ImageWatchEntity entity = new ImageWatchEntity();
+        assertThat(entity.getNodeName()).isNull();
+
+        ImageWatchEntity withNode = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .nodeName("worker-1")
+                .build();
+        assertThat(withNode.getNodeName()).isEqualTo("worker-1");
+    }
+
+    @Test
     @DisplayName("ImageWatchEntity에 ghcrToken 필드가 있다 (기본 null)")
     void hasGhcrTokenField() {
         ImageWatchEntity entity = new ImageWatchEntity();

@@ -111,4 +111,68 @@ class ImageUpdatePollerNodeAwareTest {
         verify(localClient).listContainersCmd();
         verify(remoteClient, never()).listContainersCmd();
     }
+
+    @Test
+    @DisplayName("nodeName이 지정된 와치는 해당 노드만 체크한다")
+    void checkWatch_WithNodeName_OnlyChecksTargetNode() {
+        Node nodeA = Node.builder()
+                .id("node-a").name("vm-a").host("192.168.1.10").port(2375)
+                .status(NodeStatus.HEALTHY).build();
+
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/foo/bar")
+                .tag("latest")
+                .containerPattern("my-app")
+                .nodeName("vm-b")  // remoteNode의 name
+                .build();
+
+        when(nodeRegistry.findAll()).thenReturn(List.of(nodeA, remoteNode));
+        when(nodeClientFactory.createClient(remoteNode)).thenReturn(remoteClient);
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+
+        when(remoteClient.listContainersCmd()).thenReturn(remoteListCmd);
+        when(remoteListCmd.withShowAll(false)).thenReturn(remoteListCmd);
+        when(remoteListCmd.exec()).thenReturn(List.of());
+
+        poller.checkWatch(watch);
+
+        // nodeA는 체크하지 않음 (vm-a != vm-b)
+        verify(nodeClientFactory, never()).createClient(nodeA);
+        // remoteNode(vm-b)만 체크
+        verify(nodeClientFactory).createClient(remoteNode);
+    }
+
+    @Test
+    @DisplayName("nodeName이 null인 와치는 모든 노드를 체크한다")
+    void checkWatch_WithoutNodeName_ChecksAllNodes() {
+        Node nodeA = Node.builder()
+                .id("node-a").name("vm-a").host("192.168.1.10").port(2375)
+                .status(NodeStatus.HEALTHY).build();
+        DockerClient nodeAClient = mock(DockerClient.class);
+        ListContainersCmd nodeAListCmd = mock(ListContainersCmd.class);
+
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/foo/bar")
+                .tag("latest")
+                .containerPattern("my-app")
+                .build(); // nodeName = null
+
+        when(nodeRegistry.findAll()).thenReturn(List.of(nodeA, remoteNode));
+        when(nodeClientFactory.createClient(nodeA)).thenReturn(nodeAClient);
+        when(nodeClientFactory.createClient(remoteNode)).thenReturn(remoteClient);
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+
+        when(nodeAClient.listContainersCmd()).thenReturn(nodeAListCmd);
+        when(nodeAListCmd.withShowAll(false)).thenReturn(nodeAListCmd);
+        when(nodeAListCmd.exec()).thenReturn(List.of());
+        when(remoteClient.listContainersCmd()).thenReturn(remoteListCmd);
+        when(remoteListCmd.withShowAll(false)).thenReturn(remoteListCmd);
+        when(remoteListCmd.exec()).thenReturn(List.of());
+
+        poller.checkWatch(watch);
+
+        // 둘 다 체크
+        verify(nodeClientFactory).createClient(nodeA);
+        verify(nodeClientFactory).createClient(remoteNode);
+    }
 }

@@ -28,6 +28,7 @@ public class ImageWatchController {
                 .image(image)
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
+                .nodeName(asString(body.get("nodeName")))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
                 .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
@@ -54,6 +55,7 @@ public class ImageWatchController {
         if (body.containsKey("image")) entity.setImage(asString(body.get("image")));
         if (body.containsKey("tag")) entity.setTag(asString(body.get("tag")));
         if (body.containsKey("containerPattern")) entity.setContainerPattern(asString(body.get("containerPattern")));
+        if (body.containsKey("nodeName")) entity.setNodeName(asString(body.get("nodeName")));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
@@ -83,6 +85,7 @@ public class ImageWatchController {
         map.put("image", entity.getImage());
         map.put("tag", entity.getTag());
         map.put("containerPattern", entity.getContainerPattern());
+        map.put("nodeName", entity.getNodeName());
         map.put("maxUnavailable", entity.getMaxUnavailable());
         map.put("ghcrToken", maskToken(entity.getGhcrToken()));
         map.put("enabled", entity.isEnabled());

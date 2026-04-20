@@ -89,6 +89,10 @@ public class ImageUpdatePoller {
 
         if (!nodes.isEmpty()) {
             for (Node node : nodes) {
+                // nodeName이 지정되어 있으면 해당 노드만 체크
+                if (watch.getNodeName() != null && !watch.getNodeName().equals(node.getName())) {
+                    continue;
+                }
                 DockerClient client = nodeClientFactory.createClient(node);
                 List<Container> containers = client.listContainersCmd().withShowAll(false).exec();
                 checkContainers(containers, watch, latestDigest, node.getId());
