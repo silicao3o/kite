@@ -56,7 +56,7 @@ public class ImageWatchController {
         if (body.containsKey("tag")) entity.setTag(asString(body.get("tag")));
         if (body.containsKey("containerPattern")) entity.setContainerPattern(asString(body.get("containerPattern")));
         if (body.containsKey("nodeNames")) entity.setNodeNames(asStringList(body.get("nodeNames")));
-        if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), entity.getPollIntervalSeconds()));
+        if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), entity.getPollIntervalSeconds() != null ? entity.getPollIntervalSeconds() : 300));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
