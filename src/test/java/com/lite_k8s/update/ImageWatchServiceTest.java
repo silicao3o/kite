@@ -60,15 +60,10 @@ class ImageWatchServiceTest {
     }
 
     @Test
-    @DisplayName("9. disable(id)로 와치를 비활성화할 수 있다")
-    void disableWatch() {
-        ImageWatchEntity entity = ImageWatchEntity.builder()
-                .image("ghcr.io/org/app").enabled(true).build();
-        when(repository.findById(entity.getId())).thenReturn(Optional.of(entity));
+    @DisplayName("9. delete(id)로 와치를 삭제할 수 있다")
+    void deleteWatch() {
+        service.delete("some-id");
 
-        service.disable(entity.getId());
-
-        assertThat(entity.isEnabled()).isFalse();
-        verify(repository).save(entity);
+        verify(repository).deleteById("some-id");
     }
 }

@@ -112,7 +112,7 @@ class ImageWatchControllerTest {
         mockMvc.perform(delete("/api/image-watches/some-id"))
                 .andExpect(status().isNoContent());
 
-        verify(watchService).disable("some-id");
+        verify(watchService).delete("some-id");
     }
 
     @Test
@@ -334,7 +334,7 @@ class ImageWatchControllerTest {
         mockMvc.perform(delete("/api/image-watches/some-id"))
                 .andExpect(status().isNoContent());
 
-        verify(watchService).disable("some-id");
+        verify(watchService).delete("some-id");
         verify(poller).cancelSchedule("some-id");
     }
 

@@ -72,7 +72,7 @@ public class ImageWatchController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
-        watchService.disable(id);
+        watchService.delete(id);
         poller.cancelSchedule(id);
         return ResponseEntity.noContent().build();
     }

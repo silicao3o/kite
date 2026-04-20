@@ -433,7 +433,7 @@ async function addWatch() {
 }
 
 async function deleteWatch(id) {
-    if (!confirm('이 와치를 비활성화 하시겠습니까?')) return;
+    if (!confirm('이 와치를 삭제하시겠습니까?')) return;
     await fetch(`/api/image-watches/${id}`, { method: 'DELETE' });
     loadWatches();
 }

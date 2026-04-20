@@ -29,10 +29,7 @@ public class ImageWatchService {
         return repository.findById(id);
     }
 
-    public void disable(String id) {
-        repository.findById(id).ifPresent(entity -> {
-            entity.setEnabled(false);
-            repository.save(entity);
-        });
+    public void delete(String id) {
+        repository.deleteById(id);
     }
 }
