@@ -162,6 +162,16 @@ CREATE TABLE IF NOT EXISTS image_watches (
     created_at             TIMESTAMP    NOT NULL
 );
 
+-- 기존 image_watches 테이블 마이그레이션: node_name → node_names, poll_interval_seconds 추가
+-- node_names 컬럼 추가 (기존 node_name 값 마이그레이션)
+ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS node_names TEXT DEFAULT '[]';
+ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS poll_interval_seconds INTEGER DEFAULT 300;
+-- 기존 node_name 값이 있으면 node_names로 마이그레이션
+UPDATE image_watches SET node_names = '["' || node_name || '"]' WHERE node_name IS NOT NULL AND node_names = '[]';
+UPDATE image_watches SET poll_interval_seconds = 300 WHERE poll_interval_seconds IS NULL;
+-- node_name 컬럼 제거 (PostgreSQL)
+ALTER TABLE image_watches DROP COLUMN IF EXISTS node_name;
+
 -- image_update_history (이미지 업데이트 이력)
 CREATE TABLE IF NOT EXISTS image_update_history (
     id              VARCHAR(36)  PRIMARY KEY,

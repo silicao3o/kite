@@ -43,9 +43,9 @@ public class ImageWatchEntity {
     private List<String> nodeNames = new ArrayList<>();
 
     /** 와치별 폴링 주기 (초, 기본 300) */
-    @Column(name = "poll_interval_seconds", nullable = false)
+    @Column(name = "poll_interval_seconds")
     @Builder.Default
-    private int pollIntervalSeconds = 300;
+    private Integer pollIntervalSeconds = 300;
 
     /** GHCR 인증 토큰 (null이면 글로벌 설정 폴백) */
     private String ghcrToken;

@@ -107,7 +107,7 @@ public class ImageUpdatePoller {
 
         if (!watch.isEnabled() || !properties.isEnabled()) return;
 
-        int intervalSeconds = Math.max(10, watch.getPollIntervalSeconds());
+        int intervalSeconds = Math.max(10, watch.getPollIntervalSeconds() != null ? watch.getPollIntervalSeconds() : 300);
         ScheduledFuture<?> future = taskScheduler.scheduleWithFixedDelay(
                 () -> {
                     try {
