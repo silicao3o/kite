@@ -161,49 +161,42 @@
             </div>
 
             <div class="add-form">
-                <div class="section-title">와치 추가</div>
+                <div class="section-title">폴링 와치 추가</div>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>모드 *</label>
-                        <select id="mode" style="padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9rem;width:100%;">
-                            <option value="POLLING">POLLING (자동 감시)</option>
-                            <option value="TRIGGER">TRIGGER (수동 배포)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label>이미지 *</label>
-                        <input type="text" id="image" placeholder="ghcr.io/org/app" />
+                        <input type="text" id="pollingImage" placeholder="ghcr.io/org/app" />
                     </div>
                     <div class="form-group">
                         <label>태그</label>
-                        <input type="text" id="tag" placeholder="latest" />
+                        <input type="text" id="pollingTag" placeholder="latest" />
                     </div>
                     <div class="form-group">
                         <label>컨테이너 패턴</label>
-                        <input type="text" id="containerPattern" placeholder="app-.*" />
+                        <input type="text" id="pollingContainerPattern" placeholder="app-.*" />
                     </div>
                     <div class="form-group">
                         <label>노드 목록 (쉼표 구분)</label>
-                        <input type="text" id="nodeNames" placeholder="worker-1, worker-2" />
+                        <input type="text" id="pollingNodeNames" placeholder="worker-1, worker-2" />
                     </div>
                     <div class="form-group">
                         <label>폴링 주기 (초)</label>
-                        <input type="number" id="pollIntervalSeconds" value="300" min="10" />
+                        <input type="number" id="pollingInterval" value="300" min="10" />
                     </div>
                     <div class="form-group">
                         <label>maxUnavailable</label>
-                        <input type="number" id="maxUnavailable" value="1" min="1" />
+                        <input type="number" id="pollingMaxUnavailable" value="1" min="1" />
                     </div>
                     <div class="form-group">
                         <label>GHCR 토큰 (선택)</label>
-                        <input type="password" id="ghcrToken" placeholder="ghp_..." />
+                        <input type="password" id="pollingGhcrToken" placeholder="ghp_..." />
                     </div>
                     <div class="form-group" style="justify-content:flex-end;">
                         <label>&nbsp;</label>
-                        <button class="btn-add" onclick="addWatch()">추가</button>
+                        <button class="btn-add" onclick="addPollingWatch()">추가</button>
                     </div>
                 </div>
-                <div id="addError"></div>
+                <div id="pollingAddError" style="color:#ef4444;font-size:.85rem;margin-top:.5rem;display:none;"></div>
             </div>
 
             <div id="watchList">
@@ -233,11 +226,46 @@
         <!-- Trigger Tab -->
         <div class="tab-content" id="tab-trigger">
             <div class="info-box">
-                <strong>트리거 모드</strong> — 수동으로 즉시 이미지 체크 및 업데이트 실행
+                <strong>트리거 모드</strong> — 수동으로 "지금 체크" 버튼을 눌렀을 때만 업데이트 실행
                 <ul>
-                    <li>개별 와치 또는 전체 와치를 즉시 트리거</li>
-                    <li>폴링 주기와 무관하게 언제든 실행 가능</li>
+                    <li>자동 폴링 없음 — 원하는 시점에만 배포</li>
+                    <li>프로덕션 환경에서 배포 타이밍 제어용</li>
                 </ul>
+            </div>
+
+            <div class="add-form">
+                <div class="section-title">트리거 와치 추가</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>이미지 *</label>
+                        <input type="text" id="triggerImage" placeholder="ghcr.io/org/app" />
+                    </div>
+                    <div class="form-group">
+                        <label>태그</label>
+                        <input type="text" id="triggerTag" placeholder="latest" />
+                    </div>
+                    <div class="form-group">
+                        <label>컨테이너 패턴</label>
+                        <input type="text" id="triggerContainerPattern" placeholder="app-.*" />
+                    </div>
+                    <div class="form-group">
+                        <label>노드 목록 (쉼표 구분)</label>
+                        <input type="text" id="triggerNodeNames" placeholder="worker-1, worker-2" />
+                    </div>
+                    <div class="form-group">
+                        <label>maxUnavailable</label>
+                        <input type="number" id="triggerMaxUnavailable" value="1" min="1" />
+                    </div>
+                    <div class="form-group">
+                        <label>GHCR 토큰 (선택)</label>
+                        <input type="password" id="triggerGhcrToken" placeholder="ghp_..." />
+                    </div>
+                    <div class="form-group" style="justify-content:flex-end;">
+                        <label>&nbsp;</label>
+                        <button class="btn-add" onclick="addTriggerWatch()">추가</button>
+                    </div>
+                </div>
+                <div id="triggerAddError" style="color:#ef4444;font-size:.85rem;margin-top:.5rem;display:none;"></div>
             </div>
 
             <div class="trigger-header">
@@ -408,33 +436,57 @@ async function triggerAll() {
     setTimeout(() => { s.textContent = ''; }, 3000);
 }
 
-async function addWatch() {
-    const image = document.getElementById('image').value.trim();
-    const errEl = document.getElementById('addError');
+async function addPollingWatch() {
+    const image = document.getElementById('pollingImage').value.trim();
+    const errEl = document.getElementById('pollingAddError');
     if (!image) { errEl.style.display = 'block'; errEl.textContent = '이미지는 필수입니다.'; return; }
     errEl.style.display = 'none';
 
-    const tag = document.getElementById('tag').value.trim();
-    const containerPattern = document.getElementById('containerPattern').value.trim();
-    const ghcrToken = document.getElementById('ghcrToken').value.trim();
-    const maxUnavailable = parseInt(document.getElementById('maxUnavailable').value) || 1;
-    const pollIntervalSeconds = parseInt(document.getElementById('pollIntervalSeconds').value) || 300;
-    const nodeNamesStr = document.getElementById('nodeNames').value.trim();
+    const tag = document.getElementById('pollingTag').value.trim();
+    const containerPattern = document.getElementById('pollingContainerPattern').value.trim();
+    const ghcrToken = document.getElementById('pollingGhcrToken').value.trim();
+    const maxUnavailable = parseInt(document.getElementById('pollingMaxUnavailable').value) || 1;
+    const pollIntervalSeconds = parseInt(document.getElementById('pollingInterval').value) || 300;
+    const nodeNamesStr = document.getElementById('pollingNodeNames').value.trim();
     const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
 
-    const mode = document.getElementById('mode').value;
-    const body = { image, maxUnavailable, nodeNames, pollIntervalSeconds, mode };
+    const body = { image, maxUnavailable, nodeNames, pollIntervalSeconds, mode: 'POLLING' };
     if (tag) body.tag = tag;
     if (containerPattern) body.containerPattern = containerPattern;
     if (ghcrToken) body.ghcrToken = ghcrToken;
 
     const res = await fetch('/api/image-watches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
-        ['image','tag','containerPattern','nodeNames','ghcrToken'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('mode').value = 'POLLING';
-        document.getElementById('pollIntervalSeconds').value = '300';
-        document.getElementById('maxUnavailable').value = '1';
+        ['pollingImage','pollingTag','pollingContainerPattern','pollingNodeNames','pollingGhcrToken'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('pollingInterval').value = '300';
+        document.getElementById('pollingMaxUnavailable').value = '1';
         loadWatches();
+    } else { errEl.style.display = 'block'; errEl.textContent = '추가 실패: ' + await res.text(); }
+}
+
+async function addTriggerWatch() {
+    const image = document.getElementById('triggerImage').value.trim();
+    const errEl = document.getElementById('triggerAddError');
+    if (!image) { errEl.style.display = 'block'; errEl.textContent = '이미지는 필수입니다.'; return; }
+    errEl.style.display = 'none';
+
+    const tag = document.getElementById('triggerTag').value.trim();
+    const containerPattern = document.getElementById('triggerContainerPattern').value.trim();
+    const ghcrToken = document.getElementById('triggerGhcrToken').value.trim();
+    const maxUnavailable = parseInt(document.getElementById('triggerMaxUnavailable').value) || 1;
+    const nodeNamesStr = document.getElementById('triggerNodeNames').value.trim();
+    const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+
+    const body = { image, maxUnavailable, nodeNames, mode: 'TRIGGER' };
+    if (tag) body.tag = tag;
+    if (containerPattern) body.containerPattern = containerPattern;
+    if (ghcrToken) body.ghcrToken = ghcrToken;
+
+    const res = await fetch('/api/image-watches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+        ['triggerImage','triggerTag','triggerContainerPattern','triggerNodeNames','triggerGhcrToken'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('triggerMaxUnavailable').value = '1';
+        loadWatches(); loadTriggerWatches();
     } else { errEl.style.display = 'block'; errEl.textContent = '추가 실패: ' + await res.text(); }
 }
 
