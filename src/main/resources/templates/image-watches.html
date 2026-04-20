@@ -20,6 +20,8 @@
         .btn-add { padding: .45rem 1.1rem; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
         .btn-delete { padding: .3rem .75rem; background: transparent; border: 1px solid #f87171; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: .8rem; }
         .btn-history { padding: .3rem .75rem; background: transparent; border: 1px solid var(--primary); color: var(--primary); border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .btn-edit { padding: .3rem .75rem; background: transparent; border: 1px solid #6366f1; color: #6366f1; border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .btn-edit:hover { background: #eef2ff; }
         .btn-trigger { padding: .3rem .75rem; background: transparent; border: 1px solid #f59e0b; color: #d97706; border-radius: 6px; cursor: pointer; font-size: .8rem; }
         .btn-trigger:hover { background: #fef3c7; }
         .btn-trigger-all { padding: .5rem 1.2rem; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; font-weight: 600; }
@@ -212,7 +214,6 @@
                             <th>폴링 주기</th>
                             <th>maxUnavailable</th>
                             <th>토큰</th>
-                            <th>상태</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -270,6 +271,33 @@
     </div>
 </div>
 
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-content" style="max-width:550px;">
+        <div class="modal-header">
+            <h3>와치 수정</h3>
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <input type="hidden" id="editId" />
+        <div style="display:flex;flex-direction:column;gap:.8rem;">
+            <div class="form-group"><label>이미지 *</label><input type="text" id="editImage" style="width:100%;" /></div>
+            <div class="form-group"><label>태그</label><input type="text" id="editTag" style="width:100%;" /></div>
+            <div class="form-group"><label>컨테이너 패턴</label><input type="text" id="editContainerPattern" style="width:100%;" /></div>
+            <div class="form-group"><label>노드 목록 (쉼표 구분)</label><input type="text" id="editNodeNames" style="width:100%;" /></div>
+            <div style="display:flex;gap:.75rem;">
+                <div class="form-group" style="flex:1;"><label>폴링 주기 (초)</label><input type="number" id="editPollInterval" min="10" style="width:100%;" /></div>
+                <div class="form-group" style="flex:1;"><label>maxUnavailable</label><input type="number" id="editMaxUnavailable" min="1" style="width:100%;" /></div>
+            </div>
+            <div class="form-group"><label>GHCR 토큰</label><input type="password" id="editGhcrToken" style="width:100%;" placeholder="변경하려면 입력" /></div>
+            <div id="editError" style="color:#ef4444;font-size:.85rem;display:none;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem;">
+                <button class="btn-delete" onclick="closeEditModal()">취소</button>
+                <button class="btn-add" onclick="saveEdit()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let watchesCache = [];
 
@@ -310,8 +338,8 @@ async function loadWatches() {
             <td><span class="badge-interval">${w.pollIntervalSeconds}초</span></td>
             <td>${w.maxUnavailable}</td>
             <td>${w.ghcrToken ? '<span class="badge-enabled" style="font-size:.72rem;">설정됨</span>' : '<span style="color:var(--text-muted);font-size:.82rem;">글로벌</span>'}</td>
-            <td><span class="${w.enabled ? 'badge-enabled' : 'badge-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
             <td>
+                <button class="btn-edit" onclick="openEditModal('${w.id}')">수정</button>
                 <button class="btn-history" onclick="showHistory('${w.id}', '${escapeHtml(w.image)}')">이력</button>
                 <button class="btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
             </td>`;
@@ -471,6 +499,63 @@ async function showHistory(watchId, imageName) {
 }
 
 function closeHistory() { document.getElementById('historyModal').style.display = 'none'; }
+
+function openEditModal(id) {
+    const w = watchesCache.find(w => w.id === id);
+    if (!w) return;
+    document.getElementById('editId').value = w.id;
+    document.getElementById('editImage').value = w.image || '';
+    document.getElementById('editTag').value = w.tag || '';
+    document.getElementById('editContainerPattern').value = w.containerPattern || '';
+    document.getElementById('editNodeNames').value = (w.nodeNames || []).join(', ');
+    document.getElementById('editPollInterval').value = w.pollIntervalSeconds || 300;
+    document.getElementById('editMaxUnavailable').value = w.maxUnavailable || 1;
+    document.getElementById('editGhcrToken').value = '';
+    document.getElementById('editError').style.display = 'none';
+    document.getElementById('editModal').style.display = 'block';
+}
+
+function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+async function saveEdit() {
+    const id = document.getElementById('editId').value;
+    const image = document.getElementById('editImage').value.trim();
+    const errEl = document.getElementById('editError');
+    if (!image) { errEl.textContent = '이미지는 필수입니다.'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+
+    const nodeNamesStr = document.getElementById('editNodeNames').value.trim();
+    const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+
+    const body = {
+        image,
+        tag: document.getElementById('editTag').value.trim() || 'latest',
+        containerPattern: document.getElementById('editContainerPattern').value.trim() || null,
+        nodeNames,
+        pollIntervalSeconds: parseInt(document.getElementById('editPollInterval').value) || 300,
+        maxUnavailable: parseInt(document.getElementById('editMaxUnavailable').value) || 1
+    };
+
+    const token = document.getElementById('editGhcrToken').value.trim();
+    if (token) body.ghcrToken = token;
+
+    const res = await fetch(`/api/image-watches/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+        closeEditModal();
+        loadWatches();
+    } else {
+        const msg = await res.text();
+        errEl.textContent = '수정 실패: ' + msg;
+        errEl.style.display = 'block';
+    }
+}
+
+document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
 function shortenDigest(d) { return !d ? '-' : d.length > 19 ? d.substring(0, 19) + '...' : d; }
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
