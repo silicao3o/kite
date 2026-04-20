@@ -47,8 +47,16 @@ public class ImageWatchEntity {
     @Builder.Default
     private Integer pollIntervalSeconds = 300;
 
+    /** 와치 모드: POLLING(자동 감시) / TRIGGER(수동 배포만) */
+    @Column(name = "mode")
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    private WatchMode mode = WatchMode.POLLING;
+
     /** GHCR 인증 토큰 (null이면 글로벌 설정 폴백) */
     private String ghcrToken;
+
+    public enum WatchMode { POLLING, TRIGGER }
 
     @Builder.Default
     private boolean enabled = true;

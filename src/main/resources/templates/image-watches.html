@@ -164,6 +164,13 @@
                 <div class="section-title">와치 추가</div>
                 <div class="form-grid">
                     <div class="form-group">
+                        <label>모드 *</label>
+                        <select id="mode" style="padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9rem;width:100%;">
+                            <option value="POLLING">POLLING (자동 감시)</option>
+                            <option value="TRIGGER">TRIGGER (수동 배포)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>이미지 *</label>
                         <input type="text" id="image" placeholder="ghcr.io/org/app" />
                     </div>
@@ -280,6 +287,13 @@
         </div>
         <input type="hidden" id="editId" />
         <div class="edit-form">
+            <div class="form-group">
+                <label>모드</label>
+                <select id="editMode" style="padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9rem;width:100%;">
+                    <option value="POLLING">POLLING (자동 감시)</option>
+                    <option value="TRIGGER">TRIGGER (수동 배포)</option>
+                </select>
+            </div>
             <div class="form-group"><label>이미지 *</label><input type="text" id="editImage" /></div>
             <div class="edit-row">
                 <div class="form-group"><label>태그</label><input type="text" id="editTag" /></div>
@@ -323,7 +337,10 @@ async function loadWatches() {
     emptyState.style.display = 'none';
     table.style.display = 'table';
 
-    watchesCache.forEach(w => {
+    const pollingWatches = watchesCache.filter(w => w.mode !== 'TRIGGER');
+    if (pollingWatches.length === 0) { emptyState.style.display = 'block'; table.style.display = 'none'; return; }
+
+    pollingWatches.forEach(w => {
         const tr = document.createElement('tr');
         const nodes = w.nodeNames && w.nodeNames.length > 0
             ? w.nodeNames.map(n => `<span class="badge badge-node">${escapeHtml(n)}</span>`).join(' ')
@@ -350,7 +367,7 @@ function loadTriggerWatches() {
     const tbody = document.getElementById('triggerWatchBody');
     const emptyState = document.getElementById('triggerEmptyState');
     tbody.innerHTML = '';
-    const list = watchesCache.filter(w => w.enabled);
+    const list = watchesCache.filter(w => w.mode === 'TRIGGER');
     if (list.length === 0) { emptyState.style.display = 'block'; table.style.display = 'none'; return; }
     emptyState.style.display = 'none';
     table.style.display = 'table';
@@ -405,7 +422,8 @@ async function addWatch() {
     const nodeNamesStr = document.getElementById('nodeNames').value.trim();
     const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
 
-    const body = { image, maxUnavailable, nodeNames, pollIntervalSeconds };
+    const mode = document.getElementById('mode').value;
+    const body = { image, maxUnavailable, nodeNames, pollIntervalSeconds, mode };
     if (tag) body.tag = tag;
     if (containerPattern) body.containerPattern = containerPattern;
     if (ghcrToken) body.ghcrToken = ghcrToken;
@@ -413,6 +431,7 @@ async function addWatch() {
     const res = await fetch('/api/image-watches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
         ['image','tag','containerPattern','nodeNames','ghcrToken'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('mode').value = 'POLLING';
         document.getElementById('pollIntervalSeconds').value = '300';
         document.getElementById('maxUnavailable').value = '1';
         loadWatches();
@@ -451,6 +470,7 @@ function openEditModal(id) {
     const w = watchesCache.find(w => w.id === id);
     if (!w) return;
     document.getElementById('editId').value = w.id;
+    document.getElementById('editMode').value = w.mode || 'POLLING';
     document.getElementById('editImage').value = w.image || '';
     document.getElementById('editTag').value = w.tag || '';
     document.getElementById('editContainerPattern').value = w.containerPattern || '';
@@ -472,7 +492,8 @@ async function saveEdit() {
     const nodeNamesStr = document.getElementById('editNodeNames').value.trim();
     const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
     const body = {
-        image, tag: document.getElementById('editTag').value.trim() || 'latest',
+        image, mode: document.getElementById('editMode').value,
+        tag: document.getElementById('editTag').value.trim() || 'latest',
         containerPattern: document.getElementById('editContainerPattern').value.trim() || null,
         nodeNames, pollIntervalSeconds: parseInt(document.getElementById('editPollInterval').value) || 300,
         maxUnavailable: parseInt(document.getElementById('editMaxUnavailable').value) || 1

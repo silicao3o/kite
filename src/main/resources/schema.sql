@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS image_watches (
     node_names             TEXT         NOT NULL DEFAULT '[]',
     poll_interval_seconds  INTEGER      NOT NULL DEFAULT 300,
     max_unavailable        INTEGER      NOT NULL DEFAULT 1,
+    mode                   VARCHAR(10)  NOT NULL DEFAULT 'POLLING',
     ghcr_token             VARCHAR(255),
     enabled                BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMP    NOT NULL
@@ -171,6 +172,8 @@ UPDATE image_watches SET node_names = '["' || node_name || '"]' WHERE node_name 
 UPDATE image_watches SET poll_interval_seconds = 300 WHERE poll_interval_seconds IS NULL;
 -- node_name 컬럼 제거 (PostgreSQL)
 ALTER TABLE image_watches DROP COLUMN IF EXISTS node_name;
+ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS mode VARCHAR(10) DEFAULT 'POLLING';
+UPDATE image_watches SET mode = 'POLLING' WHERE mode IS NULL;
 
 -- image_update_history (이미지 업데이트 이력)
 CREATE TABLE IF NOT EXISTS image_update_history (

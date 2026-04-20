@@ -29,6 +29,7 @@ public class ImageWatchController {
                 .nodeNames(asStringList(body.get("nodeNames")))
                 .pollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), 300))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
+                .mode(parseMode(asString(body.get("mode"))))
                 .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
                 .build();
@@ -58,6 +59,7 @@ public class ImageWatchController {
         if (body.containsKey("nodeNames")) entity.setNodeNames(asStringList(body.get("nodeNames")));
         if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), entity.getPollIntervalSeconds() != null ? entity.getPollIntervalSeconds() : 300));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
+        if (body.containsKey("mode")) entity.setMode(parseMode(asString(body.get("mode"))));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
             String token = asString(body.get("ghcrToken"));
@@ -109,6 +111,7 @@ public class ImageWatchController {
         map.put("nodeNames", entity.getNodeNames() != null ? entity.getNodeNames() : List.of());
         map.put("pollIntervalSeconds", entity.getPollIntervalSeconds());
         map.put("maxUnavailable", entity.getMaxUnavailable());
+        map.put("mode", entity.getMode() != null ? entity.getMode().name() : "POLLING");
         map.put("ghcrToken", maskToken(entity.getGhcrToken()));
         map.put("enabled", entity.isEnabled());
         map.put("createdAt", entity.getCreatedAt());
@@ -143,6 +146,12 @@ public class ImageWatchController {
         if (value == null) return false;
         if (value instanceof Boolean b) return b;
         return Boolean.parseBoolean(value.toString());
+    }
+
+    private ImageWatchEntity.WatchMode parseMode(String value) {
+        if (value == null) return ImageWatchEntity.WatchMode.POLLING;
+        try { return ImageWatchEntity.WatchMode.valueOf(value.toUpperCase()); }
+        catch (IllegalArgumentException e) { return ImageWatchEntity.WatchMode.POLLING; }
     }
 
     @SuppressWarnings("unchecked")

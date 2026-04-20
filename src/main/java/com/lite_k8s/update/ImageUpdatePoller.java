@@ -101,11 +101,12 @@ public class ImageUpdatePoller {
         }
     }
 
-    /** 특정 와치의 스케줄을 등록/재등록한다 */
+    /** 특정 와치의 스케줄을 등록/재등록한다 (POLLING 모드만) */
     public void scheduleWatch(ImageWatchEntity watch) {
         cancelSchedule(watch.getId());
 
         if (!watch.isEnabled() || !properties.isEnabled()) return;
+        if (watch.getMode() != ImageWatchEntity.WatchMode.POLLING) return;
 
         int intervalSeconds = Math.max(10, watch.getPollIntervalSeconds() != null ? watch.getPollIntervalSeconds() : 300);
         ScheduledFuture<?> future = taskScheduler.scheduleWithFixedDelay(
