@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS image_watches (
     tag                    VARCHAR(50)  NOT NULL DEFAULT 'latest',
     container_pattern      VARCHAR(255),
     node_names             TEXT         NOT NULL DEFAULT '[]',
-    poll_interval_seconds  INTEGER,
+    poll_interval_seconds  INTEGER      NOT NULL DEFAULT 300,
     max_unavailable        INTEGER      NOT NULL DEFAULT 1,
     ghcr_token             VARCHAR(255),
     enabled                BOOLEAN      NOT NULL DEFAULT TRUE,

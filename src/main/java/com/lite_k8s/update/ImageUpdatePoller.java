@@ -5,20 +5,24 @@ import com.github.dockerjava.api.model.Container;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 /**
- * GHCR 이미지 digest 변경을 주기적으로 폴링
- * DB에서 활성 와치를 조회하여 새 버전 감지 시 ImageUpdateDetectedEvent 발행
+ * GHCR 이미지 digest 변경을 와치별 독립 주기로 폴링.
+ * 각 와치마다 자체 pollIntervalSeconds에 따라 스케줄링된다.
  */
 @Slf4j
 @Component
@@ -33,7 +37,8 @@ public class ImageUpdatePoller {
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
 
-    private final Map<String, Instant> lastPolledAt = new ConcurrentHashMap<>();
+    private TaskScheduler taskScheduler;
+    private final Map<String, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     @Autowired
     public ImageUpdatePoller(
@@ -66,44 +71,87 @@ public class ImageUpdatePoller {
         this(properties, watchService, ghcrClient, dockerClient, eventPublisher, historyService, null, null);
     }
 
-    @Scheduled(fixedDelayString = "#{${docker.monitor.image-watch.poll-interval-seconds:300} * 1000}")
-    public void pollAll() {
-        if (!properties.isEnabled()) {
-            return;
-        }
+    @PostConstruct
+    void init() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(4);
+        scheduler.setThreadNamePrefix("image-poller-");
+        scheduler.initialize();
+        this.taskScheduler = scheduler;
 
+        if (properties.isEnabled()) {
+            scheduleAllWatches();
+        }
+    }
+
+    @PreDestroy
+    void destroy() {
+        cancelAllSchedules();
+        if (taskScheduler instanceof ThreadPoolTaskScheduler pool) {
+            pool.shutdown();
+        }
+    }
+
+    /** 애플리케이션 시작 시 모든 활성 와치 스케줄 등록 */
+    void scheduleAllWatches() {
         List<ImageWatchEntity> watches = watchService.findEnabled();
-        log.debug("이미지 업데이트 폴링 시작: {}개 감시 중", watches.size());
+        log.info("이미지 와치 스케줄 등록: {}개", watches.size());
+        for (ImageWatchEntity watch : watches) {
+            scheduleWatch(watch);
+        }
+    }
+
+    /** 특정 와치의 스케줄을 등록/재등록한다 */
+    public void scheduleWatch(ImageWatchEntity watch) {
+        cancelSchedule(watch.getId());
+
+        if (!watch.isEnabled() || !properties.isEnabled()) return;
+
+        int intervalSeconds = Math.max(10, watch.getPollIntervalSeconds());
+        ScheduledFuture<?> future = taskScheduler.scheduleWithFixedDelay(
+                () -> {
+                    try {
+                        checkWatch(watch.getId());
+                    } catch (Exception e) {
+                        log.error("이미지 감시 오류: {}", watch.getImage(), e);
+                    }
+                },
+                Duration.ofSeconds(intervalSeconds)
+        );
+        scheduledTasks.put(watch.getId(), future);
+        log.debug("와치 스케줄 등록: {} ({}초)", watch.getImage(), intervalSeconds);
+    }
+
+    /** 특정 와치의 스케줄을 해제한다 */
+    public void cancelSchedule(String watchId) {
+        ScheduledFuture<?> existing = scheduledTasks.remove(watchId);
+        if (existing != null) {
+            existing.cancel(false);
+        }
+    }
+
+    /** 모든 스케줄을 해제한다 */
+    void cancelAllSchedules() {
+        scheduledTasks.values().forEach(f -> f.cancel(false));
+        scheduledTasks.clear();
+    }
+
+    /** 특정 와치를 ID로 즉시 체크 (트리거용) */
+    public void checkWatch(String watchId) {
+        watchService.findById(watchId).ifPresent(this::checkWatch);
+    }
+
+    /** 모든 활성 와치를 즉시 체크 (트리거용) */
+    public void triggerAll() {
+        List<ImageWatchEntity> watches = watchService.findEnabled();
+        log.info("전체 와치 트리거: {}개", watches.size());
         for (ImageWatchEntity watch : watches) {
             try {
-                if (!isDueForPolling(watch)) {
-                    log.debug("폴링 주기 미도래: {} ({}초)", watch.getImage(), getEffectiveInterval(watch));
-                    continue;
-                }
                 checkWatch(watch);
-                lastPolledAt.put(watch.getId(), Instant.now());
             } catch (Exception e) {
                 log.error("이미지 감시 오류: {}", watch.getImage(), e);
             }
         }
-    }
-
-    boolean isDueForPolling(ImageWatchEntity watch) {
-        Integer watchInterval = watch.getPollIntervalSeconds();
-        if (watchInterval == null) {
-            // 글로벌 주기 사용 → 항상 폴링 (스케줄러가 글로벌 주기로 호출)
-            return true;
-        }
-        Instant last = lastPolledAt.get(watch.getId());
-        if (last == null) return true;
-        long elapsed = Instant.now().getEpochSecond() - last.getEpochSecond();
-        return elapsed >= watchInterval;
-    }
-
-    int getEffectiveInterval(ImageWatchEntity watch) {
-        return watch.getPollIntervalSeconds() != null
-                ? watch.getPollIntervalSeconds()
-                : properties.getPollIntervalSeconds();
     }
 
     void checkWatch(ImageWatchEntity watch) {
@@ -144,7 +192,6 @@ public class ImageUpdatePoller {
                 log.info("새 이미지 감지: {} ({} → {})", name,
                         shorten(currentDigest), shorten(latestDigest));
 
-                // DETECTED 이력 저장
                 historyService.record(ImageUpdateHistoryEntity.builder()
                         .watchId(watch.getId())
                         .image(watch.getImage())
@@ -187,5 +234,10 @@ public class ImageUpdatePoller {
     private String shorten(String digest) {
         if (digest == null) return "null";
         return digest.length() > 19 ? digest.substring(0, 19) + "..." : digest;
+    }
+
+    // 테스트용: TaskScheduler 주입
+    void setTaskScheduler(TaskScheduler taskScheduler) {
+        this.taskScheduler = taskScheduler;
     }
 }

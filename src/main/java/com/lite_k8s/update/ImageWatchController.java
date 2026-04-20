@@ -13,6 +13,7 @@ public class ImageWatchController {
 
     private final ImageWatchService watchService;
     private final ImageUpdateHistoryService historyService;
+    private final ImageUpdatePoller poller;
 
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
@@ -26,13 +27,14 @@ public class ImageWatchController {
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
                 .nodeNames(asStringList(body.get("nodeNames")))
-                .pollIntervalSeconds(asInteger(body.get("pollIntervalSeconds")))
+                .pollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), 300))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
                 .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
                 .build();
 
         ImageWatchEntity saved = watchService.save(entity);
+        poller.scheduleWatch(saved);
         return ResponseEntity.status(201).body(toMaskedResponse(saved));
     }
 
@@ -54,28 +56,48 @@ public class ImageWatchController {
         if (body.containsKey("tag")) entity.setTag(asString(body.get("tag")));
         if (body.containsKey("containerPattern")) entity.setContainerPattern(asString(body.get("containerPattern")));
         if (body.containsKey("nodeNames")) entity.setNodeNames(asStringList(body.get("nodeNames")));
-        if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInteger(body.get("pollIntervalSeconds")));
+        if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), entity.getPollIntervalSeconds()));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
             String token = asString(body.get("ghcrToken"));
-            // 마스킹된 값이면 기존 토큰 유지
             if (!isMasked(token)) {
                 entity.setGhcrToken(token);
             }
         }
-        return ResponseEntity.ok(toMaskedResponse(watchService.save(entity)));
+        ImageWatchEntity saved = watchService.save(entity);
+        poller.scheduleWatch(saved);
+        return ResponseEntity.ok(toMaskedResponse(saved));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         watchService.disable(id);
+        poller.cancelSchedule(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/history")
     public List<ImageUpdateHistoryEntity> history(@PathVariable String id) {
         return historyService.findByWatchId(id);
+    }
+
+    /** 특정 와치 즉시 트리거 */
+    @PostMapping("/{id}/trigger")
+    public ResponseEntity<?> trigger(@PathVariable String id) {
+        Optional<ImageWatchEntity> maybe = watchService.findById(id);
+        if (maybe.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        poller.checkWatch(maybe.get());
+        return ResponseEntity.ok(Map.of("status", "triggered", "watchId", id));
+    }
+
+    /** 전체 활성 와치 즉시 트리거 */
+    @PostMapping("/trigger-all")
+    public ResponseEntity<?> triggerAll() {
+        poller.triggerAll();
+        return ResponseEntity.ok(Map.of("status", "triggered"));
     }
 
     private Map<String, Object> toMaskedResponse(ImageWatchEntity entity) {
@@ -115,12 +137,6 @@ public class ImageWatchController {
         if (value == null) return defaultValue;
         if (value instanceof Number n) return n.intValue();
         try { return Integer.parseInt(value.toString()); } catch (NumberFormatException e) { return defaultValue; }
-    }
-
-    private Integer asInteger(Object value) {
-        if (value == null) return null;
-        if (value instanceof Number n) return n.intValue();
-        try { return Integer.parseInt(value.toString()); } catch (NumberFormatException e) { return null; }
     }
 
     private boolean asBoolean(Object value) {

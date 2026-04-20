@@ -39,34 +39,6 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("비활성화 시 폴링 스킵")
-    void pollAll_WhenDisabled_DoesNothing() {
-        properties.setEnabled(false);
-
-        poller.pollAll();
-
-        verifyNoInteractions(ghcrClient, dockerClient);
-    }
-
-    @Test
-    @DisplayName("15. ImageUpdatePoller가 DB에서 와치 목록을 가져온다")
-    void pollAll_UsesWatchServiceInsteadOfProperties() {
-        properties.setEnabled(true);
-
-        ImageWatchEntity watch = ImageWatchEntity.builder()
-                .image("ghcr.io/myorg/myapp")
-                .tag("latest")
-                .containerPattern("myapp-.*")
-                .build();
-        when(watchService.findEnabled()).thenReturn(List.of(watch));
-        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
-
-        poller.pollAll();
-
-        verify(watchService).findEnabled();
-    }
-
-    @Test
     @DisplayName("digest 변경 감지 시 이벤트 발행")
     void checkWatch_WhenDigestChanged_PublishesUpdateEvent() {
         ImageWatchEntity watch = ImageWatchEntity.builder()
@@ -102,7 +74,7 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("16. 새 digest 감지 시 DETECTED 이력을 저장한다")
+    @DisplayName("새 digest 감지 시 DETECTED 이력을 저장한다")
     void checkWatch_WhenDigestChanged_RecordsDetectedHistory() {
         ImageWatchEntity watch = ImageWatchEntity.builder()
                 .image("ghcr.io/myorg/myapp")
@@ -222,7 +194,7 @@ class ImageUpdatePollerTest {
                 .image("ghcr.io/myorg/myapp")
                 .tag("latest")
                 .containerPattern("myapp-.*")
-                .build(); // ghcrToken = null
+                .build();
 
         when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest", null))
                 .thenReturn(null);
@@ -230,5 +202,35 @@ class ImageUpdatePollerTest {
         poller.checkWatch(watch);
 
         verify(ghcrClient).getLatestDigest("ghcr.io/myorg/myapp", "latest", null);
+    }
+
+    @Test
+    @DisplayName("triggerAll은 모든 활성 와치를 체크한다")
+    void triggerAll_ChecksAllEnabledWatches() {
+        properties.setEnabled(true);
+
+        ImageWatchEntity watch1 = ImageWatchEntity.builder().image("ghcr.io/org/app1").build();
+        ImageWatchEntity watch2 = ImageWatchEntity.builder().image("ghcr.io/org/app2").build();
+        when(watchService.findEnabled()).thenReturn(List.of(watch1, watch2));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
+
+        poller.triggerAll();
+
+        verify(ghcrClient).getLatestDigest("ghcr.io/org/app1", "latest", null);
+        verify(ghcrClient).getLatestDigest("ghcr.io/org/app2", "latest", null);
+    }
+
+    @Test
+    @DisplayName("checkWatch(id)는 ID로 와치를 찾아 체크한다")
+    void checkWatchById_FindsAndChecks() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .build();
+        when(watchService.findById(watch.getId())).thenReturn(java.util.Optional.of(watch));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
+
+        poller.checkWatch(watch.getId());
+
+        verify(ghcrClient).getLatestDigest("ghcr.io/org/app", "latest", null);
     }
 }

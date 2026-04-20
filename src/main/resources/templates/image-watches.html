@@ -16,16 +16,21 @@
         .form-group { display: flex; flex-direction: column; gap: .3rem; }
         .form-group label { font-size: .82rem; color: var(--text-muted); }
         .form-group input { padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: .9rem; width: 220px; }
-        .form-group input[type="number"] { width: 80px; }
+        .form-group input[type="number"] { width: 100px; }
         .btn-add { padding: .45rem 1.1rem; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
         .btn-delete { padding: .3rem .75rem; background: transparent; border: 1px solid #f87171; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: .8rem; }
         .btn-history { padding: .3rem .75rem; background: transparent; border: 1px solid var(--primary); color: var(--primary); border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .btn-trigger { padding: .3rem .75rem; background: transparent; border: 1px solid #f59e0b; color: #d97706; border-radius: 6px; cursor: pointer; font-size: .8rem; }
+        .btn-trigger:hover { background: #fef3c7; }
+        .btn-trigger-all { padding: .5rem 1.2rem; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; font-weight: 600; }
+        .btn-trigger-all:hover { background: #d97706; }
         .badge-enabled { background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
         .badge-disabled { background: #f3f4f6; color: #6b7280; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
         .badge-image { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
         .badge-pattern { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
         .badge-node { background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
         .badge-tag { background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-family: monospace; }
+        .badge-interval { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: .78rem; }
         .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
         .section-title { font-weight: 600; margin-bottom: .75rem; }
         #addError { color: #ef4444; font-size: .85rem; margin-top: .5rem; display: none; }
@@ -34,6 +39,19 @@
         .info-box ul { margin: .4rem 0 0 1.2rem; padding: 0; }
         .info-box li { margin-bottom: .2rem; }
         .info-box code { background: rgba(30, 64, 175, 0.1); padding: 1px 5px; border-radius: 3px; font-size: .85em; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+        .tab { padding: .6rem 1.4rem; cursor: pointer; font-size: .9rem; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Trigger tab */
+        .trigger-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .trigger-status { font-size: .85rem; color: var(--text-muted); margin-left: 1rem; }
+        .trigger-status.success { color: #065f46; }
 
         /* History modal */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 1000; }
@@ -124,81 +142,117 @@
     <main class="main-content">
         <div class="page-header">
             <h2>Image Watches</h2>
-            <p>GHCR 이미지 자동 업데이트 감시 설정 — 새 이미지 감지 시 롤링 업데이트 자동 실행</p>
+            <p>GHCR 이미지 자동 업데이트 감시 설정 — 폴링 자동 감시 또는 수동 트리거</p>
         </div>
 
-        <div class="info-box">
-            <strong>이미지 와치 원리</strong>
-            <ul>
-                <li><code>image</code>: GHCR 이미지 경로 (예: <code>ghcr.io/org/app</code>)</li>
-                <li><code>tag</code>: 감시할 태그 (기본 <code>latest</code>)</li>
-                <li><code>containerPattern</code>: 업데이트 대상 컨테이너 이름 패턴 (정규식)</li>
-                <li><code>maxUnavailable</code>: 동시 업데이트 컨테이너 수 (기본 1 = 순차)</li>
-                <li><code>GHCR 토큰</code>: 와치별 PAT 설정 가능 (비어있으면 글로벌 설정 폴백)</li>
-                <li><code>nodeNames</code>: 대상 노드 목록 (쉼표 구분, 비어있으면 전체 노드)</li>
-                <li><code>pollIntervalSeconds</code>: 와치별 폴링 주기 (초, 비어있으면 글로벌 기본값)</li>
-                <li>글로벌 GHCR 토큰은 <code>application.yml</code>에서 설정</li>
-            </ul>
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('polling')">폴링</div>
+            <div class="tab" onclick="switchTab('trigger')">트리거</div>
         </div>
 
-        <div class="add-form">
-            <div class="section-title">와치 추가</div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>이미지 *</label>
-                    <input type="text" id="image" placeholder="ghcr.io/org/app" />
-                </div>
-                <div class="form-group">
-                    <label>태그</label>
-                    <input type="text" id="tag" placeholder="latest" />
-                </div>
-                <div class="form-group">
-                    <label>컨테이너 패턴</label>
-                    <input type="text" id="containerPattern" placeholder="app-.*" />
-                </div>
-                <div class="form-group">
-                    <label>노드 목록 (쉼표 구분)</label>
-                    <input type="text" id="nodeNames" placeholder="worker-1, worker-2" />
-                </div>
-                <div class="form-group">
-                    <label>폴링 주기 (초)</label>
-                    <input type="number" id="pollIntervalSeconds" placeholder="글로벌 기본값" min="10" />
-                </div>
-                <div class="form-group">
-                    <label>GHCR 토큰 (선택)</label>
-                    <input type="password" id="ghcrToken" placeholder="ghp_..." />
-                </div>
-                <div class="form-group">
-                    <label>maxUnavailable</label>
-                    <input type="number" id="maxUnavailable" value="1" min="1" />
-                </div>
-                <button class="btn-add" onclick="addWatch()">추가</button>
+        <!-- Polling Tab -->
+        <div class="tab-content active" id="tab-polling">
+            <div class="info-box">
+                <strong>폴링 모드</strong> — 와치별 설정된 주기로 자동 감시
+                <ul>
+                    <li><code>pollIntervalSeconds</code>: 와치별 폴링 주기 (초, 기본 300초)</li>
+                    <li><code>nodeNames</code>: 대상 노드 목록 (비어있으면 전체 노드)</li>
+                    <li><code>GHCR 토큰</code>: 와치별 PAT (비어있으면 글로벌 폴백)</li>
+                </ul>
             </div>
-            <div id="addError"></div>
+
+            <div class="add-form">
+                <div class="section-title">와치 추가</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>이미지 *</label>
+                        <input type="text" id="image" placeholder="ghcr.io/org/app" />
+                    </div>
+                    <div class="form-group">
+                        <label>태그</label>
+                        <input type="text" id="tag" placeholder="latest" />
+                    </div>
+                    <div class="form-group">
+                        <label>컨테이너 패턴</label>
+                        <input type="text" id="containerPattern" placeholder="app-.*" />
+                    </div>
+                    <div class="form-group">
+                        <label>노드 목록 (쉼표 구분)</label>
+                        <input type="text" id="nodeNames" placeholder="worker-1, worker-2" />
+                    </div>
+                    <div class="form-group">
+                        <label>폴링 주기 (초)</label>
+                        <input type="number" id="pollIntervalSeconds" value="300" min="10" />
+                    </div>
+                    <div class="form-group">
+                        <label>GHCR 토큰 (선택)</label>
+                        <input type="password" id="ghcrToken" placeholder="ghp_..." />
+                    </div>
+                    <div class="form-group">
+                        <label>maxUnavailable</label>
+                        <input type="number" id="maxUnavailable" value="1" min="1" />
+                    </div>
+                    <button class="btn-add" onclick="addWatch()">추가</button>
+                </div>
+                <div id="addError"></div>
+            </div>
+
+            <div id="watchList">
+                <div class="empty-state" id="emptyState" style="display:none;">
+                    <p>등록된 이미지 와치가 없습니다.</p>
+                </div>
+                <table class="watch-table" id="watchTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>이미지</th>
+                            <th>태그</th>
+                            <th>컨테이너 패턴</th>
+                            <th>노드</th>
+                            <th>폴링 주기</th>
+                            <th>maxUnavailable</th>
+                            <th>토큰</th>
+                            <th>상태</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="watchBody"></tbody>
+                </table>
+            </div>
         </div>
 
-        <div id="watchList">
-            <div class="empty-state" id="emptyState" style="display:none;">
-                <p>등록된 이미지 와치가 없습니다.</p>
-                <p style="font-size:.85rem;">와치를 추가하면 GHCR 이미지 변경을 자동으로 감지하여 컨테이너를 업데이트합니다.</p>
+        <!-- Trigger Tab -->
+        <div class="tab-content" id="tab-trigger">
+            <div class="info-box">
+                <strong>트리거 모드</strong> — 수동으로 즉시 이미지 체크 및 업데이트 실행
+                <ul>
+                    <li>개별 와치 또는 전체 와치를 즉시 트리거</li>
+                    <li>폴링 주기와 무관하게 언제든 실행 가능</li>
+                </ul>
             </div>
-            <table class="watch-table" id="watchTable" style="display:none;">
-                <thead>
-                    <tr>
-                        <th>이미지</th>
-                        <th>태그</th>
-                        <th>컨테이너 패턴</th>
-                        <th>노드</th>
-                        <th>폴링 주기</th>
-                        <th>maxUnavailable</th>
-                        <th>토큰</th>
-                        <th>상태</th>
-                        <th>생성일</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="watchBody"></tbody>
-            </table>
+
+            <div class="trigger-header">
+                <button class="btn-trigger-all" onclick="triggerAll()">전체 트리거</button>
+                <span class="trigger-status" id="triggerStatus"></span>
+            </div>
+
+            <div id="triggerWatchList">
+                <table class="watch-table" id="triggerWatchTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>이미지</th>
+                            <th>태그</th>
+                            <th>노드</th>
+                            <th>상태</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="triggerWatchBody"></tbody>
+                </table>
+                <div class="empty-state" id="triggerEmptyState" style="display:none;">
+                    <p>등록된 이미지 와치가 없습니다.</p>
+                </div>
+            </div>
         </div>
     </main>
 </div>
@@ -217,15 +271,25 @@
 </div>
 
 <script>
+let watchesCache = [];
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.tab-content#tab-${tab}`).classList.add('active');
+    event.target.classList.add('active');
+    if (tab === 'trigger') loadTriggerWatches();
+}
+
 async function loadWatches() {
     const res = await fetch('/api/image-watches');
-    const watches = await res.json();
+    watchesCache = await res.json();
     const emptyState = document.getElementById('emptyState');
     const table = document.getElementById('watchTable');
     const tbody = document.getElementById('watchBody');
 
     tbody.innerHTML = '';
-    if (watches.length === 0) {
+    if (watchesCache.length === 0) {
         emptyState.style.display = 'block';
         table.style.display = 'none';
         return;
@@ -233,25 +297,20 @@ async function loadWatches() {
     emptyState.style.display = 'none';
     table.style.display = 'table';
 
-    watches.forEach(w => {
+    watchesCache.forEach(w => {
         const tr = document.createElement('tr');
-        const createdAt = w.createdAt ? new Date(w.createdAt).toLocaleString('ko-KR') : '-';
         const nodeNames = w.nodeNames && w.nodeNames.length > 0
             ? w.nodeNames.map(n => '<span class="badge-node">' + escapeHtml(n) + '</span>').join(' ')
             : '<span style="color:var(--text-muted)">전체</span>';
-        const pollInterval = w.pollIntervalSeconds
-            ? w.pollIntervalSeconds + '초'
-            : '<span style="color:var(--text-muted)">글로벌</span>';
         tr.innerHTML = `
             <td><span class="badge-image">${escapeHtml(w.image)}</span></td>
             <td><span class="badge-tag">${escapeHtml(w.tag)}</span></td>
             <td>${w.containerPattern ? '<span class="badge-pattern">' + escapeHtml(w.containerPattern) + '</span>' : '<span style="color:var(--text-muted)">-</span>'}</td>
             <td>${nodeNames}</td>
-            <td>${pollInterval}</td>
+            <td><span class="badge-interval">${w.pollIntervalSeconds}초</span></td>
             <td>${w.maxUnavailable}</td>
             <td>${w.ghcrToken ? '<span class="badge-enabled" style="font-size:.72rem;">설정됨</span>' : '<span style="color:var(--text-muted);font-size:.82rem;">글로벌</span>'}</td>
             <td><span class="${w.enabled ? 'badge-enabled' : 'badge-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
-            <td style="font-size:.82rem; color:var(--text-muted);">${createdAt}</td>
             <td>
                 <button class="btn-history" onclick="showHistory('${w.id}', '${escapeHtml(w.image)}')">이력</button>
                 <button class="btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
@@ -260,12 +319,80 @@ async function loadWatches() {
     });
 }
 
+function loadTriggerWatches() {
+    const table = document.getElementById('triggerWatchTable');
+    const tbody = document.getElementById('triggerWatchBody');
+    const emptyState = document.getElementById('triggerEmptyState');
+
+    tbody.innerHTML = '';
+    const enabled = watchesCache.filter(w => w.enabled);
+    if (enabled.length === 0) {
+        emptyState.style.display = 'block';
+        table.style.display = 'none';
+        return;
+    }
+    emptyState.style.display = 'none';
+    table.style.display = 'table';
+
+    enabled.forEach(w => {
+        const tr = document.createElement('tr');
+        const nodeNames = w.nodeNames && w.nodeNames.length > 0
+            ? w.nodeNames.map(n => '<span class="badge-node">' + escapeHtml(n) + '</span>').join(' ')
+            : '<span style="color:var(--text-muted)">전체</span>';
+        tr.innerHTML = `
+            <td><span class="badge-image">${escapeHtml(w.image)}</span></td>
+            <td><span class="badge-tag">${escapeHtml(w.tag)}</span></td>
+            <td>${nodeNames}</td>
+            <td><span class="badge-enabled">Active</span></td>
+            <td>
+                <button class="btn-trigger" onclick="triggerWatch('${w.id}', this)">지금 체크</button>
+                <button class="btn-history" onclick="showHistory('${w.id}', '${escapeHtml(w.image)}')">이력</button>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function triggerWatch(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '실행 중...';
+    try {
+        const res = await fetch(`/api/image-watches/${id}/trigger`, { method: 'POST' });
+        if (res.ok) {
+            btn.textContent = '완료!';
+            setTimeout(() => { btn.textContent = '지금 체크'; btn.disabled = false; }, 2000);
+        } else {
+            btn.textContent = '실패';
+            setTimeout(() => { btn.textContent = '지금 체크'; btn.disabled = false; }, 2000);
+        }
+    } catch (e) {
+        btn.textContent = '오류';
+        setTimeout(() => { btn.textContent = '지금 체크'; btn.disabled = false; }, 2000);
+    }
+}
+
+async function triggerAll() {
+    const statusEl = document.getElementById('triggerStatus');
+    statusEl.textContent = '실행 중...';
+    statusEl.className = 'trigger-status';
+    try {
+        const res = await fetch('/api/image-watches/trigger-all', { method: 'POST' });
+        if (res.ok) {
+            statusEl.textContent = '전체 트리거 완료!';
+            statusEl.className = 'trigger-status success';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        }
+    } catch (e) {
+        statusEl.textContent = '트리거 실패';
+    }
+}
+
 async function addWatch() {
     const image = document.getElementById('image').value.trim();
     const tag = document.getElementById('tag').value.trim();
     const containerPattern = document.getElementById('containerPattern').value.trim();
     const ghcrToken = document.getElementById('ghcrToken').value.trim();
     const maxUnavailable = parseInt(document.getElementById('maxUnavailable').value) || 1;
+    const pollIntervalSeconds = parseInt(document.getElementById('pollIntervalSeconds').value) || 300;
     const errEl = document.getElementById('addError');
 
     if (!image) {
@@ -277,13 +404,10 @@ async function addWatch() {
 
     const nodeNamesStr = document.getElementById('nodeNames').value.trim();
     const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
-    const pollIntervalStr = document.getElementById('pollIntervalSeconds').value.trim();
-    const pollIntervalSeconds = pollIntervalStr ? parseInt(pollIntervalStr) : null;
 
-    const body = { image, maxUnavailable, nodeNames };
+    const body = { image, maxUnavailable, nodeNames, pollIntervalSeconds };
     if (tag) body.tag = tag;
     if (containerPattern) body.containerPattern = containerPattern;
-    if (pollIntervalSeconds) body.pollIntervalSeconds = pollIntervalSeconds;
     if (ghcrToken) body.ghcrToken = ghcrToken;
 
     const res = await fetch('/api/image-watches', {
@@ -297,7 +421,7 @@ async function addWatch() {
         document.getElementById('tag').value = '';
         document.getElementById('containerPattern').value = '';
         document.getElementById('nodeNames').value = '';
-        document.getElementById('pollIntervalSeconds').value = '';
+        document.getElementById('pollIntervalSeconds').value = '300';
         document.getElementById('ghcrToken').value = '';
         document.getElementById('maxUnavailable').value = '1';
         loadWatches();
@@ -346,29 +470,13 @@ async function showHistory(watchId, imageName) {
     }).join('');
 }
 
-function closeHistory() {
-    document.getElementById('historyModal').style.display = 'none';
-}
-
-function shortenDigest(digest) {
-    if (!digest) return '-';
-    return digest.length > 19 ? digest.substring(0, 19) + '...' : digest;
-}
-
+function closeHistory() { document.getElementById('historyModal').style.display = 'none'; }
+function shortenDigest(d) { return !d ? '-' : d.length > 19 ? d.substring(0, 19) + '...' : d; }
 function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
-// Close modal on outside click
-document.getElementById('historyModal').addEventListener('click', function(e) {
-    if (e.target === this) closeHistory();
-});
-
+document.getElementById('historyModal').addEventListener('click', function(e) { if (e.target === this) closeHistory(); });
 document.addEventListener('DOMContentLoaded', loadWatches);
 </script>
 <script src="/js/sidebar-toggle.js"></script>

@@ -26,6 +26,7 @@ class ImageWatchControllerTest {
 
     @Mock private ImageWatchService watchService;
     @Mock private ImageUpdateHistoryService historyService;
+    @Mock private ImageUpdatePoller poller;
 
     @InjectMocks
     private ImageWatchController controller;
@@ -291,5 +292,68 @@ class ImageWatchControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].nodeNames[0]").value("worker-1"))
                 .andExpect(jsonPath("$[0].pollIntervalSeconds").value(120));
+    }
+
+    @Test
+    @DisplayName("POST /{id}/trigger 로 특정 와치를 즉시 트리거할 수 있다")
+    void trigger() throws Exception {
+        ImageWatchEntity entity = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .build();
+        when(watchService.findById(entity.getId())).thenReturn(Optional.of(entity));
+
+        mockMvc.perform(post("/api/image-watches/" + entity.getId() + "/trigger"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("triggered"));
+
+        verify(poller).checkWatch(entity);
+    }
+
+    @Test
+    @DisplayName("POST /{id}/trigger 존재하지 않는 와치면 404")
+    void trigger_NotFound() throws Exception {
+        when(watchService.findById("unknown")).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/image-watches/unknown/trigger"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("POST /trigger-all 로 전체 와치를 트리거할 수 있다")
+    void triggerAll() throws Exception {
+        mockMvc.perform(post("/api/image-watches/trigger-all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("triggered"));
+
+        verify(poller).triggerAll();
+    }
+
+    @Test
+    @DisplayName("DELETE 시 스케줄도 해제된다")
+    void delete_CancelsSchedule() throws Exception {
+        mockMvc.perform(delete("/api/image-watches/some-id"))
+                .andExpect(status().isNoContent());
+
+        verify(watchService).disable("some-id");
+        verify(poller).cancelSchedule("some-id");
+    }
+
+    @Test
+    @DisplayName("POST에서 pollIntervalSeconds 미지정 시 기본 300이 적용된다")
+    void create_DefaultPollInterval() throws Exception {
+        ImageWatchEntity saved = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .build();
+        when(watchService.save(any())).thenReturn(saved);
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/app"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pollIntervalSeconds").value(300));
+
+        verify(watchService).save(argThat(e -> e.getPollIntervalSeconds() == 300));
     }
 }
