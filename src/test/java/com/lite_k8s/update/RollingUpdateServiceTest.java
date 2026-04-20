@@ -51,14 +51,14 @@ class RollingUpdateServiceTest {
         Container c1 = mockContainer("c1", "/myapp-1");
         Container c2 = mockContainer("c2", "/myapp-2");
 
-        when(recreator.recreate(any(), any(), any())).thenReturn(true);
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
         when(historyService.record(any())).thenReturn(null);
 
         List<UpdateResult> results = service.executeRollingUpdate(List.of(c1, c2), watch, "sha256:new");
 
         assertThat(results).hasSize(2);
         assertThat(results).allMatch(UpdateResult::isSuccess);
-        verify(recreator, times(2)).recreate(any(), any(), any());
+        verify(recreator, times(2)).recreate(any(), any(), any(), any());
     }
 
     @Test
@@ -74,13 +74,13 @@ class RollingUpdateServiceTest {
         Container c2 = mockContainer("c2", "/myapp-2");
         Container c3 = mockContainer("c3", "/myapp-3");
 
-        when(recreator.recreate(any(), any(), any())).thenReturn(true);
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
         when(historyService.record(any())).thenReturn(null);
 
         List<UpdateResult> results = service.executeRollingUpdate(List.of(c1, c2, c3), watch, "sha256:new");
 
         assertThat(results).hasSize(3);
-        verify(recreator, times(3)).recreate(any(), any(), any());
+        verify(recreator, times(3)).recreate(any(), any(), any(), any());
     }
 
     @Test
@@ -94,7 +94,7 @@ class RollingUpdateServiceTest {
 
         Container c1 = mockContainer("c1", "/myapp-1");
 
-        when(recreator.recreate(any(), any(), any())).thenReturn(false);
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(false);
         when(historyService.record(any())).thenReturn(null);
 
         List<UpdateResult> results = service.executeRollingUpdate(List.of(c1), watch, "sha256:new");
@@ -116,8 +116,8 @@ class RollingUpdateServiceTest {
         Container c1 = mockContainer("c1", "/myapp-1");
         Container c2 = mockContainer("c2", "/myapp-2");
 
-        when(recreator.recreate(eq("c1"), any(), any())).thenReturn(true);
-        when(recreator.recreate(eq("c2"), any(), any())).thenReturn(false);
+        when(recreator.recreate(eq("c1"), any(), any(), any())).thenReturn(true);
+        when(recreator.recreate(eq("c2"), any(), any(), any())).thenReturn(false);
         when(historyService.record(any())).thenReturn(null);
 
         service.executeRollingUpdate(List.of(c1, c2), watch, "sha256:new");
@@ -162,7 +162,7 @@ class RollingUpdateServiceTest {
         when(nodeClient.listContainersCmd()).thenReturn(listCmd);
         when(listCmd.withShowAll(false)).thenReturn(listCmd);
         when(listCmd.exec()).thenReturn(List.of(target));
-        when(recreator.recreate(any(), any(), any())).thenReturn(true);
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
         when(historyService.record(any())).thenReturn(null);
 
         ImageWatchEntity watch = ImageWatchEntity.builder()
@@ -180,7 +180,8 @@ class RollingUpdateServiceTest {
 
         verify(dockerClient, never()).listContainersCmd();
         verify(nodeClient).listContainersCmd();
-        verify(recreator).recreate(eq("c1"), any(), eq("sha256:new"));
+        // nodeId를 recreator에 전달해야 원격 노드에서 컨테이너를 찾을 수 있다
+        verify(recreator).recreate(eq("c1"), any(), eq("sha256:new"), eq(nodeId));
     }
 
     @Test
@@ -192,7 +193,7 @@ class RollingUpdateServiceTest {
         when(dockerClient.listContainersCmd()).thenReturn(listCmd);
         when(listCmd.withShowAll(false)).thenReturn(listCmd);
         when(listCmd.exec()).thenReturn(List.of(target));
-        when(recreator.recreate(any(), any(), any())).thenReturn(true);
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
         when(historyService.record(any())).thenReturn(null);
 
         ImageWatchEntity watch = ImageWatchEntity.builder()

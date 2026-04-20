@@ -44,7 +44,7 @@ public class RollingUpdateService {
             return;
         }
 
-        List<UpdateResult> results = executeRollingUpdate(targets, watch, event.getNewDigest());
+        List<UpdateResult> results = executeRollingUpdate(targets, watch, event.getNewDigest(), event.getNodeId());
 
         long success = results.stream().filter(UpdateResult::isSuccess).count();
         long failed = results.size() - success;
@@ -55,6 +55,14 @@ public class RollingUpdateService {
             List<Container> targets,
             ImageWatchEntity watch,
             String newDigest) {
+        return executeRollingUpdate(targets, watch, newDigest, null);
+    }
+
+    List<UpdateResult> executeRollingUpdate(
+            List<Container> targets,
+            ImageWatchEntity watch,
+            String newDigest,
+            String nodeId) {
 
         List<UpdateResult> results = new ArrayList<>();
         int maxUnavailable = Math.max(1, watch.getMaxUnavailable());
@@ -69,7 +77,7 @@ public class RollingUpdateService {
 
                 log.info("[{}/{}] 업데이트 중: {}", i + 1, targets.size(), name);
 
-                boolean ok = recreator.recreate(container.getId(), watch.getImage(), newDigest);
+                boolean ok = recreator.recreate(container.getId(), watch.getImage(), newDigest, nodeId);
 
                 if (ok) {
                     results.add(UpdateResult.success(container.getId(), name, oldDigest, newDigest));
