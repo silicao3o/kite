@@ -52,7 +52,7 @@ class ImageUpdatePollerNodeAwareTest {
                 .status(NodeStatus.HEALTHY).build();
 
         poller = new ImageUpdatePoller(properties, watchService, ghcrClient, localClient,
-                eventPublisher, historyService, nodeRegistry, nodeClientFactory, null);
+                eventPublisher, historyService, nodeRegistry, nodeClientFactory);
     }
 
     @Test

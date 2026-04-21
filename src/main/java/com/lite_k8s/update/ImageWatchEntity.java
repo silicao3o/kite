@@ -1,5 +1,6 @@
 package com.lite_k8s.update;
 
+import com.lite_k8s.envprofile.ImageRegistry;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,7 +22,12 @@ public class ImageWatchEntity {
     @Builder.Default
     private String id = UUID.randomUUID().toString();
 
-    /** 감시할 이미지 (ghcr.io/owner/repo 형태) */
+    /** 이미지 레지스트리 참조 (FK) */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "image_registry_id")
+    private ImageRegistry imageRegistry;
+
+    /** 감시할 이미지 — imageRegistry가 있으면 거기서 가져옴 */
     @Column(nullable = false)
     private String image;
 
@@ -53,8 +59,23 @@ public class ImageWatchEntity {
     @Enumerated(EnumType.STRING)
     private WatchMode mode = WatchMode.POLLING;
 
-    /** GHCR 인증 토큰 (null이면 글로벌 설정 폴백) */
+    /** GHCR 인증 토큰 — imageRegistry가 있으면 거기서 가져옴 */
     private String ghcrToken;
+
+    /** 실제 사용할 토큰 반환: 와치 토큰 > 레지스트리 토큰 */
+    public String getEffectiveGhcrToken() {
+        if (ghcrToken != null && !ghcrToken.isBlank()) return ghcrToken;
+        if (imageRegistry != null && imageRegistry.getGhcrToken() != null && !imageRegistry.getGhcrToken().isBlank()) {
+            return imageRegistry.getGhcrToken();
+        }
+        return null;
+    }
+
+    /** 실제 사용할 이미지 경로 반환 */
+    public String getEffectiveImage() {
+        if (imageRegistry != null && imageRegistry.getImage() != null) return imageRegistry.getImage();
+        return image;
+    }
 
     public enum WatchMode { POLLING, TRIGGER }
 

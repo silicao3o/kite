@@ -174,6 +174,7 @@ UPDATE image_watches SET poll_interval_seconds = 300 WHERE poll_interval_seconds
 ALTER TABLE image_watches DROP COLUMN IF EXISTS node_name;
 ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS mode VARCHAR(10) DEFAULT 'POLLING';
 UPDATE image_watches SET mode = 'POLLING' WHERE mode IS NULL;
+ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS image_registry_id VARCHAR(36);
 
 -- image_update_history (이미지 업데이트 이력)
 CREATE TABLE IF NOT EXISTS image_update_history (

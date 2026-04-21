@@ -27,6 +27,7 @@ class ImageWatchControllerTest {
     @Mock private ImageWatchService watchService;
     @Mock private ImageUpdateHistoryService historyService;
     @Mock private ImageUpdatePoller poller;
+    @Mock private com.lite_k8s.envprofile.ImageRegistryRepository imageRegistryRepository;
 
     @InjectMocks
     private ImageWatchController controller;

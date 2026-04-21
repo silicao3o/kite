@@ -1,5 +1,7 @@
 package com.lite_k8s.update;
 
+import com.lite_k8s.envprofile.ImageRegistry;
+import com.lite_k8s.envprofile.ImageRegistryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,7 @@ public class ImageWatchController {
     private final ImageWatchService watchService;
     private final ImageUpdateHistoryService historyService;
     private final ImageUpdatePoller poller;
+    private final ImageRegistryRepository imageRegistryRepository;
 
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
@@ -23,8 +26,11 @@ public class ImageWatchController {
         }
 
         ImageWatchEntity.WatchMode mode = parseMode(asString(body.get("mode")));
+        ImageRegistry registry = imageRegistryRepository.findByImage(image).orElse(null);
+
         ImageWatchEntity entity = ImageWatchEntity.builder()
                 .image(image)
+                .imageRegistry(registry)
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
                 .nodeNames(asStringList(body.get("nodeNames")))
@@ -107,14 +113,15 @@ public class ImageWatchController {
     private Map<String, Object> toMaskedResponse(ImageWatchEntity entity) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", entity.getId());
-        map.put("image", entity.getImage());
+        map.put("image", entity.getEffectiveImage());
         map.put("tag", entity.getTag());
         map.put("containerPattern", entity.getContainerPattern());
         map.put("nodeNames", entity.getNodeNames() != null ? entity.getNodeNames() : List.of());
         map.put("pollIntervalSeconds", entity.getPollIntervalSeconds());
         map.put("maxUnavailable", entity.getMaxUnavailable());
         map.put("mode", entity.getMode() != null ? entity.getMode().name() : "POLLING");
-        map.put("ghcrToken", entity.getGhcrToken());
+        map.put("ghcrToken", entity.getEffectiveGhcrToken());
+        map.put("imageRegistryId", entity.getImageRegistry() != null ? entity.getImageRegistry().getId() : null);
         map.put("enabled", entity.isEnabled());
         map.put("createdAt", entity.getCreatedAt());
         return map;
