@@ -88,8 +88,11 @@ public class ContainerController {
                     inspect.getConfig().getLabels() != null ? inspect.getConfig().getLabels() : Map.of());
             labels.put(EnvProfileResolver.LABEL_KEY, EnvProfileResolver.buildProfileLabel(profileIds));
 
-            // 4. 기존 컨테이너 중지 + 제거
-            client.stopContainerCmd(id).exec();
+            // 4. 기존 컨테이너 중지 + 제거 (이미 정지 상태면 stop 스킵)
+            Boolean running = inspect.getState() != null && Boolean.TRUE.equals(inspect.getState().getRunning());
+            if (running) {
+                client.stopContainerCmd(id).exec();
+            }
             client.removeContainerCmd(id).exec();
 
             // 5. 새 컨테이너 생성 (동일 이미지, 새 env)
