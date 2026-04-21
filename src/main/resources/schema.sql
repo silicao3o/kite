@@ -190,3 +190,22 @@ CREATE TABLE IF NOT EXISTS image_update_history (
     message         TEXT,
     created_at      TIMESTAMP    NOT NULL
 );
+
+-- env_profiles (환경변수 프로파일)
+CREATE TABLE IF NOT EXISTS env_profiles (
+    id          VARCHAR(36)  PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL UNIQUE,
+    type        VARCHAR(20)  NOT NULL DEFAULT 'DATABASE',
+    description TEXT,
+    enabled     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP    NOT NULL
+);
+
+-- env_profile_entries (프로파일 엔트리)
+CREATE TABLE IF NOT EXISTS env_profile_entries (
+    id          VARCHAR(36)  PRIMARY KEY,
+    profile_id  VARCHAR(36)  NOT NULL,
+    entry_key   VARCHAR(255) NOT NULL,
+    entry_value TEXT,
+    secret      BOOLEAN      NOT NULL DEFAULT FALSE
+);
