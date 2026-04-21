@@ -81,27 +81,29 @@
 
         <div class="add-form">
             <div class="section-title">프로파일 생성</div>
-            <div class="preset-select">
-                <label style="font-size:.82rem;color:var(--text-muted);">프리셋</label>
-                <select id="preset" onchange="applyPreset()" style="padding:.4rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.85rem;">
-                    <option value="">직접 입력</option>
-                    <option value="postgres">PostgreSQL</option>
-                    <option value="oracle">Oracle</option>
-                    <option value="mssql">MSSQL</option>
-                </select>
-            </div>
             <div class="form-grid">
                 <div class="form-group"><label>이름 *</label><input type="text" id="profileName" placeholder="db-operia-postgres" /></div>
                 <div class="form-group"><label>설명</label><input type="text" id="profileDesc" placeholder="Operia PostgreSQL" /></div>
+                <div class="form-group">
+                    <label>프리셋</label>
+                    <select id="preset" onchange="applyPreset()" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.85rem;width:100%;">
+                        <option value="">직접 입력</option>
+                        <option value="postgres">PostgreSQL</option>
+                        <option value="oracle">Oracle</option>
+                        <option value="mssql">MSSQL</option>
+                    </select>
+                </div>
             </div>
-            <div class="entries-form">
-                <div class="section-title" style="font-size:.85rem;">엔트리</div>
-                <div id="entryRows"></div>
-                <button type="button" onclick="addEntryRow()" style="font-size:.8rem;color:var(--primary);background:none;border:none;cursor:pointer;margin-top:.3rem;">+ 엔트리 추가</button>
+            <div class="form-group" style="margin-top:.75rem;">
+                <label>.env 내용 (KEY=VALUE 형식, 줄 단위)</label>
+                <textarea id="envContent" placeholder="DB_HOST=112.187.198.214&#10;DB_PORT=5432&#10;DB_NAME=Operia&#10;DB_USERNAME=operia&#10;DB_PASSWORD=qwer1234!&#10;SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}" style="font-family:'JetBrains Mono',monospace,Consolas;font-size:.82rem;min-height:180px;resize:vertical;"></textarea>
+            </div>
+            <div style="margin-top:.5rem;font-size:.8rem;color:var(--text-secondary,#9aa0a6);">
+                PASSWORD, SECRET, TOKEN이 포함된 키는 자동으로 secret 처리됩니다.
             </div>
             <div style="margin-top:1rem;">
                 <button class="btn-add" onclick="createProfile()">프로파일 생성</button>
-                <span id="createError" style="color:#ef4444;font-size:.85rem;margin-left:.5rem;display:none;"></span>
+                <span id="createError" style="color:#fca5a5;font-size:.85rem;margin-left:.5rem;display:none;"></span>
             </div>
         </div>
 
@@ -130,72 +132,56 @@
 
 <script>
 const PRESETS = {
-    postgres: [
-        {key:'DB_HOST',value:'',secret:false},{key:'DB_PORT',value:'5432',secret:false},
-        {key:'DB_NAME',value:'',secret:false},{key:'DB_USERNAME',value:'',secret:false},
-        {key:'DB_PASSWORD',value:'',secret:true},
-        {key:'SPRING_DATASOURCE_URL',value:'jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}',secret:false},
-        {key:'SPRING_DATASOURCE_DRIVER',value:'org.postgresql.Driver',secret:false},
-        {key:'HIBERNATE_DIALECT',value:'org.hibernate.dialect.PostgreSQLDialect',secret:false}
-    ],
-    oracle: [
-        {key:'DB_HOST',value:'',secret:false},{key:'DB_PORT',value:'1521',secret:false},
-        {key:'DB_NAME',value:'',secret:false},{key:'DB_USERNAME',value:'',secret:false},
-        {key:'DB_PASSWORD',value:'',secret:true},
-        {key:'SPRING_DATASOURCE_URL',value:'jdbc:oracle:thin:@${DB_HOST}:${DB_PORT}:${DB_NAME}',secret:false},
-        {key:'SPRING_DATASOURCE_DRIVER',value:'oracle.jdbc.OracleDriver',secret:false},
-        {key:'HIBERNATE_DIALECT',value:'org.hibernate.dialect.OracleDialect',secret:false}
-    ],
-    mssql: [
-        {key:'DB_HOST',value:'',secret:false},{key:'DB_PORT',value:'1433',secret:false},
-        {key:'DB_NAME',value:'',secret:false},{key:'DB_USERNAME',value:'',secret:false},
-        {key:'DB_PASSWORD',value:'',secret:true},
-        {key:'SPRING_DATASOURCE_URL',value:'jdbc:sqlserver://${DB_HOST}:${DB_PORT};databaseName=${DB_NAME}',secret:false},
-        {key:'SPRING_DATASOURCE_DRIVER',value:'com.microsoft.sqlserver.jdbc.SQLServerDriver',secret:false},
-        {key:'HIBERNATE_DIALECT',value:'org.hibernate.dialect.SQLServerDialect',secret:false}
-    ]
+    postgres: `DB_HOST=\nDB_PORT=5432\nDB_NAME=\nDB_USERNAME=\nDB_PASSWORD=\nSPRING_DATASOURCE_URL=jdbc:postgresql://\${DB_HOST}:\${DB_PORT}/\${DB_NAME}\nSPRING_DATASOURCE_DRIVER=org.postgresql.Driver\nHIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect`,
+    oracle: `DB_HOST=\nDB_PORT=1521\nDB_NAME=\nDB_USERNAME=\nDB_PASSWORD=\nSPRING_DATASOURCE_URL=jdbc:oracle:thin:@\${DB_HOST}:\${DB_PORT}:\${DB_NAME}\nSPRING_DATASOURCE_DRIVER=oracle.jdbc.OracleDriver\nHIBERNATE_DIALECT=org.hibernate.dialect.OracleDialect`,
+    mssql: `DB_HOST=\nDB_PORT=1433\nDB_NAME=\nDB_USERNAME=\nDB_PASSWORD=\nSPRING_DATASOURCE_URL=jdbc:sqlserver://\${DB_HOST}:\${DB_PORT};databaseName=\${DB_NAME}\nSPRING_DATASOURCE_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver\nHIBERNATE_DIALECT=org.hibernate.dialect.SQLServerDialect`
 };
+
+const SECRET_KEYWORDS = ['PASSWORD', 'SECRET', 'TOKEN', 'KEY', 'CREDENTIAL'];
 
 function applyPreset() {
     const preset = document.getElementById('preset').value;
-    document.getElementById('entryRows').innerHTML = '';
-    if (!preset) { addEntryRow(); return; }
-    PRESETS[preset].forEach(e => addEntryRow(e.key, e.value, e.secret));
+    document.getElementById('envContent').value = preset ? PRESETS[preset] : '';
 }
 
-function addEntryRow(key='', value='', secret=false) {
-    const div = document.createElement('div');
-    div.className = 'entry-row';
-    div.innerHTML = `
-        <div class="form-group"><label>Key</label><input type="text" class="ek" value="${escapeAttr(key)}" placeholder="DB_HOST"/></div>
-        <div class="form-group"><label>Value</label><input type="${secret?'password':'text'}" class="ev" value="${escapeAttr(value)}" placeholder="값"/></div>
-        <div class="form-group"><label>Secret</label><input type="checkbox" class="es" ${secret?'checked':''} style="width:auto;"/></div>
-        <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem;">&times;</button>`;
-    document.getElementById('entryRows').appendChild(div);
+function isSecretKey(key) {
+    const upper = key.toUpperCase();
+    return SECRET_KEYWORDS.some(kw => upper.includes(kw));
+}
+
+function parseEnvContent(text) {
+    return text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'))
+        .map(line => {
+            const idx = line.indexOf('=');
+            if (idx <= 0) return null;
+            const key = line.substring(0, idx).trim();
+            const value = line.substring(idx + 1);
+            return { key, value, secret: isSecretKey(key) };
+        })
+        .filter(e => e !== null);
 }
 
 async function createProfile() {
     const name = document.getElementById('profileName').value.trim();
     const errEl = document.getElementById('createError');
     if (!name) { errEl.textContent = '이름은 필수입니다.'; errEl.style.display = 'inline'; return; }
+
+    const envText = document.getElementById('envContent').value.trim();
+    if (!envText) { errEl.textContent = '.env 내용을 입력하세요.'; errEl.style.display = 'inline'; return; }
     errEl.style.display = 'none';
 
-    const entries = [];
-    document.querySelectorAll('.entry-row').forEach(row => {
-        const key = row.querySelector('.ek').value.trim();
-        const value = row.querySelector('.ev').value;
-        const secret = row.querySelector('.es').checked;
-        if (key) entries.push({key, value, secret});
-    });
+    const entries = parseEnvContent(envText);
+    if (entries.length === 0) { errEl.textContent = '유효한 KEY=VALUE 항목이 없습니다.'; errEl.style.display = 'inline'; return; }
 
     const body = { name, type:'DATABASE', description: document.getElementById('profileDesc').value.trim(), entries };
     const res = await fetch('/api/env-profiles', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     if (res.ok) {
         document.getElementById('profileName').value = '';
         document.getElementById('profileDesc').value = '';
-        document.getElementById('entryRows').innerHTML = '';
+        document.getElementById('envContent').value = '';
         document.getElementById('preset').value = '';
-        addEntryRow();
         loadProfiles();
     } else { errEl.textContent = '생성 실패: ' + await res.text(); errEl.style.display = 'inline'; }
 }
