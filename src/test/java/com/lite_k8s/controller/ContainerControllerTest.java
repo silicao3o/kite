@@ -2,9 +2,11 @@ package com.lite_k8s.controller;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.RemoveContainerCmd;
+import com.lite_k8s.envprofile.EnvProfileResolver;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.service.ContainerRecreateService;
+import com.lite_k8s.service.MetricsScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,12 +25,14 @@ class ContainerControllerTest {
     @Mock private DockerClient dockerClient;
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory nodeClientFactory;
+    @Mock private MetricsScheduler metricsScheduler;
+    @Mock private EnvProfileResolver envProfileResolver;
 
     private ContainerController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new ContainerController(containerRecreateService, dockerClient, nodeRegistry, nodeClientFactory);
+        controller = new ContainerController(containerRecreateService, dockerClient, nodeRegistry, nodeClientFactory, metricsScheduler, envProfileResolver);
     }
 
     @Test
