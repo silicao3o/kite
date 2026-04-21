@@ -64,6 +64,11 @@ public class EnvProfileService {
         return entryRepository.findByProfileIdAndKey(profileId, key);
     }
 
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteEntry(String profileId, String key) {
+        entryRepository.deleteByProfileIdAndKey(profileId, key);
+    }
+
     /** 엔트리 복호화된 값 조회 (컨테이너 주입용) */
     public List<EnvProfileEntry> getDecryptedEntries(String profileId) {
         List<EnvProfileEntry> entries = entryRepository.findByProfileId(profileId);

@@ -95,6 +95,30 @@ public class EnvProfileController {
         return ResponseEntity.ok().build();
     }
 
+    /** 엔트리 추가 */
+    @PostMapping("/{id}/entries")
+    public ResponseEntity<?> addEntry(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        if (service.findById(id).isEmpty()) return ResponseEntity.notFound().build();
+        String key = asString(body.get("key"));
+        if (key == null || key.isBlank()) return ResponseEntity.badRequest().body("key는 필수입니다");
+
+        EnvProfileEntry entry = EnvProfileEntry.builder()
+                .profileId(id)
+                .key(key)
+                .value(asString(body.get("value")))
+                .secret(Boolean.TRUE.equals(body.get("secret")))
+                .build();
+        service.saveEntry(entry);
+        return ResponseEntity.status(201).build();
+    }
+
+    /** 엔트리 삭제 */
+    @DeleteMapping("/{id}/entries/{key}")
+    public ResponseEntity<Void> deleteEntry(@PathVariable String id, @PathVariable String key) {
+        service.deleteEntry(id, key);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         service.softDelete(id);

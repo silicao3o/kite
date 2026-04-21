@@ -243,32 +243,96 @@ async function loadProfiles() {
             <td><span class="text-muted">${escapeHtml(p.description||'-')}</span></td>
             <td class="text-muted">${created}</td>
             <td><div class="btn-group">
-                <button class="btn-sm btn-view" onclick="showDetail('${p.id}','${escapeHtml(p.name)}')">상세</button>
+                <button class="btn-sm btn-edit" onclick="showDetail('${p.id}','${escapeHtml(p.name)}')">수정</button>
                 <button class="btn-sm btn-delete" onclick="deleteProfile('${p.id}')">삭제</button>
             </div></td>`;
         tbody.appendChild(tr);
     });
 }
 
+let currentDetailId = null;
+
 async function showDetail(id, name) {
-    document.getElementById('detailTitle').textContent = name;
+    currentDetailId = id;
+    document.getElementById('detailTitle').textContent = name + ' — 수정';
     document.getElementById('detailModal').style.display = 'block';
+    await loadDetailEntries(id);
+}
+
+async function loadDetailEntries(id) {
     const res = await fetch(`/api/env-profiles/${id}`);
     const data = await res.json();
     const entries = data.entries || [];
+    const container = document.getElementById('detailEntries');
+
+    let html = '<div class="entry-list">';
     if (entries.length === 0) {
-        document.getElementById('detailEntries').innerHTML = '<div class="empty-state">엔트리가 없습니다.</div>';
-        return;
+        html += '<div class="empty-state" style="padding:1rem;">엔트리가 없습니다.</div>';
+    } else {
+        entries.forEach(e => {
+            html += `<div class="entry-item" data-key="${escapeAttr(e.key)}">
+                <span class="entry-key">${escapeHtml(e.key)}</span>
+                <span class="entry-value">${e.secret ? '***' : escapeHtml(e.value||'')}</span>
+                <div class="btn-group">
+                    <button class="btn-sm btn-edit" onclick="editEntry('${escapeAttr(e.key)}',${e.secret})">수정</button>
+                    <button class="btn-sm btn-delete" onclick="deleteEntry('${escapeAttr(e.key)}')">삭제</button>
+                </div>
+            </div>`;
+        });
     }
-    document.getElementById('detailEntries').innerHTML = '<div class="entry-list">' +
-        entries.map(e => `<div class="entry-item">
-            <span class="entry-key">${escapeHtml(e.key)}</span>
-            <span class="entry-value">${e.secret ? '***' : escapeHtml(e.value||'')}</span>
-            <span class="badge ${e.secret ? 'badge-secret' : 'badge-plain'}">${e.secret ? 'secret' : 'plain'}</span>
-        </div>`).join('') + '</div>';
+    html += '</div>';
+    html += `<div style="margin-top:1rem;border-top:1px solid var(--border-color,#2d3f56);padding-top:1rem;">
+        <div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem;">엔트리 추가</div>
+        <div class="entry-row">
+            <div class="form-group"><label>Key</label><input type="text" id="newEntryKey" placeholder="DB_HOST"/></div>
+            <div class="form-group"><label>Value</label><input type="text" id="newEntryValue" placeholder="값"/></div>
+            <div class="form-group"><label>Secret</label><input type="checkbox" id="newEntrySecret" style="width:auto;"/></div>
+            <button class="btn-add" onclick="addNewEntry()" style="padding:.35rem .8rem;font-size:.8rem;">추가</button>
+        </div>
+        <span id="entryError" style="color:#ef4444;font-size:.82rem;display:none;"></span>
+    </div>`;
+    container.innerHTML = html;
 }
 
-function closeDetail() { document.getElementById('detailModal').style.display = 'none'; }
+async function editEntry(key, isSecret) {
+    const newValue = prompt(`'${key}' 새 값을 입력하세요${isSecret ? ' (secret)' : ''}:`);
+    if (newValue === null) return;
+    await fetch(`/api/env-profiles/${currentDetailId}/entries/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ value: newValue })
+    });
+    await loadDetailEntries(currentDetailId);
+}
+
+async function deleteEntry(key) {
+    if (!confirm(`'${key}' 엔트리를 삭제하시겠습니까?`)) return;
+    await fetch(`/api/env-profiles/${currentDetailId}/entries/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    await loadDetailEntries(currentDetailId);
+}
+
+async function addNewEntry() {
+    const key = document.getElementById('newEntryKey').value.trim();
+    const value = document.getElementById('newEntryValue').value;
+    const secret = document.getElementById('newEntrySecret').checked;
+    const errEl = document.getElementById('entryError');
+    if (!key) { errEl.textContent = 'Key는 필수입니다.'; errEl.style.display = 'inline'; return; }
+    errEl.style.display = 'none';
+
+    const res = await fetch(`/api/env-profiles/${currentDetailId}/entries`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ key, value, secret })
+    });
+    if (res.ok) {
+        document.getElementById('newEntryKey').value = '';
+        document.getElementById('newEntryValue').value = '';
+        document.getElementById('newEntrySecret').checked = false;
+        await loadDetailEntries(currentDetailId);
+    } else { errEl.textContent = '추가 실패'; errEl.style.display = 'inline'; }
+}
+
+function closeDetail() { document.getElementById('detailModal').style.display = 'none'; currentDetailId = null; }
 
 async function deleteProfile(id) {
     if (!confirm('이 프로파일을 삭제하시겠습니까?')) return;
