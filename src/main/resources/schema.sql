@@ -210,6 +210,17 @@ CREATE TABLE IF NOT EXISTS env_profile_entries (
     secret      BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
+-- service_definitions (서비스 정의 — Compose 관리)
+CREATE TABLE IF NOT EXISTS service_definitions (
+    id              VARCHAR(36)  PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL UNIQUE,
+    compose_yaml    TEXT         NOT NULL,
+    env_profile_id  VARCHAR(36),
+    node_names      TEXT         NOT NULL DEFAULT '[]',
+    status          VARCHAR(10)  NOT NULL DEFAULT 'DRAFT',
+    created_at      TIMESTAMP    NOT NULL
+);
+
 -- image_registry (이미지 경로 레지스트리)
 CREATE TABLE IF NOT EXISTS image_registry (
     id          VARCHAR(36)  PRIMARY KEY,
