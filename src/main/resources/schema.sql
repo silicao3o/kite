@@ -209,3 +209,17 @@ CREATE TABLE IF NOT EXISTS env_profile_entries (
     entry_value TEXT,
     secret      BOOLEAN      NOT NULL DEFAULT FALSE
 );
+
+-- env_profile_audit_logs (환경변수 프로파일 감사 로그)
+CREATE TABLE IF NOT EXISTS env_profile_audit_logs (
+    id                        VARCHAR(36)  PRIMARY KEY,
+    timestamp                 TIMESTAMP    NOT NULL,
+    profile_id                VARCHAR(36),
+    profile_name              VARCHAR(255),
+    action                    VARCHAR(20)  NOT NULL,
+    actor                     VARCHAR(255),
+    changed_keys              TEXT,
+    before_hash               VARCHAR(255),
+    after_hash                VARCHAR(255),
+    referenced_container_name VARCHAR(255)
+);
