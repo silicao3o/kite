@@ -249,10 +249,12 @@ public class DockerEventListener {
                     selfHealingService.handleContainerDeath(deathEvent);
                 }
 
-                // 이메일 알림 전송 — dedup 체크 후 sendAlert에 위임 (sendAlert 내부에서 규칙+intentional 게이트)
-                if (deduplicationService.shouldAlert(containerId, action)) {
+                // 이메일 알림 전송 — 의도적 종료면 스킵, dedup 체크 후 sendAlert에 위임
+                if (!deathEvent.isIntentional() && deduplicationService.shouldAlert(containerId, action)) {
                     notificationService.sendAlert(deathEvent);
                     log.info("컨테이너 종료 알림 요청 완료: {}", deathEvent.getContainerName());
+                } else if (deathEvent.isIntentional()) {
+                    log.info("의도적 종료 — 이메일 알림 스킵: containerId={}", containerId);
                 } else {
                     log.info("중복 알림 스킵 (이메일만): containerId={}, action={}", containerId, action);
                 }
