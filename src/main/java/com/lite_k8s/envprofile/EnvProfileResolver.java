@@ -7,6 +7,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
@@ -14,7 +16,9 @@ public class EnvProfileResolver {
 
     private final EnvProfileService service;
 
-    /** profileIds 순서대로 엔트리를 수집, 뒤쪽이 앞쪽을 오버라이드 */
+    private static final Pattern VAR_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
+
+    /** profileIds 순서대로 엔트리를 수집, 뒤쪽이 앞쪽을 오버라이드, ${KEY} 변수 치환 */
     public Map<String, String> resolve(List<String> profileIds) {
         Map<String, String> result = new LinkedHashMap<>();
         for (String profileId : profileIds) {
@@ -22,7 +26,29 @@ public class EnvProfileResolver {
                 result.put(entry.getKey(), entry.getValue());
             }
         }
-        return result;
+        // 변수 치환: ${KEY} → 같은 맵 내 KEY 값으로 대체
+        Map<String, String> resolved = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : result.entrySet()) {
+            resolved.put(entry.getKey(), substituteVariables(entry.getValue(), result));
+        }
+        return resolved;
+    }
+
+    private String substituteVariables(String value, Map<String, String> context) {
+        if (value == null || !value.contains("${")) return value;
+        Matcher matcher = VAR_PATTERN.matcher(value);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            String varName = matcher.group(1);
+            String replacement = context.get(varName);
+            if (replacement != null) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+            } else {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /** Docker create API의 Env 필드에 전달할 KEY=VALUE 리스트 */
