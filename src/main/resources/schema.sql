@@ -210,6 +210,15 @@ CREATE TABLE IF NOT EXISTS env_profile_entries (
     secret      BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
+-- image_registry (이미지 경로 레지스트리)
+CREATE TABLE IF NOT EXISTS image_registry (
+    id          VARCHAR(36)  PRIMARY KEY,
+    image       VARCHAR(255) NOT NULL UNIQUE,
+    alias       VARCHAR(255),
+    description TEXT,
+    created_at  TIMESTAMP    NOT NULL
+);
+
 -- env_profile_audit_logs (환경변수 프로파일 감사 로그)
 CREATE TABLE IF NOT EXISTS env_profile_audit_logs (
     id                        VARCHAR(36)  PRIMARY KEY,

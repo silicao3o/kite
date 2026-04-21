@@ -165,11 +165,14 @@
             </div>
 
             <div class="add-form">
-                <div class="section-title">폴링 와치 추가</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div class="section-title" style="margin-bottom:0;">폴링 와치 추가</div>
+                    <button class="btn-sm btn-edit" onclick="openRegistryModal()" style="font-size:.75rem;">이미지 관리</button>
+                </div>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>이미지 *</label>
-                        <input type="text" id="pollingImage" placeholder="ghcr.io/org/app" />
+                        <input type="text" id="pollingImage" placeholder="ghcr.io/org/app" list="imageList" />
                     </div>
                     <div class="form-group">
                         <label>태그</label>
@@ -242,7 +245,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>이미지 *</label>
-                        <input type="text" id="triggerImage" placeholder="ghcr.io/org/app" />
+                        <input type="text" id="triggerImage" placeholder="ghcr.io/org/app" list="imageList" />
                     </div>
                     <div class="form-group">
                         <label>태그</label>
@@ -310,6 +313,26 @@
     </div>
 </div>
 
+<!-- Image Registry Modal -->
+<div class="modal-overlay" id="registryModal">
+    <div class="modal-content" style="max-width:520px;">
+        <div class="modal-header">
+            <h3>이미지 레지스트리 관리</h3>
+            <button class="modal-close" onclick="closeRegistryModal()">&times;</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:.5rem;align-items:end;">
+                <div class="form-group"><label>이미지 *</label><input type="text" id="regImage" placeholder="ghcr.io/org/app"/></div>
+                <div class="form-group"><label>별칭</label><input type="text" id="regAlias" placeholder="engine"/></div>
+                <div class="form-group"><label>설명</label><input type="text" id="regDesc" placeholder=""/></div>
+                <button class="btn-add" onclick="addRegistryImage()" style="padding:.4rem .7rem;font-size:.8rem;">추가</button>
+            </div>
+            <span id="regError" style="color:#fca5a5;font-size:.82rem;display:none;"></span>
+        </div>
+        <div id="registryList" style="max-height:300px;overflow-y:auto;"></div>
+    </div>
+</div>
+
 <!-- Edit Modal -->
 <div class="modal-overlay" id="editModal">
     <div class="modal-content" style="max-width:520px;">
@@ -346,8 +369,19 @@
     </div>
 </div>
 
+<datalist id="imageList"></datalist>
+
 <script>
 let watchesCache = [];
+
+async function loadImageRegistry() {
+    try {
+        const res = await fetch('/api/image-registry');
+        const images = await res.json();
+        const dl = document.getElementById('imageList');
+        dl.innerHTML = images.map(i => `<option value="${i.image}">${i.alias ? i.alias + ' — ' : ''}${i.image}</option>`).join('');
+    } catch(e) {}
+}
 
 async function switchTab(tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -574,7 +608,48 @@ function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&l
 
 document.getElementById('historyModal').addEventListener('click', function(e) { if (e.target === this) closeHistory(); });
 document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
-document.addEventListener('DOMContentLoaded', loadWatches);
+function openRegistryModal() {
+    document.getElementById('registryModal').style.display = 'block';
+    loadRegistryList();
+}
+function closeRegistryModal() { document.getElementById('registryModal').style.display = 'none'; }
+
+async function loadRegistryList() {
+    const res = await fetch('/api/image-registry');
+    const images = await res.json();
+    const el = document.getElementById('registryList');
+    if (images.length === 0) { el.innerHTML = '<div class="text-muted" style="text-align:center;padding:1rem;">등록된 이미지가 없습니다.</div>'; return; }
+    el.innerHTML = images.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;">
+        <div><strong style="font-family:monospace;">${escapeHtml(i.image)}</strong>${i.alias ? ' <span class="text-muted">(' + escapeHtml(i.alias) + ')</span>' : ''}</div>
+        <button class="btn-sm btn-delete" onclick="deleteRegistryImage('${i.id}')">삭제</button>
+    </div>`).join('');
+}
+
+async function addRegistryImage() {
+    const image = document.getElementById('regImage').value.trim();
+    const errEl = document.getElementById('regError');
+    if (!image) { errEl.textContent = '이미지 경로는 필수입니다.'; errEl.style.display = 'inline'; return; }
+    errEl.style.display = 'none';
+    const alias = document.getElementById('regAlias').value.trim();
+    const description = document.getElementById('regDesc').value.trim();
+    const res = await fetch('/api/image-registry', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image, alias, description}) });
+    if (res.ok) {
+        document.getElementById('regImage').value = '';
+        document.getElementById('regAlias').value = '';
+        document.getElementById('regDesc').value = '';
+        loadRegistryList();
+        loadImageRegistry();
+    } else { errEl.textContent = '추가 실패: ' + await res.text(); errEl.style.display = 'inline'; }
+}
+
+async function deleteRegistryImage(id) {
+    await fetch(`/api/image-registry/${id}`, { method:'DELETE' });
+    loadRegistryList();
+    loadImageRegistry();
+}
+
+document.getElementById('registryModal').addEventListener('click', function(e) { if (e.target === this) closeRegistryModal(); });
+document.addEventListener('DOMContentLoaded', () => { loadWatches(); loadImageRegistry(); });
 </script>
 <script src="/js/sidebar-toggle.js"></script>
 </body>
