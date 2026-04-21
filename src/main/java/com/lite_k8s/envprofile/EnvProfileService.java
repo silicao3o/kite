@@ -60,6 +60,10 @@ public class EnvProfileService {
         }).toList();
     }
 
+    public Optional<EnvProfileEntry> findEntryByKey(String profileId, String key) {
+        return entryRepository.findByProfileIdAndKey(profileId, key);
+    }
+
     /** 엔트리 복호화된 값 조회 (컨테이너 주입용) */
     public List<EnvProfileEntry> getDecryptedEntries(String profileId) {
         List<EnvProfileEntry> entries = entryRepository.findByProfileId(profileId);
