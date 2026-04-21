@@ -257,8 +257,10 @@ public class DockerEventListener {
                     log.info("중복 알림 스킵 (이메일만): containerId={}, action={}", containerId, action);
                 }
 
-                // AI 사후 분석 리포트 생성 (비동기)
-                incidentReportService.createReport(deathEvent);
+                // AI 사후 분석 리포트 생성 (비동기) — 의도적 종료면 스킵
+                if (!deathEvent.isIntentional()) {
+                    incidentReportService.createReport(deathEvent);
+                }
 
             } catch (Exception e) {
                 log.error("컨테이너 종료 이벤트 처리 실패: {}", containerId, e);
