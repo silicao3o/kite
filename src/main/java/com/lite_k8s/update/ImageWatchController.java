@@ -22,14 +22,15 @@ public class ImageWatchController {
             return ResponseEntity.badRequest().body("image는 필수입니다");
         }
 
+        ImageWatchEntity.WatchMode mode = parseMode(asString(body.get("mode")));
         ImageWatchEntity entity = ImageWatchEntity.builder()
                 .image(image)
                 .tag(asStringOrDefault(body.get("tag"), "latest"))
                 .containerPattern(asString(body.get("containerPattern")))
                 .nodeNames(asStringList(body.get("nodeNames")))
-                .pollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), 300))
+                .pollIntervalSeconds(mode == ImageWatchEntity.WatchMode.TRIGGER ? null : asInt(body.get("pollIntervalSeconds"), 300))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
-                .mode(parseMode(asString(body.get("mode"))))
+                .mode(mode)
                 .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
                 .build();
@@ -59,7 +60,11 @@ public class ImageWatchController {
         if (body.containsKey("nodeNames")) entity.setNodeNames(asStringList(body.get("nodeNames")));
         if (body.containsKey("pollIntervalSeconds")) entity.setPollIntervalSeconds(asInt(body.get("pollIntervalSeconds"), entity.getPollIntervalSeconds() != null ? entity.getPollIntervalSeconds() : 300));
         if (body.containsKey("maxUnavailable")) entity.setMaxUnavailable(asInt(body.get("maxUnavailable"), entity.getMaxUnavailable()));
-        if (body.containsKey("mode")) entity.setMode(parseMode(asString(body.get("mode"))));
+        if (body.containsKey("mode")) {
+            ImageWatchEntity.WatchMode newMode = parseMode(asString(body.get("mode")));
+            entity.setMode(newMode);
+            if (newMode == ImageWatchEntity.WatchMode.TRIGGER) entity.setPollIntervalSeconds(null);
+        }
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
             String token = asString(body.get("ghcrToken"));

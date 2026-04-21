@@ -322,7 +322,7 @@
         <div class="edit-form">
             <div class="form-group">
                 <label>모드</label>
-                <select id="editMode" style="padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9rem;width:100%;">
+                <select id="editMode" style="padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.9rem;width:100%;" onchange="document.getElementById('editPollIntervalGroup').style.display = this.value === 'TRIGGER' ? 'none' : 'flex'">
                     <option value="POLLING">POLLING (자동 감시)</option>
                     <option value="TRIGGER">TRIGGER (수동 배포)</option>
                 </select>
@@ -334,7 +334,7 @@
             </div>
             <div class="form-group"><label>노드 목록 (쉼표 구분)</label><input type="text" id="editNodeNames" /></div>
             <div class="edit-row">
-                <div class="form-group"><label>폴링 주기 (초)</label><input type="number" id="editPollInterval" min="10" /></div>
+                <div class="form-group" id="editPollIntervalGroup"><label>폴링 주기 (초)</label><input type="number" id="editPollInterval" min="10" /></div>
                 <div class="form-group"><label>maxUnavailable</label><input type="number" id="editMaxUnavailable" min="1" /></div>
             </div>
             <div class="form-group"><label>GHCR 토큰</label><input type="password" id="editGhcrToken" placeholder="변경하려면 입력" /></div>
@@ -539,6 +539,7 @@ function openEditModal(id) {
     document.getElementById('editContainerPattern').value = w.containerPattern || '';
     document.getElementById('editNodeNames').value = (w.nodeNames || []).join(', ');
     document.getElementById('editPollInterval').value = w.pollIntervalSeconds || 300;
+    document.getElementById('editPollIntervalGroup').style.display = (w.mode === 'TRIGGER') ? 'none' : 'flex';
     document.getElementById('editMaxUnavailable').value = w.maxUnavailable || 1;
     document.getElementById('editGhcrToken').value = '';
     document.getElementById('editError').style.display = 'none';
@@ -554,13 +555,14 @@ async function saveEdit() {
     errEl.style.display = 'none';
     const nodeNamesStr = document.getElementById('editNodeNames').value.trim();
     const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const editMode = document.getElementById('editMode').value;
     const body = {
-        image, mode: document.getElementById('editMode').value,
+        image, mode: editMode,
         tag: document.getElementById('editTag').value.trim() || 'latest',
         containerPattern: document.getElementById('editContainerPattern').value.trim() || null,
-        nodeNames, pollIntervalSeconds: parseInt(document.getElementById('editPollInterval').value) || 300,
-        maxUnavailable: parseInt(document.getElementById('editMaxUnavailable').value) || 1
+        nodeNames, maxUnavailable: parseInt(document.getElementById('editMaxUnavailable').value) || 1
     };
+    if (editMode === 'POLLING') body.pollIntervalSeconds = parseInt(document.getElementById('editPollInterval').value) || 300;
     const token = document.getElementById('editGhcrToken').value.trim();
     if (token) body.ghcrToken = token;
     const res = await fetch(`/api/image-watches/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
