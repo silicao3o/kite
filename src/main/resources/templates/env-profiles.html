@@ -206,6 +206,7 @@ async function loadProfiles() {
             <td><span class="text-muted">${escapeHtml(p.description||'-')}</span></td>
             <td class="text-muted">${created}</td>
             <td><div class="btn-group">
+                <button class="btn-sm" style="border-color:var(--accent-blue,#3b82f6);color:#93c5fd;" onclick="viewDetail('${p.id}','${escapeHtml(p.name)}')">보기</button>
                 <button class="btn-sm btn-edit" onclick="showDetail('${p.id}','${escapeHtml(p.name)}')">수정</button>
                 <button class="btn-sm btn-delete" onclick="deleteProfile('${p.id}')">삭제</button>
             </div></td>`;
@@ -215,8 +216,19 @@ async function loadProfiles() {
 
 let currentDetailId = null;
 
+let detailEditMode = false;
+
+async function viewDetail(id, name) {
+    currentDetailId = id;
+    detailEditMode = false;
+    document.getElementById('detailTitle').textContent = name;
+    document.getElementById('detailModal').style.display = 'block';
+    await loadDetailEntries(id);
+}
+
 async function showDetail(id, name) {
     currentDetailId = id;
+    detailEditMode = true;
     document.getElementById('detailTitle').textContent = name + ' — 수정';
     document.getElementById('detailModal').style.display = 'block';
     await loadDetailEntries(id);
@@ -235,25 +247,31 @@ async function loadDetailEntries(id) {
         entries.forEach(e => {
             html += `<div class="entry-item" data-key="${escapeAttr(e.key)}">
                 <span class="entry-key">${escapeHtml(e.key)}</span>
-                <span class="entry-value">${e.secret ? '***' : escapeHtml(e.value||'')}</span>
-                <div class="btn-group">
+                <span class="entry-value">${escapeHtml(e.value||'')}</span>`;
+            if (detailEditMode) {
+                html += `<div class="btn-group">
                     <button class="btn-sm btn-edit" onclick="editEntry('${escapeAttr(e.key)}',${e.secret})">수정</button>
                     <button class="btn-sm btn-delete" onclick="deleteEntry('${escapeAttr(e.key)}')">삭제</button>
-                </div>
-            </div>`;
+                </div>`;
+            } else {
+                html += `<span class="badge ${e.secret ? 'badge-secret' : 'badge-plain'}">${e.secret ? 'secret' : 'plain'}</span>`;
+            }
+            html += `</div>`;
         });
     }
     html += '</div>';
-    html += `<div style="margin-top:1rem;border-top:1px solid var(--border-color,#2d3f56);padding-top:1rem;">
-        <div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem;">엔트리 추가</div>
-        <div class="entry-row">
-            <div class="form-group"><label>Key</label><input type="text" id="newEntryKey" placeholder="DB_HOST"/></div>
-            <div class="form-group"><label>Value</label><input type="text" id="newEntryValue" placeholder="값"/></div>
-            <div class="form-group"><label>Secret</label><input type="checkbox" id="newEntrySecret" style="width:auto;"/></div>
-            <button class="btn-add" onclick="addNewEntry()" style="padding:.35rem .8rem;font-size:.8rem;">추가</button>
-        </div>
-        <span id="entryError" style="color:#ef4444;font-size:.82rem;display:none;"></span>
-    </div>`;
+    if (detailEditMode) {
+        html += `<div style="margin-top:1rem;border-top:1px solid var(--border-color,#2d3f56);padding-top:1rem;">
+            <div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem;">엔트리 추가</div>
+            <div class="entry-row">
+                <div class="form-group"><label>Key</label><input type="text" id="newEntryKey" placeholder="DB_HOST"/></div>
+                <div class="form-group"><label>Value</label><input type="text" id="newEntryValue" placeholder="값"/></div>
+                <div class="form-group"><label>Secret</label><input type="checkbox" id="newEntrySecret" style="width:auto;"/></div>
+                <button class="btn-add" onclick="addNewEntry()" style="padding:.35rem .8rem;font-size:.8rem;">추가</button>
+            </div>
+            <span id="entryError" style="color:#fca5a5;font-size:.82rem;display:none;"></span>
+        </div>`;
+    }
     container.innerHTML = html;
 }
 
