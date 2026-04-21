@@ -307,7 +307,7 @@ function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&l
 function escapeAttr(s) { return String(s).replace(/"/g,'&quot;'); }
 
 document.getElementById('detailModal').addEventListener('click', function(e) { if (e.target === this) closeDetail(); });
-document.addEventListener('DOMContentLoaded', () => { addEntryRow(); loadProfiles(); });
+document.addEventListener('DOMContentLoaded', () => { loadProfiles(); });
 </script>
 <script src="/js/sidebar-toggle.js"></script>
 </body>
