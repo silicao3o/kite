@@ -420,7 +420,9 @@ function loadTriggerWatches() {
             <td>${nodes}</td>
             <td><div class="btn-group">
                 <button class="btn-sm btn-trigger" onclick="triggerWatch('${w.id}',this)">지금 체크</button>
+                <button class="btn-sm btn-edit" onclick="openEditModal('${w.id}')">수정</button>
                 <button class="btn-sm btn-history" onclick="showHistory('${w.id}','${escapeHtml(w.image)}')">이력</button>
+                <button class="btn-sm btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
             </div></td>`;
         tbody.appendChild(tr);
     });
