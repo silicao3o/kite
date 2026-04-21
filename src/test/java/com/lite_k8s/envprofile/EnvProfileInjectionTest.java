@@ -39,7 +39,7 @@ class EnvProfileInjectionTest {
     }
 
     @Test
-    @DisplayName("mergeEnv: profile env + 기존 env를 합침 (기존 env 우선)")
+    @DisplayName("mergeEnv: 프로파일 키는 프로파일 값 우선, 프로파일에 없는 키는 기존 유지")
     void mergeEnv() {
         when(service.getDecryptedEntries("p1")).thenReturn(List.of(
                 EnvProfileEntry.builder().key("DB_HOST").value("10.0.0.1").build(),
@@ -51,11 +51,10 @@ class EnvProfileInjectionTest {
         String[] merged = resolver.mergeWithExistingEnv(List.of("p1"), existingEnv);
 
         Map<String, String> envMap = envArrayToMap(merged);
-        // profile 값
+        // 프로파일 값이 우선 (DB 정보 갱신)
         assertThat(envMap).containsEntry("DB_HOST", "10.0.0.1");
-        // 기존 env가 profile을 오버라이드
-        assertThat(envMap).containsEntry("DB_PORT", "9999");
-        // 기존 env 유지
+        assertThat(envMap).containsEntry("DB_PORT", "5432");
+        // 프로파일에 없는 키는 기존 유지
         assertThat(envMap).containsEntry("TZ", "Asia/Seoul");
     }
 

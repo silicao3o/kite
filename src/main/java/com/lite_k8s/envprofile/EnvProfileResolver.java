@@ -34,12 +34,12 @@ public class EnvProfileResolver {
 
     /**
      * profile env와 기존 컨테이너 env를 merge.
-     * 기존 env가 profile을 오버라이드 (기존 설정 우선).
+     * 프로파일에 있는 키 → 프로파일 값 사용 (DB 정보 갱신)
+     * 프로파일에 없는 키 → 기존 값 유지 (TZ 등)
      */
     public String[] mergeWithExistingEnv(List<String> profileIds, String[] existingEnv) {
-        Map<String, String> merged = new LinkedHashMap<>(resolve(profileIds));
-
-        // 기존 env가 profile을 오버라이드
+        // 기존 env를 먼저 깔고
+        Map<String, String> merged = new LinkedHashMap<>();
         if (existingEnv != null) {
             for (String e : existingEnv) {
                 int idx = e.indexOf('=');
@@ -48,6 +48,9 @@ public class EnvProfileResolver {
                 }
             }
         }
+
+        // 프로파일 env가 오버라이드 (프로파일이 우선)
+        merged.putAll(resolve(profileIds));
 
         return merged.entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
