@@ -176,6 +176,29 @@ ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS mode VARCHAR(10) DEFAULT 'POL
 UPDATE image_watches SET mode = 'POLLING' WHERE mode IS NULL;
 ALTER TABLE image_watches ADD COLUMN IF NOT EXISTS image_registry_id VARCHAR(36);
 
+-- 기존 와치의 image가 레지스트리에 없으면 자동 등록
+INSERT INTO image_registry (id, image, created_at)
+SELECT gen_random_uuid()::varchar, w.image, NOW()
+FROM image_watches w
+WHERE NOT EXISTS (SELECT 1 FROM image_registry r WHERE r.image = w.image)
+GROUP BY w.image;
+
+-- 기존 와치에 ghcr_token이 있으면 레지스트리로 이관
+UPDATE image_registry r
+SET ghcr_token = w.ghcr_token
+FROM image_watches w
+WHERE r.image = w.image
+  AND w.ghcr_token IS NOT NULL
+  AND w.ghcr_token != ''
+  AND (r.ghcr_token IS NULL OR r.ghcr_token = '');
+
+-- image_registry_id FK 채우기
+UPDATE image_watches w
+SET image_registry_id = r.id
+FROM image_registry r
+WHERE w.image = r.image
+  AND w.image_registry_id IS NULL;
+
 -- image_update_history (이미지 업데이트 이력)
 CREATE TABLE IF NOT EXISTS image_update_history (
     id              VARCHAR(36)  PRIMARY KEY,
