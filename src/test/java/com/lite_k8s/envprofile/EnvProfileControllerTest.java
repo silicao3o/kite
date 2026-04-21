@@ -96,14 +96,14 @@ class EnvProfileControllerTest {
         when(service.findById(profile.getId())).thenReturn(Optional.of(profile));
         when(service.getEntries(profile.getId())).thenReturn(List.of(
                 EnvProfileEntry.builder().key("DB_HOST").value("10.0.0.1").secret(false).build(),
-                EnvProfileEntry.builder().key("DB_PASSWORD").value("***").secret(true).build()
+                EnvProfileEntry.builder().key("DB_PASSWORD").value("decrypted-pw").secret(true).build()
         ));
 
         mockMvc.perform(get("/api/env-profiles/" + profile.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("db-operia"))
                 .andExpect(jsonPath("$.entries.length()").value(2))
-                .andExpect(jsonPath("$.entries[1].value").value("***"));
+                .andExpect(jsonPath("$.entries[1].value").value("decrypted-pw"));
     }
 
     @Test

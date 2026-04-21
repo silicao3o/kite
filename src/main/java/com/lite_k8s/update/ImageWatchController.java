@@ -67,10 +67,7 @@ public class ImageWatchController {
         }
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
         if (body.containsKey("ghcrToken")) {
-            String token = asString(body.get("ghcrToken"));
-            if (!isMasked(token)) {
-                entity.setGhcrToken(token);
-            }
+            entity.setGhcrToken(asString(body.get("ghcrToken")));
         }
         ImageWatchEntity saved = watchService.save(entity);
         poller.scheduleWatch(saved);
@@ -117,21 +114,12 @@ public class ImageWatchController {
         map.put("pollIntervalSeconds", entity.getPollIntervalSeconds());
         map.put("maxUnavailable", entity.getMaxUnavailable());
         map.put("mode", entity.getMode() != null ? entity.getMode().name() : "POLLING");
-        map.put("ghcrToken", maskToken(entity.getGhcrToken()));
+        map.put("ghcrToken", entity.getGhcrToken());
         map.put("enabled", entity.isEnabled());
         map.put("createdAt", entity.getCreatedAt());
         return map;
     }
 
-    static String maskToken(String token) {
-        if (token == null || token.isEmpty()) return null;
-        if (token.length() <= 4) return "****";
-        return token.substring(0, 4) + "****";
-    }
-
-    private boolean isMasked(String token) {
-        return token != null && token.endsWith("****");
-    }
 
     private String asString(Object value) {
         return value == null ? null : value.toString();

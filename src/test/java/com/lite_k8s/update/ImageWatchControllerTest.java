@@ -141,7 +141,7 @@ class ImageWatchControllerTest {
 
         mockMvc.perform(get("/api/image-watches"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].ghcrToken").value("ghp_****"));
+                .andExpect(jsonPath("$[0].ghcrToken").value("ghp_abcdefgh12345678"));
     }
 
     @Test
@@ -160,7 +160,7 @@ class ImageWatchControllerTest {
                                 "ghcrToken", "ghp_realtoken123"
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ghcrToken").value("ghp_****"));
+                .andExpect(jsonPath("$.ghcrToken").value("ghp_realtoken123"));
 
         verify(watchService).save(argThat(e -> "ghp_realtoken123".equals(e.getGhcrToken())));
     }
@@ -178,12 +178,11 @@ class ImageWatchControllerTest {
         mockMvc.perform(put("/api/image-watches/" + entity.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "ghcrToken", "ghp_****"
+                                "ghcrToken", "ghp_new_token"
                         ))))
                 .andExpect(status().isOk());
 
-        // 마스킹된 값이 왔으므로 기존 토큰 유지
-        verify(watchService).save(argThat(e -> "ghp_original_secret".equals(e.getGhcrToken())));
+        verify(watchService).save(argThat(e -> "ghp_new_token".equals(e.getGhcrToken())));
     }
 
     @Test

@@ -74,8 +74,8 @@ class EnvProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getEntries 시 secret=true 엔트리의 value는 '***'로 마스킹된다")
-    void getEntries_MasksSecretValues() {
+    @DisplayName("getEntries 시 secret=true 엔트리의 value는 복호화되어 반환된다")
+    void getEntries_DecryptsSecretValues() {
         EnvProfileEntry secretEntry = EnvProfileEntry.builder()
                 .profileId("p1").key("DB_PASSWORD")
                 .value(cryptoService.encrypt("qwer1234!"))
@@ -90,8 +90,8 @@ class EnvProfileServiceTest {
         List<EnvProfileEntry> entries = service.getEntries("p1");
 
         assertThat(entries).hasSize(2);
-        EnvProfileEntry masked = entries.stream().filter(e -> e.getKey().equals("DB_PASSWORD")).findFirst().get();
-        assertThat(masked.getValue()).isEqualTo("***");
+        EnvProfileEntry decrypted = entries.stream().filter(e -> e.getKey().equals("DB_PASSWORD")).findFirst().get();
+        assertThat(decrypted.getValue()).isEqualTo("qwer1234!");
 
         EnvProfileEntry plain = entries.stream().filter(e -> e.getKey().equals("DB_HOST")).findFirst().get();
         assertThat(plain.getValue()).isEqualTo("112.187.198.214");

@@ -42,19 +42,18 @@ public class EnvProfileService {
         return entryRepository.save(entry);
     }
 
-    /** 엔트리 목록 조회 — secret 값은 마스킹 */
+    /** 엔트리 목록 조회 — secret 값은 복호화하여 반환 */
     public List<EnvProfileEntry> getEntries(String profileId) {
         List<EnvProfileEntry> entries = entryRepository.findByProfileId(profileId);
         return entries.stream().map(e -> {
-            if (e.isSecret()) {
-                EnvProfileEntry masked = EnvProfileEntry.builder()
+            if (e.isSecret() && e.getValue() != null) {
+                return EnvProfileEntry.builder()
                         .id(e.getId())
                         .profileId(e.getProfileId())
                         .key(e.getKey())
-                        .value("***")
+                        .value(cryptoService.decrypt(e.getValue()))
                         .secret(true)
                         .build();
-                return masked;
             }
             return e;
         }).toList();
