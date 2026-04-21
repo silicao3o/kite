@@ -56,6 +56,51 @@ public class ContainerController {
         }
     }
 
+    @PostMapping("/{id}/start")
+    public ResponseEntity<String> startContainer(
+            @PathVariable String id,
+            @RequestParam(required = false) String nodeId) {
+        try {
+            DockerClient client = resolveClient(nodeId);
+            client.startContainerCmd(id).exec();
+            log.info("컨테이너 시작: {}", id);
+            return ResponseEntity.ok("컨테이너 시작 완료");
+        } catch (Exception e) {
+            log.error("컨테이너 시작 실패: {}", id, e);
+            return ResponseEntity.internalServerError().body("시작 실패: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/stop")
+    public ResponseEntity<String> stopContainer(
+            @PathVariable String id,
+            @RequestParam(required = false) String nodeId) {
+        try {
+            DockerClient client = resolveClient(nodeId);
+            client.stopContainerCmd(id).exec();
+            log.info("컨테이너 정지: {}", id);
+            return ResponseEntity.ok("컨테이너 정지 완료");
+        } catch (Exception e) {
+            log.error("컨테이너 정지 실패: {}", id, e);
+            return ResponseEntity.internalServerError().body("정지 실패: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/restart")
+    public ResponseEntity<String> restartContainer(
+            @PathVariable String id,
+            @RequestParam(required = false) String nodeId) {
+        try {
+            DockerClient client = resolveClient(nodeId);
+            client.restartContainerCmd(id).exec();
+            log.info("컨테이너 재시작: {}", id);
+            return ResponseEntity.ok("컨테이너 재시작 완료");
+        } catch (Exception e) {
+            log.error("컨테이너 재시작 실패: {}", id, e);
+            return ResponseEntity.internalServerError().body("재시작 실패: " + e.getMessage());
+        }
+    }
+
     /** 컨테이너에 env profile 적용 (프로파일 env로 DB 정보만 오버라이드하여 재생성) */
     @PostMapping("/{id}/apply-env-profile")
     public ResponseEntity<String> applyEnvProfile(
