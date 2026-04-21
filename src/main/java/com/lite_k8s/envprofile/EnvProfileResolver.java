@@ -78,7 +78,13 @@ public class EnvProfileResolver {
         // 프로파일 env가 오버라이드 (프로파일이 우선)
         merged.putAll(resolve(profileIds));
 
-        return merged.entrySet().stream()
+        // 전체 결과에 대해 변수 치환 (기존 env의 ${KEY}도 프로파일 값으로 치환)
+        Map<String, String> resolved = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : merged.entrySet()) {
+            resolved.put(entry.getKey(), substituteVariables(entry.getValue(), merged));
+        }
+
+        return resolved.entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .toArray(String[]::new);
     }

@@ -65,6 +65,24 @@ class EnvProfileInjectionTest {
         assertThat(label).isEqualTo("p1,p2");
     }
 
+    @Test
+    @DisplayName("mergeEnv: 기존 env의 ${KEY}도 프로파일 값으로 치환된다")
+    void mergeEnv_SubstitutesExistingEnvVariables() {
+        when(service.getDecryptedEntries("p1")).thenReturn(List.of(
+                EnvProfileEntry.builder().key("DB_HOST").value("10.0.0.1").build(),
+                EnvProfileEntry.builder().key("DB_PORT").value("5432").build(),
+                EnvProfileEntry.builder().key("DB_NAME").value("Operia").build()
+        ));
+
+        String[] existingEnv = {"SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}", "TZ=Asia/Seoul"};
+
+        String[] merged = resolver.mergeWithExistingEnv(List.of("p1"), existingEnv);
+
+        Map<String, String> envMap = envArrayToMap(merged);
+        assertThat(envMap.get("SPRING_DATASOURCE_URL")).isEqualTo("jdbc:postgresql://10.0.0.1:5432/Operia");
+        assertThat(envMap.get("TZ")).isEqualTo("Asia/Seoul");
+    }
+
     private Map<String, String> envArrayToMap(String[] env) {
         Map<String, String> map = new java.util.LinkedHashMap<>();
         for (String e : env) {
