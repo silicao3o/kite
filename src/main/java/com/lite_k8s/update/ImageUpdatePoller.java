@@ -2,6 +2,7 @@ package com.lite_k8s.update;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
+import com.lite_k8s.envprofile.ImageRegistryRepository;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
@@ -36,6 +37,7 @@ public class ImageUpdatePoller {
     private final ImageUpdateHistoryService historyService;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final ImageRegistryRepository imageRegistryRepository;
 
     private TaskScheduler taskScheduler;
     private final Map<String, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
@@ -49,7 +51,8 @@ public class ImageUpdatePoller {
             ApplicationEventPublisher eventPublisher,
             ImageUpdateHistoryService historyService,
             NodeRegistry nodeRegistry,
-            NodeDockerClientFactory nodeClientFactory) {
+            NodeDockerClientFactory nodeClientFactory,
+            ImageRegistryRepository imageRegistryRepository) {
         this.properties = properties;
         this.watchService = watchService;
         this.ghcrClient = ghcrClient;
@@ -58,6 +61,7 @@ public class ImageUpdatePoller {
         this.historyService = historyService;
         this.nodeRegistry = nodeRegistry;
         this.nodeClientFactory = nodeClientFactory;
+        this.imageRegistryRepository = imageRegistryRepository;
     }
 
     // 테스트 호환 생성자
@@ -68,7 +72,7 @@ public class ImageUpdatePoller {
             DockerClient dockerClient,
             ApplicationEventPublisher eventPublisher,
             ImageUpdateHistoryService historyService) {
-        this(properties, watchService, ghcrClient, dockerClient, eventPublisher, historyService, null, null);
+        this(properties, watchService, ghcrClient, dockerClient, eventPublisher, historyService, null, null, null);
     }
 
     @PostConstruct
@@ -156,7 +160,8 @@ public class ImageUpdatePoller {
     }
 
     void checkWatch(ImageWatchEntity watch) {
-        String latestDigest = ghcrClient.getLatestDigest(watch.getImage(), watch.getTag(), watch.getGhcrToken());
+        String token = resolveToken(watch);
+        String latestDigest = ghcrClient.getLatestDigest(watch.getImage(), watch.getTag(), token);
         if (latestDigest == null) {
             log.warn("GHCR digest 조회 실패: {}:{}", watch.getImage(), watch.getTag());
             return;
@@ -230,6 +235,20 @@ public class ImageUpdatePoller {
             return true;
         }
         return name.matches(pattern);
+    }
+
+    /** 토큰 우선순위: 와치 토큰 > 레지스트리 토큰 > 글로벌 토큰(null=GhcrClient 폴백) */
+    private String resolveToken(ImageWatchEntity watch) {
+        if (watch.getGhcrToken() != null && !watch.getGhcrToken().isBlank()) {
+            return watch.getGhcrToken();
+        }
+        if (imageRegistryRepository != null) {
+            return imageRegistryRepository.findByImage(watch.getImage())
+                    .map(r -> r.getGhcrToken())
+                    .filter(t -> t != null && !t.isBlank())
+                    .orElse(null);
+        }
+        return null;
     }
 
     private String shorten(String digest) {

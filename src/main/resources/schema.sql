@@ -227,8 +227,10 @@ CREATE TABLE IF NOT EXISTS image_registry (
     image       VARCHAR(255) NOT NULL UNIQUE,
     alias       VARCHAR(255),
     description TEXT,
+    ghcr_token  VARCHAR(255),
     created_at  TIMESTAMP    NOT NULL
 );
+ALTER TABLE image_registry ADD COLUMN IF NOT EXISTS ghcr_token VARCHAR(255);
 
 -- env_profile_audit_logs (환경변수 프로파일 감사 로그)
 CREATE TABLE IF NOT EXISTS env_profile_audit_logs (

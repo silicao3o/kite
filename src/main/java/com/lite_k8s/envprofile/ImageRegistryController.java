@@ -25,6 +25,7 @@ public class ImageRegistryController {
                 .image(image)
                 .alias(body.get("alias") != null ? body.get("alias").toString().trim() : null)
                 .description(body.get("description") != null ? body.get("description").toString().trim() : null)
+                .ghcrToken(body.get("ghcrToken") != null ? body.get("ghcrToken").toString().trim() : null)
                 .build();
 
         return ResponseEntity.status(201).body(repository.save(entity));

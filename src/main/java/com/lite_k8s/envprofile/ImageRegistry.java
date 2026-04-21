@@ -29,6 +29,10 @@ public class ImageRegistry {
     /** 설명 */
     private String description;
 
+    /** GHCR 인증 토큰 */
+    @Column(name = "ghcr_token")
+    private String ghcrToken;
+
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

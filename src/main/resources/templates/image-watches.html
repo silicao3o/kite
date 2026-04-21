@@ -290,10 +290,11 @@
             <button class="modal-close" onclick="closeRegistryModal()">&times;</button>
         </div>
         <div style="margin-bottom:1rem;">
-            <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:.5rem;align-items:end;">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:.5rem;align-items:end;">
                 <div class="form-group"><label>이미지 *</label><input type="text" id="regImage" placeholder="ghcr.io/org/app"/></div>
                 <div class="form-group"><label>별칭</label><input type="text" id="regAlias" placeholder="engine"/></div>
                 <div class="form-group"><label>설명</label><input type="text" id="regDesc" placeholder=""/></div>
+                <div class="form-group"><label>GHCR 토큰</label><input type="text" id="regToken" placeholder="ghp_..."/></div>
                 <button class="btn-add" onclick="addRegistryImage()" style="padding:.4rem .7rem;font-size:.8rem;">추가</button>
             </div>
             <span id="regError" style="color:#fca5a5;font-size:.82rem;display:none;"></span>
@@ -589,7 +590,7 @@ async function loadRegistryList() {
     const el = document.getElementById('registryList');
     if (images.length === 0) { el.innerHTML = '<div class="text-muted" style="text-align:center;padding:1rem;">등록된 이미지가 없습니다.</div>'; return; }
     el.innerHTML = images.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;">
-        <div><strong style="font-family:monospace;">${escapeHtml(i.image)}</strong>${i.alias ? ' <span class="text-muted">(' + escapeHtml(i.alias) + ')</span>' : ''}</div>
+        <div><strong style="font-family:monospace;">${escapeHtml(i.image)}</strong>${i.alias ? ' <span class="text-muted">(' + escapeHtml(i.alias) + ')</span>' : ''}${i.ghcrToken ? ' <span class="badge badge-token" style="font-size:.68rem;">토큰</span>' : ''}</div>
         <button class="btn-sm btn-delete" onclick="deleteRegistryImage('${i.id}')">삭제</button>
     </div>`).join('');
 }
@@ -601,11 +602,13 @@ async function addRegistryImage() {
     errEl.style.display = 'none';
     const alias = document.getElementById('regAlias').value.trim();
     const description = document.getElementById('regDesc').value.trim();
-    const res = await fetch('/api/image-registry', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image, alias, description}) });
+    const ghcrToken = document.getElementById('regToken').value.trim();
+    const res = await fetch('/api/image-registry', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image, alias, description, ghcrToken: ghcrToken || null}) });
     if (res.ok) {
         document.getElementById('regImage').value = '';
         document.getElementById('regAlias').value = '';
         document.getElementById('regDesc').value = '';
+        document.getElementById('regToken').value = '';
         loadRegistryList();
         loadImageRegistry();
     } else { errEl.textContent = '추가 실패: ' + await res.text(); errEl.style.display = 'inline'; }
