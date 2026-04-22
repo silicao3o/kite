@@ -64,7 +64,10 @@ public class ServiceDeployer {
         // 6. 같은 이름의 기존 컨테이너가 있으면 stop + remove
         removeExistingContainer(client, resolved.getContainerName());
 
-        // 7. 컨테이너 생성
+        // 7. 이미지 pull (없으면 자동 다운로드)
+        pullImageIfNeeded(client, resolved.getImage());
+
+        // 8. 컨테이너 생성
         CreateContainerCmd cmd = client.createContainerCmd(resolved.getImage())
                 .withName(resolved.getContainerName())
                 .withHostConfig(hostConfig)
@@ -245,6 +248,21 @@ public class ServiceDeployer {
             if (mem.endsWith("K")) return (long) (Double.parseDouble(mem.replace("K", "")) * 1024);
             return Long.parseLong(mem);
         } catch (NumberFormatException e) { return 0; }
+    }
+
+    private void pullImageIfNeeded(DockerClient client, String image) {
+        try {
+            client.inspectImageCmd(image).exec();
+            log.debug("이미지 존재: {}", image);
+        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
+            log.info("이미지 pull 시작: {}", image);
+            try {
+                client.pullImageCmd(image).start().awaitCompletion();
+                log.info("이미지 pull 완료: {}", image);
+            } catch (Exception pullEx) {
+                log.warn("이미지 pull 실패 (계속 진행): {}", image, pullEx);
+            }
+        }
     }
 
     private void removeExistingContainer(DockerClient client, String containerName) {
