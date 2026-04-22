@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS image_watches (
     poll_interval_seconds  INTEGER      NOT NULL DEFAULT 300,
     max_unavailable        INTEGER      NOT NULL DEFAULT 1,
     mode                   VARCHAR(10)  NOT NULL DEFAULT 'POLLING',
-    ghcr_token             VARCHAR(255),
+    image_registry_id      VARCHAR(36),
     enabled                BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at             TIMESTAMP    NOT NULL
 );
