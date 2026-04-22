@@ -55,7 +55,10 @@ public class ServiceDeployer {
         // 5. HostConfig 구성 (ports, volumes, restart)
         HostConfig hostConfig = buildHostConfig(resolved);
 
-        // 6. 컨테이너 생성
+        // 6. 같은 이름의 기존 컨테이너가 있으면 stop + remove
+        removeExistingContainer(client, resolved.getContainerName());
+
+        // 7. 컨테이너 생성
         CreateContainerCmd cmd = client.createContainerCmd(resolved.getImage())
                 .withName(resolved.getContainerName())
                 .withHostConfig(hostConfig)
@@ -183,6 +186,26 @@ public class ServiceDeployer {
         }
 
         return hostConfig;
+    }
+
+    private void removeExistingContainer(DockerClient client, String containerName) {
+        try {
+            var containers = client.listContainersCmd()
+                    .withShowAll(true)
+                    .withNameFilter(List.of(containerName))
+                    .exec();
+            for (var container : containers) {
+                String name = container.getNames() != null && container.getNames().length > 0
+                        ? container.getNames()[0].replaceFirst("^/", "") : "";
+                if (name.equals(containerName)) {
+                    try { client.stopContainerCmd(container.getId()).exec(); } catch (Exception ignored) {}
+                    client.removeContainerCmd(container.getId()).exec();
+                    log.info("기존 컨테이너 제거: {} ({})", containerName, container.getId());
+                }
+            }
+        } catch (Exception e) {
+            log.debug("기존 컨테이너 확인 중 오류 (무시): {}", containerName, e);
+        }
     }
 
     private void ensureNetwork(DockerClient client, String networkName) {
