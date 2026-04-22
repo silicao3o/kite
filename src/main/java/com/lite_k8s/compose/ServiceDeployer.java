@@ -38,9 +38,12 @@ public class ServiceDeployer {
         // 2. 전체 필드에 ${KEY} 변수 치환 (image, containerName, ports, volumes 등)
         ParsedService resolved = substituteAllFields(svc, envContext);
 
-        // 3. 네트워크 생성 (필요시)
-        for (String network : resolved.getNetworks()) {
-            ensureNetwork(client, network);
+        // 3. 네트��크 생성/매칭 (실제 이름으로 resolve)
+        List<String> resolvedNetworks = new ArrayList<>();
+        if (resolved.getNetworks() != null) {
+            for (String network : resolved.getNetworks()) {
+                resolvedNetworks.add(ensureNetwork(client, network));
+            }
         }
 
         // 4. 라벨 구성
@@ -54,8 +57,8 @@ public class ServiceDeployer {
 
         // 5. HostConfig 구성 (ports, volumes, restart, 첫 번째 네트워크)
         HostConfig hostConfig = buildHostConfig(resolved);
-        if (resolved.getNetworks() != null && !resolved.getNetworks().isEmpty()) {
-            hostConfig.withNetworkMode(resolved.getNetworks().get(0));
+        if (!resolvedNetworks.isEmpty()) {
+            hostConfig.withNetworkMode(resolvedNetworks.get(0));
         }
 
         // 6. 같은 이름의 기존 컨테이너가 있으면 stop + remove
@@ -72,16 +75,14 @@ public class ServiceDeployer {
         String containerId = response.getId();
 
         // 8. 추가 네트워크 연결 (2번째부터)
-        if (resolved.getNetworks() != null && resolved.getNetworks().size() > 1) {
-            for (int i = 1; i < resolved.getNetworks().size(); i++) {
-                try {
-                    client.connectToNetworkCmd()
-                            .withNetworkId(resolved.getNetworks().get(i))
-                            .withContainerId(containerId)
-                            .exec();
-                } catch (Exception e) {
-                    log.warn("네트워크 연결 실패: {} → {}", containerId, resolved.getNetworks().get(i), e);
-                }
+        for (int i = 1; i < resolvedNetworks.size(); i++) {
+            try {
+                client.connectToNetworkCmd()
+                        .withNetworkId(resolvedNetworks.get(i))
+                        .withContainerId(containerId)
+                        .exec();
+            } catch (Exception e) {
+                log.warn("네트워크 연결 실패: {} → {}", containerId, resolvedNetworks.get(i), e);
             }
         }
 
@@ -213,21 +214,39 @@ public class ServiceDeployer {
         }
     }
 
-    private void ensureNetwork(DockerClient client, String networkName) {
+    /**
+     * 네트워크 확인/생성. 정확한 이름이 없으면 suffix 매칭으로 기존 네트워크 검색.
+     * 예: "quvi-net" → "daquv_quvi-net" 매칭 (docker-compose prefix)
+     * @return 실제 사용할 네트워크 이름
+     */
+    private String ensureNetwork(DockerClient client, String networkName) {
         try {
-            List<com.github.dockerjava.api.model.Network> existing =
-                    client.listNetworksCmd().withNameFilter(networkName).exec();
-            // withNameFilter는 부분 일치할 수 있으므로 정확히 매칭 확인
-            boolean exactMatch = existing.stream()
-                    .anyMatch(n -> networkName.equals(n.getName()));
-            if (!exactMatch) {
-                client.createNetworkCmd().withName(networkName).withDriver("bridge").exec();
-                log.info("네트워크 생성 완료: {}", networkName);
-            } else {
-                log.debug("네트워크 이미 존재: {}", networkName);
+            List<com.github.dockerjava.api.model.Network> all =
+                    client.listNetworksCmd().exec();
+
+            // 1. 정확한 이름 매칭
+            for (var n : all) {
+                if (networkName.equals(n.getName())) {
+                    log.debug("네트워크 정확 매칭: {}", networkName);
+                    return networkName;
+                }
             }
+
+            // 2. suffix 매��� (docker-compose prefix 대응: xxx_quvi-net)
+            for (var n : all) {
+                if (n.getName() != null && n.getName().endsWith("_" + networkName)) {
+                    log.info("네트워크 suffix 매칭: {} → {}", networkName, n.getName());
+                    return n.getName();
+                }
+            }
+
+            // 3. 없으면 새로 생성
+            client.createNetworkCmd().withName(networkName).withDriver("bridge").exec();
+            log.info("네트워크 생성 완료: {}", networkName);
+            return networkName;
         } catch (Exception e) {
             log.warn("네트워크 확인/생성 실패: {}", networkName, e);
+            return networkName;
         }
     }
 
