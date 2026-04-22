@@ -70,7 +70,7 @@ public class ServiceDeployer {
         removeExistingContainer(client, resolved.getContainerName());
 
         // 7. 이미지 pull (없으면 자동 다운로드)
-        pullImageIfNeeded(client, resolved.getImage());
+        pullImage(client, resolved.getImage());
 
         // 8. 컨테이너 생성
         CreateContainerCmd cmd = client.createContainerCmd(resolved.getImage())
@@ -261,35 +261,30 @@ public class ServiceDeployer {
         } catch (NumberFormatException e) { return 0; }
     }
 
-    private void pullImageIfNeeded(DockerClient client, String image) {
+    private void pullImage(DockerClient client, String image) {
+        log.info("이미지 pull 시작: {}", image);
         try {
-            client.inspectImageCmd(image).exec();
-            log.debug("이미지 존재: {}", image);
-        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
-            log.info("이미지 pull 시작: {}", image);
-            try {
-                PullImageCmd cmd = client.pullImageCmd(image).withPlatform("linux/amd64");
+            PullImageCmd cmd = client.pullImageCmd(image).withPlatform("linux/amd64");
 
-                // GHCR private 이미지면 레지스트리 토큰으로 인증
-                if (image.startsWith("ghcr.io")) {
-                    String token = resolveGhcrToken(image);
-                    if (token != null) {
-                        String[] parts = image.split("/");
-                        String username = parts.length >= 2 ? parts[1] : "token";
-                        cmd.withAuthConfig(new AuthConfig()
-                                .withRegistryAddress("https://ghcr.io")
-                                .withUsername(username)
-                                .withPassword(token));
-                        log.debug("GHCR 인증 적용: {}", image);
-                    }
+            // GHCR private 이미지면 레지스트리 토큰으로 인증
+            if (image.startsWith("ghcr.io")) {
+                String token = resolveGhcrToken(image);
+                if (token != null) {
+                    String[] parts = image.split("/");
+                    String username = parts.length >= 2 ? parts[1] : "token";
+                    cmd.withAuthConfig(new AuthConfig()
+                            .withRegistryAddress("https://ghcr.io")
+                            .withUsername(username)
+                            .withPassword(token));
+                    log.debug("GHCR 인증 적용: {}", image);
                 }
-
-                cmd.exec(new ResultCallback.Adapter<PullResponseItem>() {})
-                        .awaitCompletion(300, TimeUnit.SECONDS);
-                log.info("이미지 pull 완료: {}", image);
-            } catch (Exception pullEx) {
-                log.warn("이미지 pull 실패 (계속 진행): {}", image, pullEx);
             }
+
+            cmd.exec(new ResultCallback.Adapter<PullResponseItem>() {})
+                    .awaitCompletion(300, TimeUnit.SECONDS);
+            log.info("이미지 pull 완료: {}", image);
+        } catch (Exception e) {
+            log.warn("이미지 pull 실패 (기존 이미지로 계속 진행): {}", image, e);
         }
     }
 
