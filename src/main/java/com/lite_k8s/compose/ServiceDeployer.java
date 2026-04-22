@@ -117,8 +117,23 @@ public class ServiceDeployer {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\$\\{([^}]+)}").matcher(value);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
-            String varName = m.group(1);
+            String expr = m.group(1);
+            String varName;
+            String defaultValue = null;
+
+            // ${KEY:-default} 구문 지원
+            int colonIdx = expr.indexOf(":-");
+            if (colonIdx >= 0) {
+                varName = expr.substring(0, colonIdx);
+                defaultValue = expr.substring(colonIdx + 2);
+            } else {
+                varName = expr;
+            }
+
             String replacement = context.get(varName);
+            if (replacement == null && defaultValue != null) {
+                replacement = defaultValue;
+            }
             m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(replacement != null ? replacement : m.group(0)));
         }
         m.appendTail(sb);

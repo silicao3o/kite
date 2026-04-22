@@ -39,13 +39,24 @@ public class EnvProfileResolver {
         Matcher matcher = VAR_PATTERN.matcher(value);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            String varName = matcher.group(1);
-            String replacement = context.get(varName);
-            if (replacement != null) {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+            String expr = matcher.group(1);
+            String varName;
+            String defaultValue = null;
+
+            // ${KEY:-default} 구문 지원
+            int colonIdx = expr.indexOf(":-");
+            if (colonIdx >= 0) {
+                varName = expr.substring(0, colonIdx);
+                defaultValue = expr.substring(colonIdx + 2);
             } else {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
+                varName = expr;
             }
+
+            String replacement = context.get(varName);
+            if (replacement == null && defaultValue != null) {
+                replacement = defaultValue;
+            }
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
         }
         matcher.appendTail(sb);
         return sb.toString();

@@ -126,6 +126,46 @@ class ServiceDeployerTest {
     }
 
     @Test
+    @DisplayName("${KEY:-default} 구문에서 KEY가 없으면 기본값을 사용한다")
+    void deploy_SubstitutesDefaultValue() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("ghcr.io/org/app:${IMAGE_TAG:-latest}")
+                .containerName("app")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of())  // IMAGE_TAG 없음
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        deployer.deploy(svc, null, null);
+
+        verify(dockerClient).createContainerCmd("ghcr.io/org/app:latest");
+    }
+
+    @Test
+    @DisplayName("${KEY:-default} 구문에서 KEY가 있으면 해당 값을 사용한다")
+    void deploy_SubstitutesValueOverDefault() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("ghcr.io/org/app:${IMAGE_TAG:-latest}")
+                .containerName("app")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of("IMAGE_TAG", "v3.0"))
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        deployer.deploy(svc, null, null);
+
+        verify(dockerClient).createContainerCmd("ghcr.io/org/app:v3.0");
+    }
+
+    @Test
     @DisplayName("container_name, volumes, ports의 ${KEY}도 치환된다")
     void deploy_SubstitutesAllFields() {
         ParsedService svc = ParsedService.builder()
