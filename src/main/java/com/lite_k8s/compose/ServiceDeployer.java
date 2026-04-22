@@ -1,10 +1,13 @@
 package com.lite_k8s.compose;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.PullImageCmd;
 import com.github.dockerjava.api.model.*;
 import com.lite_k8s.envprofile.EnvProfileResolver;
+import com.lite_k8s.envprofile.ImageRegistryRepository;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -22,6 +26,7 @@ public class ServiceDeployer {
     private final EnvProfileResolver envProfileResolver;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final ImageRegistryRepository imageRegistryRepository;
 
     public String deploy(ParsedService svc, String envProfileId, String nodeId) {
         return deployWithDefinitionId(svc, envProfileId, nodeId, null);
@@ -257,12 +262,38 @@ public class ServiceDeployer {
         } catch (com.github.dockerjava.api.exception.NotFoundException e) {
             log.info("이미지 pull 시작: {}", image);
             try {
-                client.pullImageCmd(image).start().awaitCompletion();
+                PullImageCmd cmd = client.pullImageCmd(image).withPlatform("linux/amd64");
+
+                // GHCR private 이미지면 레지스트리 토큰으로 인증
+                if (image.startsWith("ghcr.io")) {
+                    String token = resolveGhcrToken(image);
+                    if (token != null) {
+                        String[] parts = image.split("/");
+                        String username = parts.length >= 2 ? parts[1] : "token";
+                        cmd.withAuthConfig(new AuthConfig()
+                                .withRegistryAddress("https://ghcr.io")
+                                .withUsername(username)
+                                .withPassword(token));
+                        log.debug("GHCR 인증 적용: {}", image);
+                    }
+                }
+
+                cmd.exec(new ResultCallback.Adapter<PullResponseItem>() {})
+                        .awaitCompletion(300, TimeUnit.SECONDS);
                 log.info("이미지 pull 완료: {}", image);
             } catch (Exception pullEx) {
                 log.warn("이미지 pull 실패 (계속 진행): {}", image, pullEx);
             }
         }
+    }
+
+    /** 이미지 경로에서 레지스트리 토큰 조회 (image:tag → image로 검색) */
+    private String resolveGhcrToken(String imageWithTag) {
+        String imageOnly = imageWithTag.contains(":") ? imageWithTag.substring(0, imageWithTag.lastIndexOf(":")) : imageWithTag;
+        return imageRegistryRepository.findByImage(imageOnly)
+                .map(r -> r.getGhcrToken())
+                .filter(t -> t != null && !t.isBlank())
+                .orElse(null);
     }
 
     private void removeExistingContainer(DockerClient client, String containerName) {

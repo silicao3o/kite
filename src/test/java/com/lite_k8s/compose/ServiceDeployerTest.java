@@ -37,12 +37,18 @@ class ServiceDeployerTest {
     @Mock private CreateNetworkCmd createNetworkCmd;
     @Mock private CreateContainerResponse createResponse;
     @Mock private CreateNetworkResponse createNetworkResponse;
+    @Mock private com.lite_k8s.envprofile.ImageRegistryRepository imageRegistryRepository;
 
     private ServiceDeployer deployer;
 
     @BeforeEach
     void setUp() {
-        deployer = new ServiceDeployer(dockerClient, envProfileResolver, nodeRegistry, nodeClientFactory);
+        deployer = new ServiceDeployer(dockerClient, envProfileResolver, nodeRegistry, nodeClientFactory, imageRegistryRepository);
+
+        // inspectImageCmd — 이미지 존재하는 것으로 mock
+        var inspectImageCmd = mock(com.github.dockerjava.api.command.InspectImageCmd.class);
+        when(dockerClient.inspectImageCmd(anyString())).thenReturn(inspectImageCmd);
+        when(inspectImageCmd.exec()).thenReturn(mock(com.github.dockerjava.api.command.InspectImageResponse.class));
 
         when(dockerClient.createContainerCmd(anyString())).thenReturn(createCmd);
         when(createCmd.withName(anyString())).thenReturn(createCmd);
