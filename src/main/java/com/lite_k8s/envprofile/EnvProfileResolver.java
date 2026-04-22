@@ -43,11 +43,21 @@ public class EnvProfileResolver {
             String varName;
             String defaultValue = null;
 
-            // ${KEY:-default} 구문 지원
-            int colonIdx = expr.indexOf(":-");
-            if (colonIdx >= 0) {
-                varName = expr.substring(0, colonIdx);
-                defaultValue = expr.substring(colonIdx + 2);
+            // ${KEY:?error} — 필수 변수 / ${KEY:-default} — 기본값
+            int reqIdx = expr.indexOf(":?");
+            int defIdx = expr.indexOf(":-");
+
+            if (reqIdx >= 0) {
+                varName = expr.substring(0, reqIdx);
+                String requiredMsg = expr.substring(reqIdx + 2);
+                String replacement2 = context.get(varName);
+                if (replacement2 == null) {
+                    throw new IllegalStateException("필수 변수 미설정: " + varName + " (" + requiredMsg + ")");
+                }
+                defaultValue = null;
+            } else if (defIdx >= 0) {
+                varName = expr.substring(0, defIdx);
+                defaultValue = expr.substring(defIdx + 2);
             } else {
                 varName = expr;
             }

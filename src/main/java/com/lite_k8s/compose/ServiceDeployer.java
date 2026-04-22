@@ -129,17 +129,29 @@ public class ServiceDeployer {
             String expr = m.group(1);
             String varName;
             String defaultValue = null;
+            boolean required = false;
+            String requiredMsg = null;
 
-            // ${KEY:-default} 구문 지원
-            int colonIdx = expr.indexOf(":-");
-            if (colonIdx >= 0) {
-                varName = expr.substring(0, colonIdx);
-                defaultValue = expr.substring(colonIdx + 2);
+            // ${KEY:?error message} — 필수 변수 (없으면 에러)
+            int reqIdx = expr.indexOf(":?");
+            // ${KEY:-default} — 기본값
+            int defIdx = expr.indexOf(":-");
+
+            if (reqIdx >= 0) {
+                varName = expr.substring(0, reqIdx);
+                requiredMsg = expr.substring(reqIdx + 2);
+                required = true;
+            } else if (defIdx >= 0) {
+                varName = expr.substring(0, defIdx);
+                defaultValue = expr.substring(defIdx + 2);
             } else {
                 varName = expr;
             }
 
             String replacement = context.get(varName);
+            if (replacement == null && required) {
+                throw new IllegalStateException("필수 변수 미설정: " + varName + " (" + requiredMsg + ")");
+            }
             if (replacement == null && defaultValue != null) {
                 replacement = defaultValue;
             }
