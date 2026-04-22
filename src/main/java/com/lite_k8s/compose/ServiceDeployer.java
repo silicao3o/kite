@@ -112,13 +112,22 @@ public class ServiceDeployer {
                 .serviceName(svc.getServiceName())
                 .image(substituteVars(svc.getImage(), context))
                 .containerName(substituteVars(svc.getContainerName(), context))
-                .ports(svc.getPorts() != null ? svc.getPorts().stream().map(p -> substituteVars(p, context)).toList() : List.of())
-                .volumes(svc.getVolumes() != null ? svc.getVolumes().stream().map(v -> substituteVars(v, context)).toList() : List.of())
+                .ports(substituteList(svc.getPorts(), context))
+                .volumes(substituteList(svc.getVolumes(), context))
                 .environment(svc.getEnvironment())
                 .networks(svc.getNetworks())
                 .restartPolicy(svc.getRestartPolicy())
                 .labels(svc.getLabels())
+                .extraHosts(substituteList(svc.getExtraHosts(), context))
+                .dependsOn(svc.getDependsOn())
+                .memoryLimit(substituteVars(svc.getMemoryLimit(), context))
+                .cpuLimit(substituteVars(svc.getCpuLimit(), context))
                 .build();
+    }
+
+    private List<String> substituteList(List<String> list, Map<String, String> context) {
+        if (list == null) return List.of();
+        return list.stream().map(v -> substituteVars(v, context)).toList();
     }
 
     private String substituteVars(String value, Map<String, String> context) {
@@ -181,13 +190,17 @@ public class ServiceDeployer {
             hostConfig.withPortBindings(ports);
         }
 
-        // Volumes (bind mounts)
+        // Volumes (bind mounts + named volumes)
         if (svc.getVolumes() != null && !svc.getVolumes().isEmpty()) {
             List<Bind> binds = new ArrayList<>();
             for (String vol : svc.getVolumes()) {
                 String[] parts = vol.split(":");
                 if (parts.length >= 2) {
-                    binds.add(new Bind(parts[0], new Volume(parts[1])));
+                    AccessMode mode = AccessMode.rw;
+                    if (parts.length >= 3 && "ro".equals(parts[2])) {
+                        mode = AccessMode.ro;
+                    }
+                    binds.add(new Bind(parts[0], new Volume(parts[1]), mode));
                 }
             }
             hostConfig.withBinds(binds);
@@ -203,7 +216,35 @@ public class ServiceDeployer {
             }
         }
 
+        // Extra hosts
+        if (svc.getExtraHosts() != null && !svc.getExtraHosts().isEmpty()) {
+            hostConfig.withExtraHosts(svc.getExtraHosts().toArray(new String[0]));
+        }
+
+        // Memory limit (e.g. "2G", "512M")
+        if (svc.getMemoryLimit() != null) {
+            hostConfig.withMemory(parseMemoryBytes(svc.getMemoryLimit()));
+        }
+
+        // CPU limit (e.g. "1", "0.5" → nanoCpus)
+        if (svc.getCpuLimit() != null) {
+            try {
+                long nanoCpus = (long) (Double.parseDouble(svc.getCpuLimit()) * 1_000_000_000L);
+                hostConfig.withNanoCPUs(nanoCpus);
+            } catch (NumberFormatException ignored) {}
+        }
+
         return hostConfig;
+    }
+
+    private long parseMemoryBytes(String mem) {
+        mem = mem.trim().toUpperCase();
+        try {
+            if (mem.endsWith("G")) return (long) (Double.parseDouble(mem.replace("G", "")) * 1024 * 1024 * 1024);
+            if (mem.endsWith("M")) return (long) (Double.parseDouble(mem.replace("M", "")) * 1024 * 1024);
+            if (mem.endsWith("K")) return (long) (Double.parseDouble(mem.replace("K", "")) * 1024);
+            return Long.parseLong(mem);
+        } catch (NumberFormatException e) { return 0; }
     }
 
     private void removeExistingContainer(DockerClient client, String containerName) {

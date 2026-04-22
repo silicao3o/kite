@@ -30,6 +30,21 @@ public class ComposeParser {
 
     @SuppressWarnings("unchecked")
     private static ParsedService parseService(String serviceName, Map<String, Object> config) {
+        // deploy.resources.limits 파싱
+        String memoryLimit = null;
+        String cpuLimit = null;
+        Object deploy = config.get("deploy");
+        if (deploy instanceof Map<?, ?> deployMap) {
+            Object resources = ((Map<?, ?>) deployMap).get("resources");
+            if (resources instanceof Map<?, ?> resMap) {
+                Object limits = ((Map<?, ?>) resMap).get("limits");
+                if (limits instanceof Map<?, ?> limitsMap) {
+                    memoryLimit = limitsMap.get("memory") != null ? limitsMap.get("memory").toString() : null;
+                    cpuLimit = limitsMap.get("cpus") != null ? limitsMap.get("cpus").toString() : null;
+                }
+            }
+        }
+
         return ParsedService.builder()
                 .serviceName(serviceName)
                 .image(getString(config, "image"))
@@ -40,6 +55,10 @@ public class ComposeParser {
                 .networks(getStringList(config, "networks"))
                 .restartPolicy(getString(config, "restart"))
                 .labels(parseLabels(config.get("labels")))
+                .extraHosts(getStringList(config, "extra_hosts"))
+                .dependsOn(getStringList(config, "depends_on"))
+                .memoryLimit(memoryLimit)
+                .cpuLimit(cpuLimit)
                 .build();
     }
 

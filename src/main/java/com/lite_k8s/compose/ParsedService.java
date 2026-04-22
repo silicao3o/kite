@@ -18,4 +18,8 @@ public class ParsedService {
     private List<String> networks;
     private String restartPolicy;     // "always", "unless-stopped", "no", "on-failure"
     private Map<String, String> labels;
+    private List<String> extraHosts;  // "host.docker.internal:host-gateway" 형태
+    private List<String> dependsOn;
+    private String memoryLimit;       // "2G", "512M"
+    private String cpuLimit;          // "1", "0.5"
 }
