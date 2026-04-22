@@ -204,11 +204,17 @@ public class ServiceDeployer {
             for (String vol : svc.getVolumes()) {
                 String[] parts = vol.split(":");
                 if (parts.length >= 2) {
+                    String hostPath = parts[0];
+                    // 상대 경로(./ ../)는 Docker API에서 지원 안 됨 — 스킵
+                    if (hostPath.startsWith("./") || hostPath.startsWith("../")) {
+                        log.warn("상대 경로 볼륨 스킵 (절대 경로 필요): {}", vol);
+                        continue;
+                    }
                     AccessMode mode = AccessMode.rw;
                     if (parts.length >= 3 && "ro".equals(parts[2])) {
                         mode = AccessMode.ro;
                     }
-                    binds.add(new Bind(parts[0], new Volume(parts[1]), mode));
+                    binds.add(new Bind(hostPath, new Volume(parts[1]), mode));
                 }
             }
             hostConfig.withBinds(binds);
