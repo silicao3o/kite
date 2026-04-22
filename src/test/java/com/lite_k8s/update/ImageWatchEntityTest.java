@@ -88,15 +88,17 @@ class ImageWatchEntityTest {
     }
 
     @Test
-    @DisplayName("ImageWatchEntity에 ghcrToken 필드가 있다 (기본 null)")
-    void hasGhcrTokenField() {
+    @DisplayName("getEffectiveGhcrToken은 레지스트리 토큰을 반환한다")
+    void getEffectiveGhcrToken_FromRegistry() {
         ImageWatchEntity entity = new ImageWatchEntity();
-        assertThat(entity.getGhcrToken()).isNull();
+        assertThat(entity.getEffectiveGhcrToken()).isNull();
 
-        ImageWatchEntity withToken = ImageWatchEntity.builder()
+        com.lite_k8s.envprofile.ImageRegistry registry = com.lite_k8s.envprofile.ImageRegistry.builder()
+                .image("ghcr.io/org/app").ghcrToken("ghp_abc123").build();
+        ImageWatchEntity withRegistry = ImageWatchEntity.builder()
                 .image("ghcr.io/org/app")
-                .ghcrToken("ghp_abc123")
+                .imageRegistry(registry)
                 .build();
-        assertThat(withToken.getGhcrToken()).isEqualTo("ghp_abc123");
+        assertThat(withRegistry.getEffectiveGhcrToken()).isEqualTo("ghp_abc123");
     }
 }

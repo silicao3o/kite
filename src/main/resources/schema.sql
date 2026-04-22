@@ -199,6 +199,9 @@ FROM image_registry r
 WHERE w.image = r.image
   AND w.image_registry_id IS NULL;
 
+-- ghcr_token 컬럼 제거 (레지스트리 FK로 대체)
+ALTER TABLE image_watches DROP COLUMN IF EXISTS ghcr_token;
+
 -- image_update_history (이미지 업데이트 이력)
 CREATE TABLE IF NOT EXISTS image_update_history (
     id              VARCHAR(36)  PRIMARY KEY,

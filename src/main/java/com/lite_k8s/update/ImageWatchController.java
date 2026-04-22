@@ -37,7 +37,6 @@ public class ImageWatchController {
                 .pollIntervalSeconds(mode == ImageWatchEntity.WatchMode.TRIGGER ? null : asInt(body.get("pollIntervalSeconds"), 300))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
                 .mode(mode)
-                .ghcrToken(asString(body.get("ghcrToken")))
                 .enabled(true)
                 .build();
 
@@ -72,9 +71,6 @@ public class ImageWatchController {
             if (newMode == ImageWatchEntity.WatchMode.TRIGGER) entity.setPollIntervalSeconds(null);
         }
         if (body.containsKey("enabled")) entity.setEnabled(asBoolean(body.get("enabled")));
-        if (body.containsKey("ghcrToken")) {
-            entity.setGhcrToken(asString(body.get("ghcrToken")));
-        }
         ImageWatchEntity saved = watchService.save(entity);
         poller.scheduleWatch(saved);
         return ResponseEntity.ok(toMaskedResponse(saved));

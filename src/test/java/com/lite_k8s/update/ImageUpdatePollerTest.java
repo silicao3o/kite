@@ -170,21 +170,23 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("와치에 ghcrToken이 있으면 해당 토큰으로 digest를 조회한다")
-    void checkWatch_WithWatchToken_UsesWatchToken() {
+    @DisplayName("레지스트리에 토큰이 있으면 해당 토큰으로 digest를 조회한다")
+    void checkWatch_WithRegistryToken_UsesRegistryToken() {
+        com.lite_k8s.envprofile.ImageRegistry registry = com.lite_k8s.envprofile.ImageRegistry.builder()
+                .image("ghcr.io/myorg/myapp").ghcrToken("ghp_registry_token").build();
         ImageWatchEntity watch = ImageWatchEntity.builder()
                 .image("ghcr.io/myorg/myapp")
                 .tag("latest")
                 .containerPattern("myapp-.*")
-                .ghcrToken("ghp_watch_specific")
+                .imageRegistry(registry)
                 .build();
 
-        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_watch_specific"))
+        when(ghcrClient.getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_registry_token"))
                 .thenReturn(null);
 
         poller.checkWatch(watch);
 
-        verify(ghcrClient).getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_watch_specific");
+        verify(ghcrClient).getLatestDigest("ghcr.io/myorg/myapp", "latest", "ghp_registry_token");
     }
 
     @Test

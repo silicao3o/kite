@@ -59,12 +59,8 @@ public class ImageWatchEntity {
     @Enumerated(EnumType.STRING)
     private WatchMode mode = WatchMode.POLLING;
 
-    /** GHCR 인증 토큰 — imageRegistry가 있으면 거기서 가져옴 */
-    private String ghcrToken;
-
-    /** 실제 사용할 토큰 반환: 와치 토큰 > 레지스트리 토큰 */
+    /** 실제 사용할 토큰 반환: 레지스트리에서 가져옴 */
     public String getEffectiveGhcrToken() {
-        if (ghcrToken != null && !ghcrToken.isBlank()) return ghcrToken;
         if (imageRegistry != null && imageRegistry.getGhcrToken() != null && !imageRegistry.getGhcrToken().isBlank()) {
             return imageRegistry.getGhcrToken();
         }
