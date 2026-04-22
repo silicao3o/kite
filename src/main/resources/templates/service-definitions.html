@@ -50,16 +50,42 @@
             <p>Docker Compose YAML을 DB로 관리 — Env Profile과 조합하여 Docker API로 배포</p>
         </div>
 
-        <div class="info-box">
-            <strong>Service Definition</strong> — compose YAML + Env Profile + 대상 노드를 등록하면 Kite가 Docker API로 직접 컨테이너를 생성합니다. 서버에 파일 불필요.
+        <!-- 빠른 배포 -->
+        <div class="add-form" style="border-color:var(--accent-blue,#3b82f6);border-width:2px;">
+            <div class="section-title">배포</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto;">
+                <div class="form-group">
+                    <label>서비스 정의 *</label>
+                    <select id="quickDef" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;"></select>
+                </div>
+                <div class="form-group">
+                    <label>Env Profile</label>
+                    <select id="quickProfile" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;">
+                        <option value="">서비스 정의 설정 사용</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>노드 *</label>
+                    <select id="quickNode" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;">
+                        <option value="">로컬</option>
+                    </select>
+                </div>
+                <div class="form-group" style="justify-content:flex-end;">
+                    <label>&nbsp;</label>
+                    <button class="btn-add" onclick="quickDeploy()" style="background:#22c55e;">배포</button>
+                </div>
+            </div>
+            <span id="quickError" style="color:#fca5a5;font-size:.85rem;display:none;"></span>
+            <span id="quickStatus" style="font-size:.85rem;margin-left:.5rem;"></span>
         </div>
 
+        <!-- 서비스 정의 등록 -->
         <div class="add-form">
-            <div class="section-title">서비스 정의 추가</div>
+            <div class="section-title">서비스 정의 등록</div>
             <div class="form-grid">
                 <div class="form-group"><label>이름 *</label><input type="text" id="defName" placeholder="quvi-operia"/></div>
                 <div class="form-group"><label>Env Profile</label><select id="defProfile"><option value="">없음</option></select></div>
-                <div class="form-group"><label>대상 노드 (쉼표 구분)</label><input type="text" id="defNodes" placeholder="gcp-operia"/></div>
+                <div class="form-group"><label>대상 노드</label><select id="defNodes" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;"><option value="">로컬</option></select></div>
             </div>
             <div class="form-group" style="margin-top:.75rem;">
                 <label>Compose YAML *</label>
@@ -112,20 +138,80 @@
 
 <script>
 let defsCache = [];
+let profilesCache = [];
+let nodesCache = [];
 
 async function loadProfiles() {
     try {
         const res = await fetch('/api/env-profiles');
-        const profiles = await res.json();
+        profilesCache = await res.json();
+        // 등록 폼
         const sel = document.getElementById('defProfile');
-        profiles.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o); });
+        sel.innerHTML = '<option value="">없음</option>';
+        profilesCache.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o); });
+        // 빠른 배포
+        const qSel = document.getElementById('quickProfile');
+        qSel.innerHTML = '<option value="">서비스 정의 설정 사용</option>';
+        profilesCache.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; qSel.appendChild(o); });
     } catch(e) {}
+}
+
+async function loadNodes() {
+    try {
+        const res = await fetch('/api/nodes');
+        nodesCache = await res.json();
+        ['quickNode', 'defNodes'].forEach(selId => {
+            const sel = document.getElementById(selId);
+            sel.innerHTML = '<option value="">로컬</option>';
+            nodesCache.forEach(n => { const o = document.createElement('option'); o.value = n.name; o.textContent = n.name + ' (' + n.host + ')'; sel.appendChild(o); });
+        });
+    } catch(e) {}
+}
+
+function loadQuickDefSelect() {
+    const sel = document.getElementById('quickDef');
+    sel.innerHTML = '<option value="">선택...</option>';
+    defsCache.forEach(d => { const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; sel.appendChild(o); });
+}
+
+async function quickDeploy() {
+    const defId = document.getElementById('quickDef').value;
+    const errEl = document.getElementById('quickError');
+    const statusEl = document.getElementById('quickStatus');
+    if (!defId) { errEl.textContent = '서비스 정의를 선택하세요.'; errEl.style.display = 'inline'; return; }
+    errEl.style.display = 'none';
+
+    // 선택한 노드와 프로파일로 서비스 정의 업데이트 후 배포
+    const profileId = document.getElementById('quickProfile').value || null;
+    const nodeName = document.getElementById('quickNode').value;
+    const nodeNames = nodeName ? [nodeName] : [];
+
+    // 서비스 정의에 노드/프로파일 업데이트
+    const updateBody = { nodeNames };
+    if (profileId) updateBody.envProfileId = profileId;
+    await fetch(`/api/service-definitions/${defId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updateBody) });
+
+    // 배포
+    statusEl.textContent = '배포 중...';
+    statusEl.style.color = 'var(--text-secondary)';
+    const res = await fetch(`/api/service-definitions/${defId}/deploy`, { method:'POST' });
+    if (res.ok) {
+        statusEl.textContent = '배포 완료!';
+        statusEl.style.color = '#86efac';
+        setTimeout(() => { statusEl.textContent = ''; loadDefs(); }, 2000);
+    } else {
+        const msg = await res.text();
+        errEl.textContent = '배포 실패: ' + msg;
+        errEl.style.display = 'inline';
+        statusEl.textContent = '';
+    }
 }
 
 async function loadDefs() {
     const res = await fetch('/api/service-definitions');
     const defs = await res.json();
     defsCache = defs;
+    loadQuickDefSelect();
     const table = document.getElementById('defTable');
     const tbody = document.getElementById('defBody');
     const empty = document.getElementById('defEmpty');
@@ -159,8 +245,8 @@ async function createDef() {
     if (!name || !composeYaml.trim()) { errEl.textContent = '이름과 YAML은 필수입니다.'; errEl.style.display = 'inline'; return; }
     errEl.style.display = 'none';
     const envProfileId = document.getElementById('defProfile').value || null;
-    const nodeNamesStr = document.getElementById('defNodes').value.trim();
-    const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const nodeName = document.getElementById('defNodes').value;
+    const nodeNames = nodeName ? [nodeName] : [];
 
     const res = await fetch('/api/service-definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, composeYaml, envProfileId, nodeNames}) });
     if (res.ok) { document.getElementById('defName').value=''; document.getElementById('defYaml').value=''; document.getElementById('defNodes').value=''; loadDefs(); }
@@ -234,7 +320,7 @@ document.getElementById('editDefModal').addEventListener('click', function(e) { 
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-document.addEventListener('DOMContentLoaded', () => { loadProfiles(); loadDefs(); });
+document.addEventListener('DOMContentLoaded', () => { loadProfiles(); loadNodes(); loadDefs(); });
 </script>
 <script src="/js/sidebar-toggle.js"></script>
 </body>
