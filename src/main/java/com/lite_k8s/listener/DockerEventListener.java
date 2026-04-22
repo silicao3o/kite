@@ -181,13 +181,30 @@ public class DockerEventListener {
         log.info("Docker 이벤트 리스너 시작 완료");
     }
 
+    private String resolveNodeName(String nodeId) {
+        if (nodeId == null) return "local";
+        if (nodeRegistry == null) return nodeId;
+        return nodeRegistry.findById(nodeId)
+                .map(n -> n.getName())
+                .orElse(nodeId);
+    }
+
     private void handleEvent(Event event, String nodeId) {
         String action = event.getAction();
         String containerId = event.getId() != null
                 ? event.getId()
                 : (event.getActor() != null ? event.getActor().getId() : null);
 
-        log.debug("Docker 이벤트 수신: action={}, containerId={}", action, containerId);
+        // 이벤트에서 컨테이너 이름 추출
+        String containerName = null;
+        if (event.getActor() != null && event.getActor().getAttributes() != null) {
+            containerName = event.getActor().getAttributes().get("name");
+        }
+        // 노드 이름 resolve
+        String nodeName = resolveNodeName(nodeId);
+
+        log.debug("Docker 이벤트 수신: node={}, container={}, action={}, containerId={}",
+                nodeName, containerName, action, containerId);
         // 안전하게 null을 먼저 걸러내는 것이 중요 action이나 containerId가 null이면 이벤트 처리 자체가 불가능함
         if (action == null || containerId == null) return;
 
@@ -200,10 +217,10 @@ public class DockerEventListener {
 
         // die 이벤트만 처리하도록 수정
         if (action != null && DEATH_ACTIONS.contains(action.toLowerCase())) {
-            log.info("컨테이너 종료 이벤트 감지: pendingDeathCause={}, action={}", pendingDeathCause.toString(), action);
+            log.info("컨테이너 종료 감지: node={}, container={}, containerId={}, action={}",
+                    nodeName, containerName, containerId, action);
             // 저장된 선행 원인 꺼내기 (꺼내면서 삭제)
             String previousCause = pendingDeathCause.remove(containerId);
-            log.info("컨테이너 종료 감지: containerId={}, action={}", containerId, action);
 
             // 우리 자신의 API 호출로 인한 종료는 전체 플로우 스킵
             // (self-heal, recreate, reconcile 등이 방금 restart한 결과로 생긴 이벤트)
