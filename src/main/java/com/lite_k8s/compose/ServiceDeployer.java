@@ -52,8 +52,11 @@ public class ServiceDeployer {
             labels.put(EnvProfileResolver.LABEL_KEY, envProfileId);
         }
 
-        // 5. HostConfig 구성 (ports, volumes, restart)
+        // 5. HostConfig 구성 (ports, volumes, restart, 첫 번째 네트워크)
         HostConfig hostConfig = buildHostConfig(resolved);
+        if (resolved.getNetworks() != null && !resolved.getNetworks().isEmpty()) {
+            hostConfig.withNetworkMode(resolved.getNetworks().get(0));
+        }
 
         // 6. 같은 이름의 기존 컨테이너가 있으면 stop + remove
         removeExistingContainer(client, resolved.getContainerName());
@@ -68,15 +71,17 @@ public class ServiceDeployer {
         CreateContainerResponse response = cmd.exec();
         String containerId = response.getId();
 
-        // 8. 네트워크 연결
-        for (String network : resolved.getNetworks()) {
-            try {
-                client.connectToNetworkCmd()
-                        .withNetworkId(network)
-                        .withContainerId(containerId)
-                        .exec();
-            } catch (Exception e) {
-                log.warn("네트워크 연결 실패: {} → {}", containerId, network, e);
+        // 8. 추가 네트워크 연결 (2번째부터)
+        if (resolved.getNetworks() != null && resolved.getNetworks().size() > 1) {
+            for (int i = 1; i < resolved.getNetworks().size(); i++) {
+                try {
+                    client.connectToNetworkCmd()
+                            .withNetworkId(resolved.getNetworks().get(i))
+                            .withContainerId(containerId)
+                            .exec();
+                } catch (Exception e) {
+                    log.warn("네트워크 연결 실패: {} → {}", containerId, resolved.getNetworks().get(i), e);
+                }
             }
         }
 
