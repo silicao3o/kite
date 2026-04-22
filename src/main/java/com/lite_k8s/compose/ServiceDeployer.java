@@ -217,9 +217,14 @@ public class ServiceDeployer {
         try {
             List<com.github.dockerjava.api.model.Network> existing =
                     client.listNetworksCmd().withNameFilter(networkName).exec();
-            if (existing.isEmpty()) {
-                client.createNetworkCmd().withName(networkName).exec();
-                log.info("네트워크 생성: {}", networkName);
+            // withNameFilter는 부분 일치할 수 있으므로 정확히 매칭 확인
+            boolean exactMatch = existing.stream()
+                    .anyMatch(n -> networkName.equals(n.getName()));
+            if (!exactMatch) {
+                client.createNetworkCmd().withName(networkName).withDriver("bridge").exec();
+                log.info("네트워크 생성 완료: {}", networkName);
+            } else {
+                log.debug("네트워크 이미 존재: {}", networkName);
             }
         } catch (Exception e) {
             log.warn("네트워크 확인/생성 실패: {}", networkName, e);
