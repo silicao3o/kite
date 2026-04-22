@@ -30,16 +30,21 @@ public class ServiceDeployer {
     public String deployWithDefinitionId(ParsedService svc, String envProfileId, String nodeId, String definitionId) {
         DockerClient client = resolveClient(nodeId);
 
-        // 1. 네트워크 생성 (필요시)
-        for (String network : svc.getNetworks()) {
+        // 1. env 구성: compose env + profile env merge (profile이 오버라이드)
+        Map<String, String> envContext = buildEnvContext(svc.getEnvironment(), envProfileId);
+        List<String> envList = envContext.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue()).toList();
+
+        // 2. 전체 필드에 ${KEY} 변수 치환 (image, containerName, ports, volumes 등)
+        ParsedService resolved = substituteAllFields(svc, envContext);
+
+        // 3. 네트워크 생성 (필요시)
+        for (String network : resolved.getNetworks()) {
             ensureNetwork(client, network);
         }
 
-        // 2. env 구성: compose env + profile env merge (profile이 오버라이드)
-        List<String> envList = buildEnvList(svc.getEnvironment(), envProfileId);
-
-        // 3. 라벨 구성
-        Map<String, String> labels = new LinkedHashMap<>(svc.getLabels() != null ? svc.getLabels() : Map.of());
+        // 4. 라벨 구성
+        Map<String, String> labels = new LinkedHashMap<>(resolved.getLabels() != null ? resolved.getLabels() : Map.of());
         if (definitionId != null) {
             labels.put("kite.service-definition-id", definitionId);
         }
@@ -47,12 +52,12 @@ public class ServiceDeployer {
             labels.put(EnvProfileResolver.LABEL_KEY, envProfileId);
         }
 
-        // 4. HostConfig 구성 (ports, volumes, restart)
-        HostConfig hostConfig = buildHostConfig(svc);
+        // 5. HostConfig 구성 (ports, volumes, restart)
+        HostConfig hostConfig = buildHostConfig(resolved);
 
-        // 5. 컨테이너 생성
-        CreateContainerCmd cmd = client.createContainerCmd(svc.getImage())
-                .withName(svc.getContainerName())
+        // 6. 컨테이너 생성
+        CreateContainerCmd cmd = client.createContainerCmd(resolved.getImage())
+                .withName(resolved.getContainerName())
                 .withHostConfig(hostConfig)
                 .withEnv(envList)
                 .withLabels(labels);
@@ -60,8 +65,8 @@ public class ServiceDeployer {
         CreateContainerResponse response = cmd.exec();
         String containerId = response.getId();
 
-        // 6. 네트워크 연결
-        for (String network : svc.getNetworks()) {
+        // 8. 네트워크 연결
+        for (String network : resolved.getNetworks()) {
             try {
                 client.connectToNetworkCmd()
                         .withNetworkId(network)
@@ -72,36 +77,39 @@ public class ServiceDeployer {
             }
         }
 
-        // 7. 시작
+        // 9. 시작
         client.startContainerCmd(containerId).exec();
-        log.info("서비스 배포 완료: {} ({})", svc.getContainerName(), containerId);
+        log.info("서비스 배포 완료: {} ({})", resolved.getContainerName(), containerId);
 
         return containerId;
     }
 
-    private List<String> buildEnvList(Map<String, String> composeEnv, String envProfileId) {
+    private Map<String, String> buildEnvContext(Map<String, String> composeEnv, String envProfileId) {
         Map<String, String> merged = new LinkedHashMap<>();
+        if (composeEnv != null) merged.putAll(composeEnv);
+        if (envProfileId != null) merged.putAll(envProfileResolver.resolve(List.of(envProfileId)));
 
-        // compose env 먼저
-        if (composeEnv != null) {
-            merged.putAll(composeEnv);
-        }
-
-        // profile env가 오버라이드
-        if (envProfileId != null) {
-            merged.putAll(envProfileResolver.resolve(List.of(envProfileId)));
-        }
-
-        // 변수 치환은 resolve() 내부에서 이미 처리됨
-        // compose env의 ${KEY}도 치환
+        // 변수 치환
         Map<String, String> resolved = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : merged.entrySet()) {
             resolved.put(entry.getKey(), substituteVars(entry.getValue(), merged));
         }
+        return resolved;
+    }
 
-        return resolved.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .toList();
+    /** ParsedService의 모든 문자열 필드에 ${KEY} 변수 치환 적용 */
+    private ParsedService substituteAllFields(ParsedService svc, Map<String, String> context) {
+        return ParsedService.builder()
+                .serviceName(svc.getServiceName())
+                .image(substituteVars(svc.getImage(), context))
+                .containerName(substituteVars(svc.getContainerName(), context))
+                .ports(svc.getPorts() != null ? svc.getPorts().stream().map(p -> substituteVars(p, context)).toList() : List.of())
+                .volumes(svc.getVolumes() != null ? svc.getVolumes().stream().map(v -> substituteVars(v, context)).toList() : List.of())
+                .environment(svc.getEnvironment())
+                .networks(svc.getNetworks())
+                .restartPolicy(svc.getRestartPolicy())
+                .labels(svc.getLabels())
+                .build();
     }
 
     private String substituteVars(String value, Map<String, String> context) {

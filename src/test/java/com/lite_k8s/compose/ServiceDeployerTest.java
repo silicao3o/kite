@@ -106,6 +106,46 @@ class ServiceDeployerTest {
     }
 
     @Test
+    @DisplayName("image 필드의 ${KEY} 변수가 env로 치환된다")
+    void deploy_SubstitutesImageVariable() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("${IMAGE_REPO}:${IMAGE_TAG}")
+                .containerName("app")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of("IMAGE_REPO", "ghcr.io/org/app", "IMAGE_TAG", "v2.0"))
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        deployer.deploy(svc, null, null);
+
+        verify(dockerClient).createContainerCmd("ghcr.io/org/app:v2.0");
+    }
+
+    @Test
+    @DisplayName("container_name, volumes, ports의 ${KEY}도 치환된다")
+    void deploy_SubstitutesAllFields() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("myapp:latest")
+                .containerName("${APP_NAME}-prod")
+                .ports(List.of("${HOST_PORT}:8080"))
+                .volumes(List.of("${DATA_DIR}:/app/data"))
+                .environment(Map.of("APP_NAME", "quvi", "HOST_PORT", "9090", "DATA_DIR", "/opt/data"))
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        deployer.deploy(svc, null, null);
+
+        verify(createCmd).withName("quvi-prod");
+    }
+
+    @Test
     @DisplayName("배포 시 kite.service-definition-id 라벨이 자동 부착된다")
     void deploy_AddsKiteLabel() {
         ParsedService svc = ParsedService.builder()
