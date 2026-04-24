@@ -68,6 +68,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:olddigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -103,6 +104,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -136,6 +138,7 @@ class ImageUpdatePollerTest {
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:samedigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -269,6 +272,7 @@ class ImageUpdatePollerTest {
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:samedigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -306,6 +310,90 @@ class ImageUpdatePollerTest {
         assertThat(logAppender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anyMatch(msg -> msg.contains("매칭") && msg.contains("0"));
+    }
+
+    @Test
+    @DisplayName("컨테이너 이미지 레포가 watch image와 다르면 업데이트 대상에서 제외한다")
+    void checkWatch_WhenContainerImageRepoDiffers_SkipsContainer() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/daquv-qv/chat-quvi")
+                .tag("latest")
+                .containerPattern("chat-quvi.*")
+                .build();
+
+        // nginx 사이드카 — 이름은 매칭되지만 이미지가 완전히 다름
+        Container nginx = mock(Container.class);
+        when(nginx.getNames()).thenReturn(new String[]{"/chat-quvi-qvc-nginx"});
+        when(nginx.getImage()).thenReturn("nginx:alpine");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(nginx));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
+                .thenReturn("sha256:chatquvinew");
+
+        poller.checkWatch(watch);
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("컨테이너 이미지 레포가 같으면(태그 다름) 업데이트 대상으로 인식한다")
+    void checkWatch_WhenSameRepoDifferentTag_StillMatches() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/daquv-qv/chat-quvi")
+                .tag("latest")
+                .containerPattern("chat-quvi.*")
+                .build();
+
+        Container app = mock(Container.class);
+        when(app.getId()).thenReturn("abc");
+        when(app.getNames()).thenReturn(new String[]{"/chat-quvi-qvc"});
+        when(app.getImage()).thenReturn("ghcr.io/daquv-qv/chat-quvi:latest");
+        when(app.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(app));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
+                .thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
+    }
+
+    @Test
+    @DisplayName("잘못된 regex 패턴은 예외를 던지지 않고 substring 폴백한다")
+    void checkWatch_WhenInvalidRegex_FallsBackToSubstring() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("*quvi*")  // invalid regex
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getId()).thenReturn("abc");
+        when(container.getNames()).thenReturn(new String[]{"/myapp-quvi-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
+        when(container.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
+                .thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        // 예외 없이 실행 + name에 "quvi" 포함 → substring 매칭으로 이벤트 발행
+        poller.checkWatch(watch);
+
+        verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
+        assertThat(logAppender.list)
+                .filteredOn(e -> e.getLevel() == Level.WARN)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(msg -> msg.contains("regex") || msg.contains("패턴"));
     }
 
     @Test

@@ -212,9 +212,17 @@ public class ImageUpdatePoller {
                                   String latestDigest, String nodeId) {
         int matched = 0;
         int updated = 0;
+        String watchImage = watch.getEffectiveImage();
         for (Container container : containers) {
             String name = extractName(container);
             if (!matchesPattern(name, watch.getContainerPattern())) {
+                continue;
+            }
+            // 이름은 매칭됐지만 실제 이미지 레포가 다르면 스킵 (sidecar 등)
+            // 예: chat-quvi.* 패턴에 chat-quvi-nginx(nginx:alpine)가 걸리는 것 방지
+            if (!imageRepoMatches(container.getImage(), watchImage)) {
+                log.debug("이미지 레포 불일치로 스킵: {} (container image={}, watch image={})",
+                        name, container.getImage(), watchImage);
                 continue;
             }
             matched++;
@@ -262,7 +270,23 @@ public class ImageUpdatePoller {
         if (pattern == null || pattern.isEmpty()) {
             return true;
         }
-        return name.matches(pattern);
+        try {
+            return name.matches(pattern);
+        } catch (java.util.regex.PatternSyntaxException e) {
+            // regex 컴파일 실패 — 사용자가 glob을 썼을 가능성이 높음. substring으로 폴백.
+            log.warn("컨테이너 패턴 regex 컴파일 실패 — substring 폴백: pattern={} reason={}",
+                    pattern, e.getDescription());
+            String core = pattern.replace("*", "").replace("?", "");
+            return !core.isEmpty() && name.contains(core);
+        }
+    }
+
+    /** 컨테이너의 이미지 레포가 watch 이미지와 같은지 확인 (태그/digest 무시) */
+    private boolean imageRepoMatches(String containerImage, String watchImage) {
+        if (containerImage == null || watchImage == null) return false;
+        return containerImage.equals(watchImage)
+                || containerImage.startsWith(watchImage + ":")
+                || containerImage.startsWith(watchImage + "@");
     }
 
     private String shorten(String digest) {

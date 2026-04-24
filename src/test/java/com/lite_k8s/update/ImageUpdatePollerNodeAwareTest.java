@@ -72,6 +72,7 @@ class ImageUpdatePollerNodeAwareTest {
         Container remoteContainer = mock(Container.class);
         when(remoteContainer.getId()).thenReturn("remote-c1");
         when(remoteContainer.getNames()).thenReturn(new String[]{"/my-app"});
+        when(remoteContainer.getImage()).thenReturn("ghcr.io/foo/bar:latest");
         when(remoteContainer.getImageId()).thenReturn("sha256:old");
 
         when(remoteClient.listContainersCmd()).thenReturn(remoteListCmd);
