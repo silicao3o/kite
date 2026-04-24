@@ -3,11 +3,13 @@ package com.lite_k8s.update;
 import com.lite_k8s.envprofile.ImageRegistry;
 import com.lite_k8s.envprofile.ImageRegistryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/image-watches")
 @RequiredArgsConstructor
@@ -93,15 +95,19 @@ public class ImageWatchController {
     public ResponseEntity<?> trigger(@PathVariable String id) {
         Optional<ImageWatchEntity> maybe = watchService.findById(id);
         if (maybe.isEmpty()) {
+            log.warn("트리거 실패 (와치 없음): watchId={}", id);
             return ResponseEntity.notFound().build();
         }
-        poller.checkWatch(maybe.get());
+        ImageWatchEntity watch = maybe.get();
+        log.info("트리거 수신: watchId={} image={}:{}", id, watch.getEffectiveImage(), watch.getTag());
+        poller.checkWatch(watch);
         return ResponseEntity.ok(Map.of("status", "triggered", "watchId", id));
     }
 
     /** 전체 활성 와치 즉시 트리거 */
     @PostMapping("/trigger-all")
     public ResponseEntity<?> triggerAll() {
+        log.info("전체 트리거 수신");
         poller.triggerAll();
         return ResponseEntity.ok(Map.of("status", "triggered"));
     }

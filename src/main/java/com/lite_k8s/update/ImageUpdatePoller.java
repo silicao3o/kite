@@ -158,40 +158,70 @@ public class ImageUpdatePoller {
     void checkWatch(ImageWatchEntity watch) {
         String token = watch.getEffectiveGhcrToken();
         String effectiveImage = watch.getEffectiveImage();
+        log.info("와치 체크 시작: {}:{} (pattern={}, targetNodes={})",
+                effectiveImage, watch.getTag(), watch.getContainerPattern(),
+                watch.getNodeNames() != null ? watch.getNodeNames() : List.of());
+
         String latestDigest = ghcrClient.getLatestDigest(effectiveImage, watch.getTag(), token);
         if (latestDigest == null) {
             log.warn("GHCR digest 조회 실패: {}:{}", watch.getImage(), watch.getTag());
             return;
         }
+        log.info("GHCR 최신 digest: {}:{} → {}", effectiveImage, watch.getTag(), shorten(latestDigest));
 
         List<Node> nodes = nodeRegistry != null ? nodeRegistry.findAll() : List.of();
         List<String> targetNodeNames = watch.getNodeNames() != null ? watch.getNodeNames() : List.of();
 
+        int totalMatched = 0;
+        int totalUpdated = 0;
         if (!nodes.isEmpty()) {
             for (Node node : nodes) {
                 if (!targetNodeNames.isEmpty() && !targetNodeNames.contains(node.getName())) {
+                    log.debug("노드 스킵 (타겟 아님): {}", node.getName());
                     continue;
                 }
                 DockerClient client = nodeClientFactory.createClient(node);
                 List<Container> containers = client.listContainersCmd().withShowAll(false).exec();
-                checkContainers(containers, watch, latestDigest, node.getId());
+                int[] counts = checkContainers(containers, watch, latestDigest, node.getId());
+                log.info("노드 {}: 매칭 {}개, 업데이트 대상 {}개", node.getName(), counts[0], counts[1]);
+                totalMatched += counts[0];
+                totalUpdated += counts[1];
             }
         } else {
             List<Container> containers = dockerClient.listContainersCmd().withShowAll(false).exec();
-            checkContainers(containers, watch, latestDigest, null);
+            int[] counts = checkContainers(containers, watch, latestDigest, null);
+            log.info("로컬 노드: 매칭 {}개, 업데이트 대상 {}개", counts[0], counts[1]);
+            totalMatched = counts[0];
+            totalUpdated = counts[1];
+        }
+
+        if (totalMatched == 0) {
+            log.info("와치 체크 완료: {}:{} — 매칭 컨테이너 0개 (pattern={})",
+                    effectiveImage, watch.getTag(), watch.getContainerPattern());
+        } else if (totalUpdated == 0) {
+            log.info("와치 체크 완료: {}:{} — 변화 없음 (매칭 {}개 모두 최신)",
+                    effectiveImage, watch.getTag(), totalMatched);
+        } else {
+            log.info("와치 체크 완료: {}:{} — 업데이트 감지 {}/{}",
+                    effectiveImage, watch.getTag(), totalUpdated, totalMatched);
         }
     }
 
-    private void checkContainers(List<Container> containers, ImageWatchEntity watch,
+    /** @return [matchedCount, updatedCount] */
+    private int[] checkContainers(List<Container> containers, ImageWatchEntity watch,
                                   String latestDigest, String nodeId) {
+        int matched = 0;
+        int updated = 0;
         for (Container container : containers) {
             String name = extractName(container);
             if (!matchesPattern(name, watch.getContainerPattern())) {
                 continue;
             }
+            matched++;
 
             String currentDigest = container.getImageId();
             if (!latestDigest.equals(currentDigest)) {
+                updated++;
                 log.info("새 이미지 감지: {} ({} → {})", name,
                         shorten(currentDigest), shorten(latestDigest));
 
@@ -217,6 +247,7 @@ public class ImageUpdatePoller {
                 ));
             }
         }
+        return new int[]{matched, updated};
     }
 
     private String extractName(Container container) {

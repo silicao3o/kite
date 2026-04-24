@@ -1,8 +1,13 @@
 package com.lite_k8s.update;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.command.ListContainersCmd;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
@@ -30,12 +36,24 @@ class ImageUpdatePollerTest {
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger pollerLogger;
 
     @BeforeEach
     void setUp() {
         properties = new ImageWatchProperties();
         poller = new ImageUpdatePoller(properties, watchService, ghcrClient, dockerClient,
                 eventPublisher, historyService);
+
+        pollerLogger = (Logger) LoggerFactory.getLogger(ImageUpdatePoller.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        pollerLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        pollerLogger.detachAppender(logAppender);
     }
 
     @Test
@@ -220,6 +238,74 @@ class ImageUpdatePollerTest {
 
         verify(ghcrClient).getLatestDigest("ghcr.io/org/app1", "latest", null);
         verify(ghcrClient).getLatestDigest("ghcr.io/org/app2", "latest", null);
+    }
+
+    @Test
+    @DisplayName("checkWatch 진입 시 image:tag를 포함한 INFO 로그를 남긴다")
+    void checkWatch_LogsEntryWithImageAndTag() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("v1.2")
+                .containerPattern("myapp-.*")
+                .build();
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        assertThat(logAppender.list)
+                .filteredOn(e -> e.getLevel() == Level.INFO)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(msg -> msg.contains("ghcr.io/myorg/myapp") && msg.contains("v1.2"));
+    }
+
+    @Test
+    @DisplayName("digest 동일 시 변화 없음 요약 로그를 남긴다")
+    void checkWatch_WhenDigestSame_LogsNoChangeSummary() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImageId()).thenReturn("sha256:samedigest");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
+                .thenReturn("sha256:samedigest");
+
+        poller.checkWatch(watch);
+
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(msg -> msg.contains("변화 없음") || msg.contains("최신"));
+    }
+
+    @Test
+    @DisplayName("매칭 컨테이너가 없으면 매칭 0개 로그를 남긴다")
+    void checkWatch_WhenNoMatchingContainer_LogsZeroMatch() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getNames()).thenReturn(new String[]{"/other-service"});
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+
+        poller.checkWatch(watch);
+
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(msg -> msg.contains("매칭") && msg.contains("0"));
     }
 
     @Test
