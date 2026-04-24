@@ -102,15 +102,26 @@ public class ServiceDeployer {
     }
 
     private Map<String, String> buildEnvContext(Map<String, String> composeEnv, String envProfileId) {
-        Map<String, String> merged = new LinkedHashMap<>();
-        if (composeEnv != null) merged.putAll(composeEnv);
-        if (envProfileId != null) merged.putAll(envProfileResolver.resolve(List.of(envProfileId)));
+        Map<String, String> profileEnv = envProfileId != null
+                ? new LinkedHashMap<>(envProfileResolver.resolve(List.of(envProfileId)))
+                : new LinkedHashMap<>();
 
-        // 변수 치환
+        // compose env 값 치환: 자기 자신 key는 소스에서 제외해야
+        // ${HIKARI_SCHEMA:-public} 같은 self-reference가 default로 폴백됨.
+        // 우선순위: profile > 다른 compose env key
         Map<String, String> resolved = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : merged.entrySet()) {
-            resolved.put(entry.getKey(), substituteVars(entry.getValue(), merged));
+        if (composeEnv != null) {
+            for (Map.Entry<String, String> entry : composeEnv.entrySet()) {
+                String key = entry.getKey();
+                Map<String, String> ctx = new LinkedHashMap<>();
+                for (Map.Entry<String, String> other : composeEnv.entrySet()) {
+                    if (!other.getKey().equals(key)) ctx.put(other.getKey(), other.getValue());
+                }
+                ctx.putAll(profileEnv);
+                resolved.put(key, substituteVars(entry.getValue(), ctx));
+            }
         }
+        resolved.putAll(profileEnv);
         return resolved;
     }
 

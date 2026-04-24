@@ -192,6 +192,53 @@ class ServiceDeployerTest {
     }
 
     @Test
+    @DisplayName("env 값의 자기참조 ${KEY:-default}는 프로파일에 값이 없으면 default로 폴백한다")
+    void deploy_EnvSelfReference_FallsBackToDefault() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("myapp:latest")
+                .containerName("app")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of("HIKARI_SCHEMA", "${HIKARI_SCHEMA:-public}"))
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        deployer.deploy(svc, null, null);
+
+        ArgumentCaptor<List<String>> envCaptor = ArgumentCaptor.forClass(List.class);
+        verify(createCmd).withEnv(envCaptor.capture());
+        assertThat(envCaptor.getValue()).contains("HIKARI_SCHEMA=public");
+    }
+
+    @Test
+    @DisplayName("env 값의 자기참조 ${KEY:-default}는 프로파일에 값이 있으면 프로파일 값을 사용한다")
+    void deploy_EnvSelfReference_UsesProfileValue() {
+        ParsedService svc = ParsedService.builder()
+                .serviceName("app")
+                .image("myapp:latest")
+                .containerName("app")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of("HIKARI_SCHEMA", "${HIKARI_SCHEMA:-public}"))
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        when(envProfileResolver.resolve(List.of("profile-1")))
+                .thenReturn(Map.of("HIKARI_SCHEMA", "operia"));
+
+        deployer.deploy(svc, "profile-1", null);
+
+        ArgumentCaptor<List<String>> envCaptor = ArgumentCaptor.forClass(List.class);
+        verify(createCmd).withEnv(envCaptor.capture());
+        assertThat(envCaptor.getValue()).contains("HIKARI_SCHEMA=operia");
+    }
+
+    @Test
     @DisplayName("배포 시 kite.service-definition-id 라벨이 자동 부착된다")
     void deploy_AddsKiteLabel() {
         ParsedService svc = ParsedService.builder()
