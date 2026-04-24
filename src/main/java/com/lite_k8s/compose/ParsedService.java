@@ -20,6 +20,7 @@ public class ParsedService {
     private Map<String, String> labels;
     private List<String> extraHosts;  // "host.docker.internal:host-gateway" 형태
     private List<String> dependsOn;
+    private List<String> profiles;    // Docker Compose profiles (e.g. ["with-nginx"])
     private String memoryLimit;       // "2G", "512M"
     private String cpuLimit;          // "1", "0.5"
 }

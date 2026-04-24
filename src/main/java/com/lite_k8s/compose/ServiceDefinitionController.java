@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 @Slf4j
 @RestController
@@ -72,13 +73,14 @@ public class ServiceDefinitionController {
 
     /** 서비스 배포 — compose 파싱 → Docker API로 컨테이너 생성 */
     @PostMapping("/{id}/deploy")
-    public ResponseEntity<?> deploy(@PathVariable String id) {
+    public ResponseEntity<?> deploy(@PathVariable String id,
+                                     @RequestParam(required = false) List<String> activeProfiles) {
         Optional<ServiceDefinition> maybe = repository.findById(id);
         if (maybe.isEmpty()) return ResponseEntity.notFound().build();
 
         ServiceDefinition def = maybe.get();
         try {
-            List<ParsedService> services = ComposeParser.parse(def.getComposeYaml());
+            List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
             String nodeId = def.getNodeNames().isEmpty() ? null : resolveNodeId(def.getNodeNames().get(0));
 
             List<String> containerIds = new ArrayList<>();
@@ -133,6 +135,21 @@ public class ServiceDefinitionController {
             log.error("서비스 중지 실패: {}", def.getName(), e);
             return ResponseEntity.internalServerError().body("중지 실패: " + e.getMessage());
         }
+    }
+
+    /** Compose YAML에 정의된 profiles 목록 조회 */
+    @GetMapping("/{id}/profiles")
+    public ResponseEntity<?> getProfiles(@PathVariable String id) {
+        Optional<ServiceDefinition> maybe = repository.findById(id);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        List<ParsedService> all = ComposeParser.parse(maybe.get().getComposeYaml());
+        List<String> profiles = all.stream()
+                .flatMap(s -> s.getProfiles() != null ? s.getProfiles().stream() : Stream.empty())
+                .distinct()
+                .sorted()
+                .toList();
+        return ResponseEntity.ok(profiles);
     }
 
     @DeleteMapping("/{id}")

@@ -81,6 +81,90 @@ class ComposeParserTest {
     }
 
     @Test
+    @DisplayName("profiles가 있는 서비스는 profiles 리스트가 파싱된다")
+    void parse_ProfilesField() {
+        String yaml = """
+                services:
+                  app:
+                    image: myapp:latest
+                  nginx:
+                    image: nginx:alpine
+                    profiles:
+                      - with-nginx
+                      - production
+                """;
+
+        List<ParsedService> services = ComposeParser.parse(yaml);
+
+        ParsedService app = services.stream().filter(s -> s.getServiceName().equals("app")).findFirst().get();
+        ParsedService nginx = services.stream().filter(s -> s.getServiceName().equals("nginx")).findFirst().get();
+
+        assertThat(app.getProfiles()).isEmpty();
+        assertThat(nginx.getProfiles()).containsExactly("with-nginx", "production");
+    }
+
+    @Test
+    @DisplayName("activeProfiles를 지정하면 해당 프로필에 속한 서비스만 반환된다")
+    void parse_WithActiveProfiles_FiltersServices() {
+        String yaml = """
+                services:
+                  app:
+                    image: myapp:latest
+                  nginx:
+                    image: nginx:alpine
+                    profiles:
+                      - with-nginx
+                  redis:
+                    image: redis:7
+                    profiles:
+                      - cache
+                """;
+
+        List<ParsedService> result = ComposeParser.parse(yaml, List.of("with-nginx"));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.stream().map(ParsedService::getServiceName).toList())
+                .containsExactlyInAnyOrder("app", "nginx");
+    }
+
+    @Test
+    @DisplayName("activeProfiles가 빈 리스트이면 profiles가 없는 서비스만 반환된다")
+    void parse_EmptyActiveProfiles_OnlyDefaultServices() {
+        String yaml = """
+                services:
+                  app:
+                    image: myapp:latest
+                  nginx:
+                    image: nginx:alpine
+                    profiles:
+                      - with-nginx
+                """;
+
+        List<ParsedService> result = ComposeParser.parse(yaml, List.of());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getServiceName()).isEqualTo("app");
+    }
+
+    @Test
+    @DisplayName("activeProfiles가 null이면 모든 서비스가 반환된다 (기존 동작 호환)")
+    void parse_NullActiveProfiles_AllServices() {
+        String yaml = """
+                services:
+                  app:
+                    image: myapp:latest
+                  nginx:
+                    image: nginx:alpine
+                    profiles:
+                      - with-nginx
+                """;
+
+        List<ParsedService> result = ComposeParser.parse(yaml, null);
+
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     @DisplayName("container_name이 없으면 serviceName을 사용한다")
     void parse_NoContainerName_UsesServiceName() {
         String yaml = """
