@@ -228,6 +228,106 @@ class ImageUpdatePollerTest {
     }
 
     @Test
+    @DisplayName("glob 패턴 '*quvi*'가 'admin-quvi' 컨테이너에 매칭된다")
+    void checkWatch_GlobPatternWithLeadingStar_Matches() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/quvi")
+                .tag("latest")
+                .containerPattern("*quvi*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getId()).thenReturn("abc123");
+        when(container.getNames()).thenReturn(new String[]{"/admin-quvi"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/quvi:latest");
+        when(container.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
+    }
+
+    @Test
+    @DisplayName("glob 패턴 'engine*'가 'engine' 컨테이너에 매칭된다")
+    void checkWatch_GlobPatternWithTrailingStar_Matches() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/engine")
+                .tag("latest")
+                .containerPattern("engine*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getId()).thenReturn("abc123");
+        when(container.getNames()).thenReturn(new String[]{"/engine"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/engine:latest");
+        when(container.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
+    }
+
+    @Test
+    @DisplayName("glob 패턴 '*quvi*'가 'nginx' 컨테이너에는 매칭되지 않는다")
+    void checkWatch_GlobPatternNoMatch_Ignores() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/quvi")
+                .tag("latest")
+                .containerPattern("*quvi*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getNames()).thenReturn(new String[]{"/nginx"});
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+
+        poller.checkWatch(watch);
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("기존 regex 패턴 'myapp-.*'도 계속 동작한다")
+    void checkWatch_RegexPatternStillWorks() {
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/myapp")
+                .tag("latest")
+                .containerPattern("myapp-.*")
+                .build();
+
+        Container container = mock(Container.class);
+        when(container.getId()).thenReturn("abc123");
+        when(container.getNames()).thenReturn(new String[]{"/myapp-prod"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
+        when(container.getImageId()).thenReturn("sha256:old");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(container));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any())).thenReturn("sha256:new");
+        when(historyService.record(any())).thenReturn(null);
+
+        poller.checkWatch(watch);
+
+        verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
+    }
+
+    @Test
     @DisplayName("triggerAll은 모든 활성 와치를 체크한다")
     void triggerAll_ChecksAllEnabledWatches() {
         properties.setEnabled(true);
@@ -365,12 +465,12 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("잘못된 regex 패턴은 예외를 던지지 않고 substring 폴백한다")
-    void checkWatch_WhenInvalidRegex_FallsBackToSubstring() {
+    @DisplayName("glob 패턴 '*quvi*'는 glob→regex 변환으로 정상 매칭된다 (폴백 없이)")
+    void checkWatch_GlobPattern_ConvertsToRegexWithoutFallback() {
         ImageWatchEntity watch = ImageWatchEntity.builder()
                 .image("ghcr.io/myorg/myapp")
                 .tag("latest")
-                .containerPattern("*quvi*")  // invalid regex
+                .containerPattern("*quvi*")
                 .build();
 
         Container container = mock(Container.class);
@@ -386,14 +486,14 @@ class ImageUpdatePollerTest {
                 .thenReturn("sha256:new");
         when(historyService.record(any())).thenReturn(null);
 
-        // 예외 없이 실행 + name에 "quvi" 포함 → substring 매칭으로 이벤트 발행
+        // glob→regex 변환으로 WARN 없이 정상 매칭
         poller.checkWatch(watch);
 
         verify(eventPublisher).publishEvent(any(ImageUpdateDetectedEvent.class));
         assertThat(logAppender.list)
                 .filteredOn(e -> e.getLevel() == Level.WARN)
                 .extracting(ILoggingEvent::getFormattedMessage)
-                .anyMatch(msg -> msg.contains("regex") || msg.contains("패턴"));
+                .noneMatch(msg -> msg.contains("폴백"));
     }
 
     @Test
