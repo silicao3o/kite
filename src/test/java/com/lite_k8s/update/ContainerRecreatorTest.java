@@ -1,8 +1,10 @@
 package com.lite_k8s.update;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.model.*;
+import com.lite_k8s.envprofile.ImageRegistryRepository;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
@@ -29,6 +31,7 @@ class ContainerRecreatorTest {
     @Mock private DockerClient dockerClient;
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory nodeClientFactory;
+    @Mock private ImageRegistryRepository imageRegistryRepository;
     @Mock private InspectContainerCmd inspectCmd;
     @Mock private InspectContainerResponse inspectResponse;
     @Mock private InspectContainerResponse.ContainerState state;
@@ -37,12 +40,14 @@ class ContainerRecreatorTest {
     @Mock private CreateContainerCmd createCmd;
     @Mock private CreateContainerResponse createResponse;
     @Mock private StartContainerCmd startCmd;
+    @Mock private PullImageCmd pullCmd;
 
     private ContainerRecreator recreator;
 
     @BeforeEach
     void setUp() {
-        recreator = new ContainerRecreator(dockerClient, nodeRegistry, nodeClientFactory, new com.lite_k8s.service.OwnActionTracker());
+        recreator = new ContainerRecreator(dockerClient, nodeRegistry, nodeClientFactory,
+                new com.lite_k8s.service.OwnActionTracker(), imageRegistryRepository);
     }
 
     @Test
@@ -50,6 +55,7 @@ class ContainerRecreatorTest {
     void recreate_Success_CallsInCorrectOrder() {
         // given
         setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        setupPullCmdOn(dockerClient);
         setupDockerCommands("new-container-id");
 
         // when
@@ -65,10 +71,49 @@ class ContainerRecreatorTest {
     }
 
     @Test
+    @DisplayName("재생성 전에 이미지 pull을 먼저 수행한다 — 옛날 이미지 재사용 버그 방지")
+    void recreate_PullsImageBeforeStop() {
+        // given
+        setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        setupPullCmdOn(dockerClient);
+        setupDockerCommands("new-container-id");
+
+        // when
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+
+        // then
+        assertThat(result).isTrue();
+        InOrder order = inOrder(dockerClient);
+        order.verify(dockerClient).pullImageCmd("ghcr.io/myorg/myapp:latest");
+        order.verify(dockerClient).stopContainerCmd("old-container");
+    }
+
+    @Test
+    @DisplayName("pull 실패 시 기존 컨테이너는 건드리지 않고 false 반환")
+    void recreate_WhenPullFails_DoesNotTouchExistingContainer() {
+        // given
+        setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        when(dockerClient.pullImageCmd(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withAuthConfig(any())).thenReturn(pullCmd);
+        when(pullCmd.exec(any())).thenThrow(new RuntimeException("pull failed"));
+
+        // when
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+
+        // then
+        assertThat(result).isFalse();
+        verify(dockerClient, never()).stopContainerCmd(anyString());
+        verify(dockerClient, never()).removeContainerCmd(anyString());
+        verify(dockerClient, never()).createContainerCmd(anyString());
+    }
+
+    @Test
     @DisplayName("stop 실패 시 false 반환 및 롤백")
     void recreate_WhenStopFails_ReturnsFalse() {
         // given
         setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        setupPullCmdOn(dockerClient);
         when(dockerClient.stopContainerCmd(anyString())).thenReturn(stopCmd);
         doThrow(new RuntimeException("stop failed")).when(stopCmd).exec();
 
@@ -86,6 +131,7 @@ class ContainerRecreatorTest {
     void recreate_WhenStartFails_ReturnsFalse() {
         // given
         setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        setupPullCmdOn(dockerClient);
         setupDockerCommands("new-container-id");
         doThrow(new RuntimeException("start failed")).when(startCmd).exec();
 
@@ -108,6 +154,7 @@ class ContainerRecreatorTest {
         when(nodeClientFactory.createClient(node)).thenReturn(nodeClient);
 
         setupInspectOn(nodeClient, "old-container", "ghcr.io/myorg/engine:latest");
+        setupPullCmdOn(nodeClient);
         setupDockerCommandsOn(nodeClient, "new-container-id");
 
         // when
@@ -128,6 +175,7 @@ class ContainerRecreatorTest {
     void recreate_WithoutNodeId_UsesLocalClient() {
         // given
         setupInspect("old-container", "ghcr.io/myorg/myapp:latest");
+        setupPullCmdOn(dockerClient);
         setupDockerCommands("new-container-id");
 
         // when
@@ -137,6 +185,18 @@ class ContainerRecreatorTest {
         assertThat(result).isTrue();
         verify(dockerClient).stopContainerCmd("old-container");
         verifyNoInteractions(nodeRegistry, nodeClientFactory);
+    }
+
+    private void setupPullCmdOn(DockerClient client) {
+        PullImageCmd pull = mock(PullImageCmd.class);
+        when(client.pullImageCmd(anyString())).thenReturn(pull);
+        when(pull.withPlatform(anyString())).thenReturn(pull);
+        when(pull.withAuthConfig(any())).thenReturn(pull);
+        when(pull.exec(any())).thenAnswer(inv -> {
+            ResultCallback.Adapter<?> adapter = inv.getArgument(0);
+            adapter.onComplete();
+            return adapter;
+        });
     }
 
     private void setupInspect(String containerId, String image) {
