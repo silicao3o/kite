@@ -1,13 +1,11 @@
 package com.lite_k8s.compose;
 
-import com.lite_k8s.update.StringListConverter;
+import com.lite_k8s.update.StringMapConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "service_definitions")
@@ -28,15 +26,11 @@ public class ServiceDefinition {
     @Column(name = "compose_yaml", columnDefinition = "TEXT", nullable = false)
     private String composeYaml;
 
-    /** 연결된 Env Profile ID (nullable) */
-    @Column(name = "env_profile_id")
-    private String envProfileId;
-
-    /** 배포 대상 노드 */
-    @Convert(converter = StringListConverter.class)
-    @Column(name = "node_names", columnDefinition = "TEXT")
+    /** 노드별 Env Profile 매핑 — {"nodeName": "profileId"} */
+    @Convert(converter = StringMapConverter.class)
+    @Column(name = "node_env_mappings", columnDefinition = "TEXT")
     @Builder.Default
-    private List<String> nodeNames = new ArrayList<>();
+    private Map<String, String> nodeEnvMappings = new LinkedHashMap<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -54,6 +48,18 @@ public class ServiceDefinition {
         if (composeYaml == null || composeYaml.isBlank()) {
             throw new IllegalStateException("composeYaml은 필수입니다");
         }
+    }
+
+    /** 편의 메서드: 매핑된 노드 이름 목록 */
+    public List<String> getNodeNames() {
+        if (nodeEnvMappings == null || nodeEnvMappings.isEmpty()) return new ArrayList<>();
+        return new ArrayList<>(nodeEnvMappings.keySet());
+    }
+
+    /** 편의 메서드: 첫 번째 매핑의 profileId (하위호환) */
+    public String getEnvProfileId() {
+        if (nodeEnvMappings == null || nodeEnvMappings.isEmpty()) return null;
+        return nodeEnvMappings.values().iterator().next();
     }
 
     public enum Status {

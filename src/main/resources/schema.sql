@@ -242,8 +242,7 @@ CREATE TABLE IF NOT EXISTS service_definitions (
     id              VARCHAR(36)  PRIMARY KEY,
     name            VARCHAR(255) NOT NULL UNIQUE,
     compose_yaml    TEXT         NOT NULL,
-    env_profile_id  VARCHAR(36),
-    node_names      TEXT         NOT NULL DEFAULT '[]',
+    node_env_mappings TEXT       NOT NULL DEFAULT '{}',
     status          VARCHAR(10)  NOT NULL DEFAULT 'DRAFT',
     created_at      TIMESTAMP    NOT NULL
 );

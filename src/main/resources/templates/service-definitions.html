@@ -36,8 +36,10 @@
         .badge-stopped { background: rgba(245,158,11,.15); color: #fcd34d; }
         .text-muted { color: var(--text-secondary, #9aa0a6); font-size: .82rem; }
         .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #9aa0a6); }
-        .info-box { background: rgba(59,130,246,.08); border-left: 3px solid var(--accent-blue, #3b82f6); padding: .9rem 1.1rem; margin-bottom: 1.5rem; border-radius: 6px; font-size: .88rem; color: #93c5fd; }
-        .info-box strong { color: #bfdbfe; }
+        .mapping-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .mapping-row select { flex: 1; padding: .4rem .6rem; border: 1px solid var(--border-color, #2d3f56); border-radius: 6px; background: var(--bg-tertiary, #243044); color: var(--text-primary, #e8eaed); font-size: .85rem; }
+        .mapping-row .btn-remove { background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0 .3rem; }
+        .mapping-tag { display: inline-flex; align-items: center; gap: .3rem; padding: 2px 8px; border-radius: 4px; font-size: .75rem; background: rgba(59,130,246,.1); color: #93c5fd; margin: 1px; }
     </style>
 </head>
 <body>
@@ -47,33 +49,20 @@
     <main class="main-content">
         <div class="page-header">
             <h2>Service Definitions</h2>
-            <p>Docker Compose YAML을 DB로 관리 — Env Profile과 조합하여 Docker API로 배포</p>
+            <p>Docker Compose YAML을 DB로 관리 — 노드별 Env Profile을 매핑하여 Docker API로 배포</p>
         </div>
 
         <!-- 빠른 배포 -->
         <div class="add-form" style="border-color:var(--accent-blue,#3b82f6);border-width:2px;">
             <div class="section-title">배포</div>
-            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr auto;">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr auto;">
                 <div class="form-group">
                     <label>서비스 정의 *</label>
-                    <select id="quickDef" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;"></select>
-                </div>
-                <div class="form-group">
-                    <label>Env Profile</label>
-                    <select id="quickProfile" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;">
-                        <option value="">서비스 정의 설정 사용</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>노드 *</label>
-                    <select id="quickNode" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;">
-                        <option value="">로컬</option>
-                    </select>
+                    <select id="quickDef"></select>
                 </div>
                 <div class="form-group">
                     <label>Compose Profiles</label>
-                    <select id="quickProfiles" multiple style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;min-height:60px;">
-                    </select>
+                    <select id="quickProfiles" multiple style="min-height:60px;"></select>
                 </div>
                 <div class="form-group" style="justify-content:flex-end;">
                     <label>&nbsp;</label>
@@ -87,10 +76,13 @@
         <!-- 서비스 정의 등록 -->
         <div class="add-form">
             <div class="section-title">서비스 정의 등록</div>
-            <div class="form-grid">
+            <div class="form-grid" style="grid-template-columns:1fr;">
                 <div class="form-group"><label>이름 *</label><input type="text" id="defName" placeholder="quvi-operia"/></div>
-                <div class="form-group"><label>Env Profile</label><select id="defProfile"><option value="">없음</option></select></div>
-                <div class="form-group"><label>대상 노드</label><select id="defNodes" style="padding:.45rem .7rem;border:1px solid var(--border-color,#2d3f56);border-radius:6px;background:var(--bg-tertiary,#243044);color:var(--text-primary,#e8eaed);font-size:.9rem;width:100%;"><option value="">로컬</option></select></div>
+            </div>
+            <div style="margin-top:.75rem;">
+                <label style="font-size:.82rem;color:var(--text-secondary,#9aa0a6);">노드별 Env Profile 매핑</label>
+                <div id="defMappings" style="margin-top:.4rem;"></div>
+                <button class="btn-sm btn-edit" onclick="addMappingRow('defMappings')" style="margin-top:.4rem;">+ 노드 추가</button>
             </div>
             <div class="form-group" style="margin-top:.75rem;">
                 <label>Compose YAML *</label>
@@ -106,7 +98,7 @@
             <div class="empty-state" id="defEmpty" style="display:none;">등록된 서비스 정의가 없습니다.</div>
             <div class="table-wrap">
                 <table class="svc-table" id="defTable" style="display:none;">
-                    <thead><tr><th>이름</th><th>상태</th><th>프로파일</th><th>노드</th><th></th></tr></thead>
+                    <thead><tr><th>이름</th><th>상태</th><th>노드 / Env Profile</th><th></th></tr></thead>
                     <tbody id="defBody"></tbody>
                 </table>
             </div>
@@ -123,10 +115,11 @@
         </div>
         <input type="hidden" id="editDefId"/>
         <div style="display:flex;flex-direction:column;gap:.8rem;">
-            <div class="form-grid">
-                <div class="form-group"><label>이름 *</label><input type="text" id="editDefName"/></div>
-                <div class="form-group"><label>Env Profile</label><select id="editDefProfile"><option value="">없음</option></select></div>
-                <div class="form-group"><label>대상 노드 (쉼표 구분)</label><input type="text" id="editDefNodes"/></div>
+            <div class="form-group"><label>이름 *</label><input type="text" id="editDefName"/></div>
+            <div>
+                <label style="font-size:.82rem;color:var(--text-secondary,#9aa0a6);">노드별 Env Profile 매핑</label>
+                <div id="editDefMappings" style="margin-top:.4rem;"></div>
+                <button class="btn-sm btn-edit" onclick="addMappingRow('editDefMappings')" style="margin-top:.4rem;">+ 노드 추가</button>
             </div>
             <div class="form-group">
                 <label>Compose YAML *</label>
@@ -150,14 +143,6 @@ async function loadProfiles() {
     try {
         const res = await fetch('/api/env-profiles');
         profilesCache = await res.json();
-        // 등록 폼
-        const sel = document.getElementById('defProfile');
-        sel.innerHTML = '<option value="">없음</option>';
-        profilesCache.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.appendChild(o); });
-        // 빠른 배포
-        const qSel = document.getElementById('quickProfile');
-        qSel.innerHTML = '<option value="">서비스 정의 설정 사용</option>';
-        profilesCache.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; qSel.appendChild(o); });
     } catch(e) {}
 }
 
@@ -165,12 +150,57 @@ async function loadNodes() {
     try {
         const res = await fetch('/api/nodes');
         nodesCache = await res.json();
-        ['quickNode', 'defNodes'].forEach(selId => {
-            const sel = document.getElementById(selId);
-            sel.innerHTML = '<option value="">로컬</option>';
-            nodesCache.forEach(n => { const o = document.createElement('option'); o.value = n.name; o.textContent = n.name + ' (' + n.host + ')'; sel.appendChild(o); });
-        });
     } catch(e) {}
+}
+
+function buildNodeOptions(selectedNode) {
+    let html = '<option value="">로컬</option>';
+    nodesCache.forEach(n => {
+        const sel = n.name === selectedNode ? ' selected' : '';
+        html += `<option value="${esc(n.name)}"${sel}>${esc(n.name)} (${esc(n.host)})</option>`;
+    });
+    return html;
+}
+
+function buildProfileOptions(selectedProfileId) {
+    let html = '<option value="">없음</option>';
+    profilesCache.forEach(p => {
+        const sel = p.id === selectedProfileId ? ' selected' : '';
+        html += `<option value="${esc(p.id)}"${sel}>${esc(p.name)}</option>`;
+    });
+    return html;
+}
+
+function addMappingRow(containerId, nodeName, profileId) {
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'mapping-row';
+    row.innerHTML = `
+        <select class="mapping-node">${buildNodeOptions(nodeName || '')}</select>
+        <select class="mapping-profile">${buildProfileOptions(profileId || '')}</select>
+        <button class="btn-remove" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    container.appendChild(row);
+}
+
+function collectMappings(containerId) {
+    const container = document.getElementById(containerId);
+    const rows = container.querySelectorAll('.mapping-row');
+    const mappings = {};
+    rows.forEach(row => {
+        const node = row.querySelector('.mapping-node').value;
+        const profile = row.querySelector('.mapping-profile').value;
+        if (node || profile) {
+            mappings[node] = profile || null;
+        }
+    });
+    return mappings;
+}
+
+function getProfileName(profileId) {
+    if (!profileId) return null;
+    const p = profilesCache.find(x => x.id === profileId);
+    return p ? p.name : profileId.substring(0, 8);
 }
 
 function loadQuickDefSelect() {
@@ -199,17 +229,6 @@ async function quickDeploy() {
     if (!defId) { errEl.textContent = '서비스 정의를 선택하세요.'; errEl.style.display = 'inline'; return; }
     errEl.style.display = 'none';
 
-    // 선택한 노드와 프로파일로 서비스 정의 업데이트 후 배포
-    const profileId = document.getElementById('quickProfile').value || null;
-    const nodeName = document.getElementById('quickNode').value;
-    const nodeNames = nodeName ? [nodeName] : [];
-
-    // 서비스 정의에 노드/프로파일 업데이트
-    const updateBody = { nodeNames };
-    if (profileId) updateBody.envProfileId = profileId;
-    await fetch(`/api/service-definitions/${defId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updateBody) });
-
-    // 배포 — activeProfiles 파라미터 구성
     const profilesSel = document.getElementById('quickProfiles');
     const selectedProfiles = Array.from(profilesSel.selectedOptions).map(o => o.value);
     let deployUrl = `/api/service-definitions/${defId}/deploy`;
@@ -248,12 +267,25 @@ async function loadDefs() {
     defs.forEach(d => {
         const tr = document.createElement('tr');
         const statusClass = d.status === 'DEPLOYED' ? 'badge-deployed' : d.status === 'STOPPED' ? 'badge-stopped' : 'badge-draft';
-        const nodes = d.nodeNames && d.nodeNames.length > 0 ? d.nodeNames.join(', ') : '<span class="text-muted">로컬</span>';
+
+        // 노드별 매핑 표시
+        let mappingHtml = '';
+        const mappings = d.nodeEnvMappings || {};
+        const keys = Object.keys(mappings);
+        if (keys.length === 0) {
+            mappingHtml = '<span class="text-muted">로컬 (프로파일 없음)</span>';
+        } else {
+            keys.forEach(node => {
+                const profileName = getProfileName(mappings[node]);
+                const nodeLabel = node || '로컬';
+                mappingHtml += `<span class="mapping-tag">${esc(nodeLabel)}${profileName ? ' → ' + esc(profileName) : ''}</span>`;
+            });
+        }
+
         tr.innerHTML = `
             <td><strong>${esc(d.name)}</strong></td>
             <td><span class="badge ${statusClass}">${d.status}</span></td>
-            <td class="text-muted">${d.envProfileId || '-'}</td>
-            <td>${nodes}</td>
+            <td>${mappingHtml}</td>
             <td><div class="btn-group">
                 ${d.status !== 'DEPLOYED' ? `<button class="btn-sm btn-deploy" onclick="deployDef('${d.id}',this)">배포</button>` : ''}
                 ${d.status === 'DEPLOYED' ? `<button class="btn-sm btn-stop" onclick="stopDef('${d.id}',this)">중지</button>` : ''}
@@ -270,12 +302,10 @@ async function createDef() {
     const errEl = document.getElementById('defError');
     if (!name || !composeYaml.trim()) { errEl.textContent = '이름과 YAML은 필수입니다.'; errEl.style.display = 'inline'; return; }
     errEl.style.display = 'none';
-    const envProfileId = document.getElementById('defProfile').value || null;
-    const nodeName = document.getElementById('defNodes').value;
-    const nodeNames = nodeName ? [nodeName] : [];
+    const nodeEnvMappings = collectMappings('defMappings');
 
-    const res = await fetch('/api/service-definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, composeYaml, envProfileId, nodeNames}) });
-    if (res.ok) { document.getElementById('defName').value=''; document.getElementById('defYaml').value=''; document.getElementById('defNodes').value=''; loadDefs(); }
+    const res = await fetch('/api/service-definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, composeYaml, nodeEnvMappings}) });
+    if (res.ok) { document.getElementById('defName').value=''; document.getElementById('defYaml').value=''; document.getElementById('defMappings').innerHTML=''; loadDefs(); }
     else { errEl.textContent = '등록 실패: ' + await res.text(); errEl.style.display = 'inline'; }
 }
 
@@ -301,25 +331,20 @@ async function deleteDef(id) {
 }
 
 async function openEditDef(id) {
-    const d = defsCache.find(x => x.id === id);
-    if (!d) return;
-    // 상세 조회로 YAML 가져오기
     const res = await fetch(`/api/service-definitions/${id}`);
     const data = await res.json();
     document.getElementById('editDefId').value = data.id;
     document.getElementById('editDefName').value = data.name || '';
     document.getElementById('editDefYaml').value = data.composeYaml || '';
-    document.getElementById('editDefNodes').value = (data.nodeNames || []).join(', ');
     document.getElementById('editDefError').style.display = 'none';
 
-    // 프로파일 select 채우기
-    const sel = document.getElementById('editDefProfile');
-    sel.innerHTML = '<option value="">없음</option>';
-    try {
-        const pRes = await fetch('/api/env-profiles');
-        const profiles = await pRes.json();
-        profiles.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; if (p.id === data.envProfileId) o.selected = true; sel.appendChild(o); });
-    } catch(e) {}
+    // 기존 매핑 행 구성
+    const container = document.getElementById('editDefMappings');
+    container.innerHTML = '';
+    const mappings = data.nodeEnvMappings || {};
+    Object.entries(mappings).forEach(([node, profileId]) => {
+        addMappingRow('editDefMappings', node, profileId);
+    });
 
     document.getElementById('editDefModal').style.display = 'block';
 }
@@ -333,18 +358,16 @@ async function saveEditDef() {
     const errEl = document.getElementById('editDefError');
     if (!name || !composeYaml.trim()) { errEl.textContent = '이름과 YAML은 필수입니다.'; errEl.style.display = 'inline'; return; }
     errEl.style.display = 'none';
-    const envProfileId = document.getElementById('editDefProfile').value || null;
-    const nodeNamesStr = document.getElementById('editDefNodes').value.trim();
-    const nodeNames = nodeNamesStr ? nodeNamesStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    const nodeEnvMappings = collectMappings('editDefMappings');
 
-    const res = await fetch(`/api/service-definitions/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, composeYaml, envProfileId, nodeNames}) });
+    const res = await fetch(`/api/service-definitions/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, composeYaml, nodeEnvMappings}) });
     if (res.ok) { closeEditDef(); loadDefs(); }
     else { errEl.textContent = '수정 실패: ' + await res.text(); errEl.style.display = 'inline'; }
 }
 
 document.getElementById('editDefModal').addEventListener('click', function(e) { if (e.target === this) closeEditDef(); });
 
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 document.addEventListener('DOMContentLoaded', () => { loadProfiles(); loadNodes(); loadDefs(); });
 </script>

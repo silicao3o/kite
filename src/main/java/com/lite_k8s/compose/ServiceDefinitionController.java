@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -34,8 +36,7 @@ public class ServiceDefinitionController {
         ServiceDefinition def = ServiceDefinition.builder()
                 .name(name)
                 .composeYaml(composeYaml)
-                .envProfileId(asString(body.get("envProfileId")))
-                .nodeNames(asStringList(body.get("nodeNames")))
+                .nodeEnvMappings(buildNodeEnvMappings(body))
                 .build();
 
         return ResponseEntity.status(201).body(repository.save(def));
@@ -61,8 +62,9 @@ public class ServiceDefinitionController {
         ServiceDefinition def = maybe.get();
         if (body.containsKey("name")) def.setName(asString(body.get("name")));
         if (body.containsKey("composeYaml")) def.setComposeYaml(asString(body.get("composeYaml")));
-        if (body.containsKey("envProfileId")) def.setEnvProfileId(asString(body.get("envProfileId")));
-        if (body.containsKey("nodeNames")) def.setNodeNames(asStringList(body.get("nodeNames")));
+        if (body.containsKey("nodeEnvMappings") || body.containsKey("envProfileId") || body.containsKey("nodeNames")) {
+            def.setNodeEnvMappings(buildNodeEnvMappings(body));
+        }
         if (body.containsKey("status")) {
             try { def.setStatus(ServiceDefinition.Status.valueOf(asString(body.get("status")))); }
             catch (IllegalArgumentException ignored) {}
@@ -81,12 +83,24 @@ public class ServiceDefinitionController {
         ServiceDefinition def = maybe.get();
         try {
             List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
-            String nodeId = def.getNodeNames().isEmpty() ? null : resolveNodeId(def.getNodeNames().get(0));
-
             List<String> containerIds = new ArrayList<>();
-            for (ParsedService svc : services) {
-                String containerId = deployer.deployWithDefinitionId(svc, def.getEnvProfileId(), nodeId, def.getId());
-                containerIds.add(containerId);
+
+            Map<String, String> mappings = def.getNodeEnvMappings();
+            if (mappings == null || mappings.isEmpty()) {
+                // 매핑 없으면 로컬에 배포
+                for (ParsedService svc : services) {
+                    containerIds.add(deployer.deployWithDefinitionId(svc, null, null, def.getId()));
+                }
+            } else {
+                // 각 노드별로 매핑된 profileId로 배포
+                for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                    String nodeName = entry.getKey();
+                    String profileId = entry.getValue();
+                    String nodeId = nodeName.isEmpty() ? null : resolveNodeId(nodeName);
+                    for (ParsedService svc : services) {
+                        containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()));
+                    }
+                }
             }
 
             def.setStatus(ServiceDefinition.Status.DEPLOYED);
@@ -107,30 +121,43 @@ public class ServiceDefinitionController {
 
         ServiceDefinition def = maybe.get();
         try {
-            String nodeId = def.getNodeNames().isEmpty() ? null : resolveNodeId(def.getNodeNames().get(0));
-            DockerClient client = resolveClient(nodeId);
+            int totalRemoved = 0;
 
-            // kite.service-definition-id 라벨로 컨테이너 찾기
-            var containers = client.listContainersCmd()
-                    .withShowAll(true)
-                    .withLabelFilter(Map.of("kite.service-definition-id", id))
-                    .exec();
+            // 각 노드별로 컨테이너 정리
+            Set<String> nodeIds = new LinkedHashSet<>();
+            Map<String, String> mappings = def.getNodeEnvMappings();
+            if (mappings == null || mappings.isEmpty()) {
+                nodeIds.add(null); // 로컬
+            } else {
+                for (String nodeName : mappings.keySet()) {
+                    nodeIds.add(nodeName.isEmpty() ? null : resolveNodeId(nodeName));
+                }
+            }
 
-            for (var container : containers) {
-                try {
-                    if (Boolean.TRUE.equals(container.getState() != null && container.getState().contains("running"))) {
-                        client.stopContainerCmd(container.getId()).exec();
+            for (String nodeId : nodeIds) {
+                DockerClient client = resolveClient(nodeId);
+                var containers = client.listContainersCmd()
+                        .withShowAll(true)
+                        .withLabelFilter(Map.of("kite.service-definition-id", id))
+                        .exec();
+
+                for (var container : containers) {
+                    try {
+                        if (container.getState() != null && container.getState().contains("running")) {
+                            client.stopContainerCmd(container.getId()).exec();
+                        }
+                        client.removeContainerCmd(container.getId()).exec();
+                        totalRemoved++;
+                    } catch (Exception e) {
+                        log.warn("컨테이너 정리 실패: {}", container.getId(), e);
                     }
-                    client.removeContainerCmd(container.getId()).exec();
-                } catch (Exception e) {
-                    log.warn("컨테이너 정리 실패: {}", container.getId(), e);
                 }
             }
 
             def.setStatus(ServiceDefinition.Status.STOPPED);
             repository.save(def);
 
-            return ResponseEntity.ok(Map.of("status", "stopped", "removed", containers.size()));
+            return ResponseEntity.ok(Map.of("status", "stopped", "removed", totalRemoved));
         } catch (Exception e) {
             log.error("서비스 중지 실패: {}", def.getName(), e);
             return ResponseEntity.internalServerError().body("중지 실패: " + e.getMessage());
@@ -171,6 +198,28 @@ public class ServiceDefinitionController {
         return nodeRegistry.findById(nodeId)
                 .map(nodeClientFactory::createClient)
                 .orElse(dockerClient);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> buildNodeEnvMappings(Map<String, Object> body) {
+        // 새 형식: nodeEnvMappings 직접 전달
+        if (body.containsKey("nodeEnvMappings") && body.get("nodeEnvMappings") instanceof Map<?,?> map) {
+            Map<String, String> result = new LinkedHashMap<>();
+            map.forEach((k, v) -> result.put(k.toString(), v == null ? null : v.toString()));
+            return result;
+        }
+        // 하위호환: envProfileId + nodeNames → nodeEnvMappings 변환
+        String profileId = asString(body.get("envProfileId"));
+        List<String> nodes = asStringList(body.get("nodeNames"));
+        Map<String, String> result = new LinkedHashMap<>();
+        if (nodes.isEmpty()) {
+            if (profileId != null) result.put("", profileId);
+        } else {
+            for (String node : nodes) {
+                result.put(node, profileId);
+            }
+        }
+        return result;
     }
 
     private String asString(Object value) {

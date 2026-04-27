@@ -3,7 +3,7 @@ package com.lite_k8s.compose;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -22,8 +22,7 @@ class ServiceDefinitionEntityTest {
         ServiceDefinition def = ServiceDefinition.builder()
                 .name("quvi-operia")
                 .composeYaml("services:\n  quvi:\n    image: ghcr.io/daquv-qv/quvi:latest")
-                .envProfileId("profile-1")
-                .nodeNames(List.of("gcp-operia"))
+                .nodeEnvMappings(Map.of("gcp-operia", "profile-1"))
                 .build();
 
         assertThat(def.getName()).isEqualTo("quvi-operia");
@@ -37,7 +36,7 @@ class ServiceDefinitionEntityTest {
     void hasDefaults() {
         ServiceDefinition def = new ServiceDefinition();
         assertThat(def.getStatus()).isEqualTo(ServiceDefinition.Status.DRAFT);
-        assertThat(def.getNodeNames()).isEmpty();
+        assertThat(def.getNodeEnvMappings()).isEmpty();
         assertThat(def.getCreatedAt()).isNotNull();
     }
 
