@@ -69,6 +69,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:olddigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -104,6 +105,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -137,6 +139,7 @@ class ImageUpdatePollerTest {
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:samedigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -237,6 +240,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/admin-quvi"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/quvi:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -262,6 +266,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/engine"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/engine:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -309,6 +314,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc123");
         when(container.getNames()).thenReturn(new String[]{"/myapp-prod"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -367,6 +373,7 @@ class ImageUpdatePollerTest {
 
         Container container = mock(Container.class);
         when(container.getNames()).thenReturn(new String[]{"/myapp-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:samedigest");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -418,6 +425,7 @@ class ImageUpdatePollerTest {
         Container app = mock(Container.class);
         when(app.getId()).thenReturn("abc");
         when(app.getNames()).thenReturn(new String[]{"/chat-quvi-qvc"});
+        when(app.getImage()).thenReturn("ghcr.io/daquv-qv/chat-quvi:v3.0");
         when(app.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
@@ -433,12 +441,38 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("레지스트리 org이 바뀌어도 containerPattern이 매칭되면 업데이트 감지한다")
-    void checkWatch_WhenRegistryOrgChanged_StillMatchesByContainerPattern() {
-        // 등록부에서 org 변경: ghcr.io/old-org/quvi → ghcr.io/new-org/quvi
-        // 도는 컨테이너는 아직 구 org 이미지로 동작 중
+    @DisplayName("이름은 패턴에 걸려도 이미지 short name이 다르면 스킵한다 (nginx 사이드카)")
+    void checkWatch_WhenContainerImageShortNameDiffers_SkipsContainer() {
         ImageWatchEntity watch = ImageWatchEntity.builder()
-                .image("ghcr.io/new-org/quvi")
+                .image("ghcr.io/daquv-core/chat-quvi")
+                .tag("v3.0")
+                .containerPattern("chat-quvi*")
+                .build();
+
+        // 같은 compose 스택의 nginx 사이드카 — 이름은 'chat-quvi*' 에 걸리지만
+        // 실제 이미지는 nginx:alpine
+        Container nginx = mock(Container.class);
+        when(nginx.getNames()).thenReturn(new String[]{"/chat-quvi-test-nginx"});
+        when(nginx.getImage()).thenReturn("nginx:alpine");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
+        when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
+        when(listContainersCmd.exec()).thenReturn(List.of(nginx));
+        when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
+                .thenReturn("sha256:new");
+
+        poller.checkWatch(watch);
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("레지스트리 org이 바뀌어도 short name 같으면 매칭 (org 이전 케이스)")
+    void checkWatch_WhenRegistryOrgChanged_StillMatchesByContainerPattern() {
+        // 등록부에서 org 변경: ghcr.io/old-org/chat-quvi → ghcr.io/new-org/chat-quvi
+        // 도는 컨테이너는 아직 구 org 이미지로 동작 중. short name(chat-quvi) 동일하므로 매칭.
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/new-org/chat-quvi")
                 .tag("latest")
                 .containerPattern("chat-quvi.*")
                 .build();
@@ -446,12 +480,13 @@ class ImageUpdatePollerTest {
         Container app = mock(Container.class);
         when(app.getId()).thenReturn("abc");
         when(app.getNames()).thenReturn(new String[]{"/chat-quvi-qvc"});
+        when(app.getImage()).thenReturn("ghcr.io/old-org/chat-quvi:latest");
         when(app.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(app));
-        when(ghcrClient.getLatestDigest(eq("ghcr.io/new-org/quvi"), eq("latest"), any()))
+        when(ghcrClient.getLatestDigest(eq("ghcr.io/new-org/chat-quvi"), eq("latest"), any()))
                 .thenReturn("sha256:new");
         when(historyService.record(any())).thenReturn(null);
 
@@ -472,6 +507,7 @@ class ImageUpdatePollerTest {
         Container container = mock(Container.class);
         when(container.getId()).thenReturn("abc");
         when(container.getNames()).thenReturn(new String[]{"/myapp-quvi-1"});
+        when(container.getImage()).thenReturn("ghcr.io/myorg/myapp:latest");
         when(container.getImageId()).thenReturn("sha256:old");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);

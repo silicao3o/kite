@@ -6,6 +6,7 @@ import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.ContainerPatternMatcher;
+import com.lite_k8s.util.ImageReferences;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -213,9 +214,18 @@ public class ImageUpdatePoller {
                                   String latestDigest, String nodeId) {
         int matched = 0;
         int updated = 0;
+        String watchImage = watch.getEffectiveImage();
         for (Container container : containers) {
             String name = extractName(container);
             if (!matchesPattern(name, watch.getContainerPattern())) {
+                continue;
+            }
+            // 이름 패턴은 걸려도 컨테이너 이미지의 short name 이 watch 와 다르면 스킵
+            // (예: chat-quvi* 에 걸린 nginx:alpine 사이드카). short name 비교라
+            // 레지스트리 host/org 가 바뀌어도(같은 이미지 이전) 매칭은 유지된다.
+            if (!ImageReferences.sameShortName(container.getImage(), watchImage)) {
+                log.debug("이미지 short name 불일치로 스킵: {} (container={}, watch={})",
+                        name, container.getImage(), watchImage);
                 continue;
             }
             matched++;
