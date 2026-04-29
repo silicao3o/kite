@@ -39,7 +39,7 @@
         </div>
 
         <div class="info-box">
-            <strong>Deploy Map</strong> — Image Watches와 Service Definitions에서 수집한 이미지-태그-노드 배포 현황을 한눈에 확인합니다.
+            <strong>Deploy Map</strong> — Image Watches에서 수집한 이미지-태그-노드 배포 현황을 한눈에 확인합니다.
         </div>
 
         <div class="legend">
@@ -56,16 +56,10 @@
 
 <script>
 async function loadDeployMap() {
-    const [watchesRes, nodesRes, servicesRes] = await Promise.all([
-        fetch('/api/image-watches'),
-        fetch('/api/nodes'),
-        fetch('/api/service-definitions')
-    ]);
+    const watchesRes = await fetch('/api/image-watches');
     const watches = await watchesRes.json();
-    const nodes = await nodesRes.json();
-    const services = servicesRes.ok ? await servicesRes.json() : [];
 
-    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑 (와치 행 매칭에 사용)
+    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑
     const nodeContainers = {};
     try {
         const res = await fetch('/api/containers');
@@ -79,74 +73,36 @@ async function loadDeployMap() {
         }
     } catch(e) {}
 
-    // 서비스 정의별 컨테이너를 라벨 기반(/api/service-definitions/{id}/containers)으로 병렬 조회.
-    // compose 행은 패턴 매칭 대신 service-definition-id 라벨 매칭으로 정확히 노드별 상태를 잡는다.
-    const containersByService = {};
-    await Promise.all(services.map(async s => {
-        try {
-            const r = await fetch(`/api/service-definitions/${encodeURIComponent(s.id)}/containers`);
-            containersByService[s.id] = r.ok ? await r.json() : [];
-        } catch (_) {
-            containersByService[s.id] = [];
-        }
-    }));
-
-    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], source: 'watch'|'service', ... } } }
+    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], pattern } } }
     const imageMap = {};
-
-    // 이미지 와치에서 수집
     watches.forEach(w => {
         if (!imageMap[w.image]) imageMap[w.image] = {};
         const nodeList = w.nodeNames && w.nodeNames.length > 0 ? w.nodeNames : ['전체'];
-        imageMap[w.image][w.tag] = { nodes: nodeList, source: 'watch', pattern: w.containerPattern };
-    });
-
-    // 서비스 정의에서 수집 — 라벨로 잡힌 컨테이너를 노드별로 그룹핑해서 같이 실어준다
-    services.forEach(s => {
-        if (!s.nodeEnvMappings) return;
-        const nodeNames = Object.keys(s.nodeEnvMappings);
-        if (nodeNames.length === 0) return;
-        const image = s.name || 'service';
-        if (!imageMap[image]) imageMap[image] = {};
-
-        const byNode = {};
-        (containersByService[s.id] || []).forEach(c => {
-            const nn = c.nodeName || 'local';
-            if (!byNode[nn]) byNode[nn] = [];
-            byNode[nn].push(c);
-        });
-
-        imageMap[image]['compose'] = {
-            nodes: nodeNames,
-            source: 'service',
-            containersByNode: byNode
+        imageMap[w.image][w.tag] = {
+            nodes: nodeList,
+            pattern: w.containerPattern,
+            watchImage: w.image
         };
     });
 
     const container = document.getElementById('deployMap');
 
     if (Object.keys(imageMap).length === 0) {
-        container.innerHTML = '<div class="empty-state">배포 매핑 데이터가 없습니다.</div>';
+        container.innerHTML = '<div class="empty-state">등록된 이미지 와치가 없습니다.</div>';
         return;
     }
 
     container.innerHTML = Object.entries(imageMap).map(([image, tags]) => {
         const tagRows = Object.entries(tags).map(([tag, info]) => {
             const nodeCards = info.nodes.map(nodeName => {
-                let matched;
-                if (info.containersByNode) {
-                    // 서비스 정의: 라벨 매칭 결과를 그대로 사용
-                    matched = info.containersByNode[nodeName] || [];
-                } else {
-                    // 이미지 와치: 백엔드 ContainerPatternMatcher 와 동일한 규칙으로 매칭
-                    const containers = nodeName === '전체'
-                        ? Object.values(nodeContainers).flat()
-                        : (nodeContainers[nodeName] || []);
-                    const pattern = info.pattern;
-                    matched = (pattern && containers.length > 0)
-                        ? containers.filter(c => matchesContainerPattern(c.name || '', pattern))
-                        : [];
-                }
+                const containers = nodeName === '전체'
+                    ? Object.values(nodeContainers).flat()
+                    : (nodeContainers[nodeName] || []);
+                // 백엔드 ImageUpdatePoller 와 동일하게: containerPattern 매칭 + 이미지 short name 가드
+                const matched = containers.filter(c =>
+                    matchesContainerPattern(c.name || '', info.pattern) &&
+                    sameShortName(c.image, info.watchImage)
+                );
                 const running = matched.filter(c => c.state === 'running').length;
                 const total = matched.length;
                 const dotClass = total === 0 ? 'dot-unknown' : running === total ? 'dot-running' : 'dot-stopped';
@@ -158,7 +114,7 @@ async function loadDeployMap() {
             }).join('');
 
             return `<div class="tag-row">
-                <div class="tag-label"><span class="badge badge-tag">${escapeHtml(tag)}</span> <span class="badge badge-source">${info.source}</span></div>
+                <div class="tag-label"><span class="badge badge-tag">${escapeHtml(tag)}</span></div>
                 <div class="node-list">${nodeCards}</div>
             </div>`;
         }).join('');
@@ -203,6 +159,27 @@ function globToRegex(glob) {
         else sb += c;
     }
     return sb;
+}
+
+// 백엔드 com.lite_k8s.util.ImageReferences 와 동일한 short name 비교.
+// 와치 이미지(ghcr.io/.../quvi)와 컨테이너 이미지(nginx:alpine)의 마지막 path
+// segment 가 같을 때만 매칭 — 같은 prefix 의 사이드카(nginx 등) 제외용.
+function imageShortName(ref) {
+    if (!ref) return '';
+    let s = ref;
+    const at = s.indexOf('@');
+    if (at >= 0) s = s.substring(0, at);
+    const lastSlash = s.lastIndexOf('/');
+    const lastColon = s.lastIndexOf(':');
+    if (lastColon > lastSlash) s = s.substring(0, lastColon);
+    const sep = s.lastIndexOf('/');
+    return sep >= 0 ? s.substring(sep + 1) : s;
+}
+
+function sameShortName(a, b) {
+    const sa = imageShortName(a);
+    const sb = imageShortName(b);
+    return sa.length > 0 && sa === sb;
 }
 
 document.addEventListener('DOMContentLoaded', loadDeployMap);
