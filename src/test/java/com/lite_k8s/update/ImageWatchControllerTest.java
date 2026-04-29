@@ -280,4 +280,47 @@ class ImageWatchControllerTest {
 
         verify(watchService).save(argThat(e -> e.getPollIntervalSeconds() == 300));
     }
+
+    @Test
+    @DisplayName("65. 같은 이미지+태그 조합 중복 등록 시 409 반환")
+    void create_DuplicateImageTag_Returns409() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/app")
+                        .tag("latest")
+                        .build()
+        ));
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/app",
+                                "tag", "latest"
+                        ))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("65. 같은 이미지 다른 태��는 등록 가능")
+    void create_SameImageDifferentTag_Allowed() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/app")
+                        .tag("latest")
+                        .build()
+        ));
+        ImageWatchEntity saved = ImageWatchEntity.builder()
+                .image("ghcr.io/org/app")
+                .tag("release-v3.0")
+                .build();
+        when(watchService.save(any())).thenReturn(saved);
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/app",
+                                "tag", "release-v3.0"
+                        ))))
+                .andExpect(status().isCreated());
+    }
 }

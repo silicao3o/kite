@@ -27,13 +27,22 @@ public class ImageWatchController {
             return ResponseEntity.badRequest().body("image는 필수입니다");
         }
 
+        String tag = asStringOrDefault(body.get("tag"), "latest");
         ImageWatchEntity.WatchMode mode = parseMode(asString(body.get("mode")));
+
+        // image+tag 중복 체크
+        boolean duplicate = watchService.findAll().stream()
+                .anyMatch(w -> w.getEffectiveImage().equals(image) && tag.equals(w.getTag()));
+        if (duplicate) {
+            return ResponseEntity.status(409).body("이미 동일한 이미지+태그 와치가 존재합니다: " + image + ":" + tag);
+        }
+
         ImageRegistry registry = imageRegistryRepository.findByImage(image).orElse(null);
 
         ImageWatchEntity entity = ImageWatchEntity.builder()
                 .image(image)
                 .imageRegistry(registry)
-                .tag(asStringOrDefault(body.get("tag"), "latest"))
+                .tag(tag)
                 .containerPattern(asString(body.get("containerPattern")))
                 .nodeNames(asStringList(body.get("nodeNames")))
                 .pollIntervalSeconds(mode == ImageWatchEntity.WatchMode.TRIGGER ? null : asInt(body.get("pollIntervalSeconds"), 300))
