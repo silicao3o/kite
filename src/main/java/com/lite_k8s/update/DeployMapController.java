@@ -128,6 +128,9 @@ public class DeployMapController {
     private boolean matchesContainer(Container c, String pattern, String watchImage) {
         String name = DockerContainerNames.extractName(c, "");
         if (!ContainerPatternMatcher.matches(name, pattern)) return false;
+        // image 가 ref 형식(nginx:alpine, ghcr.io/.../app:tag) 일 때만 short name 가드 적용.
+        // image ID (digest pin 후 untag 된 컨테이너) 는 비교 불가 → 패턴 매칭만 신뢰.
+        if (!ImageReferences.isImageReference(c.getImage())) return true;
         return ImageReferences.sameShortName(c.getImage(), watchImage);
     }
 

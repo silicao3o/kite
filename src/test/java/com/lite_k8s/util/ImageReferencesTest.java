@@ -71,4 +71,29 @@ class ImageReferencesTest {
         assertThat(ImageReferences.sameShortName("nginx", null)).isFalse();
         assertThat(ImageReferences.sameShortName("", "")).isFalse();
     }
+
+    @Test
+    @DisplayName("isImageReference: ref 형식 (repo:tag, host/repo, digest pin) 은 true")
+    void isImageReference_RefForms() {
+        assertThat(ImageReferences.isImageReference("nginx:alpine")).isTrue();
+        assertThat(ImageReferences.isImageReference("ghcr.io/org/app:latest")).isTrue();
+        assertThat(ImageReferences.isImageReference("ghcr.io/org/app@sha256:abc")).isTrue();
+        assertThat(ImageReferences.isImageReference("nginx")).isTrue(); // tag 없는 이름도 ref
+    }
+
+    @Test
+    @DisplayName("isImageReference: image ID (sha256: 시작, 순수 hex 12자+) 은 false")
+    void isImageReference_ImageIds() {
+        assertThat(ImageReferences.isImageReference("sha256:abc123def456")).isFalse();
+        assertThat(ImageReferences.isImageReference("f16c946af7c5")).isFalse();
+        assertThat(ImageReferences.isImageReference("fcc45ae6f9aeba93bed1")).isFalse();
+    }
+
+    @Test
+    @DisplayName("isImageReference: null/blank 은 false")
+    void isImageReference_NullOrBlank() {
+        assertThat(ImageReferences.isImageReference(null)).isFalse();
+        assertThat(ImageReferences.isImageReference("")).isFalse();
+        assertThat(ImageReferences.isImageReference("   ")).isFalse();
+    }
 }

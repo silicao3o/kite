@@ -49,4 +49,22 @@ public final class ImageReferences {
         String sb = shortName(b);
         return !sa.isEmpty() && sa.equals(sb);
     }
+
+    /**
+     * 입력이 image reference (예: nginx:alpine, ghcr.io/.../app@sha256:...) 인지,
+     * 아니면 image ID (sha256:abcd... 또는 순수 hex 12자 이상) 인지 판별.
+     *
+     * digest 로 pin 해 만든 컨테이너는 docker 의 latest 태그가 다른 이미지로 이동하면
+     * 더 이상 repo:tag 형태로 표현되지 않고 image ID 만 노출되는데, 이 경우
+     * sameShortName 비교가 항상 false 가 돼 와치 대상이 false-negative 로 빠지는
+     * 문제가 있다. 호출부에서 isImageReference 가 false 면 short name 가드를
+     * 우회하고 컨테이너 이름 패턴 매칭만 신뢰하면 된다.
+     */
+    public static boolean isImageReference(String s) {
+        if (s == null || s.isBlank()) return false;
+        if (s.startsWith("sha256:")) return false;
+        // 순수 hex 12자 이상 = image ID
+        if (s.length() >= 12 && s.matches("[0-9a-f]+")) return false;
+        return true;
+    }
 }

@@ -223,7 +223,10 @@ public class ImageUpdatePoller {
             // 이름 패턴은 걸려도 컨테이너 이미지의 short name 이 watch 와 다르면 스킵
             // (예: chat-quvi* 에 걸린 nginx:alpine 사이드카). short name 비교라
             // 레지스트리 host/org 가 바뀌어도(같은 이미지 이전) 매칭은 유지된다.
-            if (!ImageReferences.sameShortName(container.getImage(), watchImage)) {
+            // 단, 컨테이너 image 가 ID 형태(digest pin 후 태그 untag) 면 비교 불가능 →
+            // 패턴 매칭만 신뢰.
+            if (ImageReferences.isImageReference(container.getImage())
+                    && !ImageReferences.sameShortName(container.getImage(), watchImage)) {
                 log.debug("이미지 short name 불일치로 스킵: {} (container={}, watch={})",
                         name, container.getImage(), watchImage);
                 continue;
