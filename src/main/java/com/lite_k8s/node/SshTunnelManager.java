@@ -45,10 +45,15 @@ public class SshTunnelManager {
             session.setConfig("StrictHostKeyChecking", "no");
             if (password != null && !password.isBlank()) {
                 session.setPassword(password);
-            } else if (passphrase != null && !passphrase.isBlank()) {
-                jsch.addIdentity(keyPath, passphrase);
             } else {
-                jsch.addIdentity(keyPath);
+                String effective = (passphrase != null && !passphrase.isBlank())
+                        ? passphrase
+                        : properties.getDefaultSshPassphrase();
+                if (effective != null && !effective.isBlank()) {
+                    jsch.addIdentity(keyPath, effective);
+                } else {
+                    jsch.addIdentity(keyPath);
+                }
             }
             return session;
         });

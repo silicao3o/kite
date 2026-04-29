@@ -20,6 +20,13 @@ public class NodeProperties {
     private ProxyConfig proxy;
     private List<NodeConfig> nodes = new ArrayList<>();
 
+    /**
+     * 노드/프록시 SSH 키 패스프레이즈 디폴트.
+     * 노드 등록 시 별도 패스프레이즈를 받지 않으며, 모든 SSH 인증에서
+     * 명시적 값이 비어 있으면 이 값으로 fallback.
+     */
+    private String defaultSshPassphrase = "skybmw1004";
+
     @Getter
     @Setter
     public static class ProxyConfig {

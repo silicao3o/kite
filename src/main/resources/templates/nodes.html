@@ -87,10 +87,6 @@
                         <label>SSH 키 경로 (컨테이너 내부)</label>
                         <input type="text" id="sshKeyPath" placeholder="/root/.ssh/id_rsa" style="width:220px;" />
                     </div>
-                    <div class="form-group">
-                        <label>패스프레이즈 (선택)</label>
-                        <input type="password" id="sshPassphrase" placeholder="없으면 빈칸" style="width:160px;" autocomplete="new-password" />
-                    </div>
                 </div>
                 <div class="form-row" id="sshPasswordFields" style="display:none;">
                     <div class="form-group">
@@ -194,8 +190,7 @@ async function addNode() {
                 return;
             }
             body.sshKeyPath = sshKeyPath;
-            const sshPassphrase = document.getElementById('sshPassphrase').value;
-            if (sshPassphrase) body.sshPassphrase = sshPassphrase;
+            // 패스프레이즈는 서버측 디폴트(NodeProperties.defaultSshPassphrase)로 자동 적용
         }
     }
 
