@@ -36,6 +36,19 @@ public class ImageRegistryController {
         return repository.findAll();
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, String> body) {
+        return repository.findById(id)
+                .map(existing -> {
+                    if (body.containsKey("image")) existing.setImage(body.get("image").trim());
+                    if (body.containsKey("alias")) existing.setAlias(body.get("alias").trim());
+                    if (body.containsKey("description")) existing.setDescription(body.get("description").trim());
+                    if (body.containsKey("ghcrToken")) existing.setGhcrToken(body.get("ghcrToken").trim());
+                    return ResponseEntity.ok(repository.save(existing));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         repository.deleteById(id);

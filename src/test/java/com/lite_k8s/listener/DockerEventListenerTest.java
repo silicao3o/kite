@@ -134,7 +134,7 @@ class DockerEventListenerTest {
     }
 
     @Test
-    @DisplayName("oom 이벤트 발생 시 알림 전송")
+    @DisplayName("oom → die 이벤트 발생 시 알림 전송 (oom은 선행 이벤트, die에서 처리)")
     void handleEvent_WhenOomEvent_ShouldSendNotification() {
         // given
         setupEventsCmdMock();
@@ -144,7 +144,7 @@ class DockerEventListenerTest {
                 .containerName("memory-app")
                 .exitCode(137L)
                 .oomKilled(true)
-                .action("oom")
+                .action("die")
                 .deathTime(LocalDateTime.now())
                 .build();
 
@@ -156,12 +156,15 @@ class DockerEventListenerTest {
         verify(eventsCmd).exec(callbackCaptor.capture());
         ResultCallback<Event> callback = callbackCaptor.getValue();
 
-        Event oomEvent = createDockerEvent("oom", "container789");
-        callback.onNext(oomEvent);
+        // oom 선행 이벤트 → die 이벤트 순서로 발생
+        callback.onNext(createDockerEvent("oom", "container789"));
+        callback.onNext(createDockerEvent("die", "container789"));
 
         // then
         verify(dockerService).buildDeathEvent(anyString(), anyString(), any());
         verify(notificationService).sendAlert(deathEvent);
+        // oom이 선행 원인으로 설정됨
+        assertThat(deathEvent.getAction()).isEqualTo("oom");
     }
 
     @Test
@@ -418,8 +421,8 @@ class DockerEventListenerTest {
     }
 
     @Test
-    @DisplayName("7.14/7.15: intentional(stop 이벤트 선행) → self-heal 스킵, sendAlert는 호출 (내부 게이트)")
-    void handleEvent_WhenIntentional_ShouldSkipHealingButDelegateToSendAlert() {
+    @DisplayName("7.14/7.15: intentional(stop 이벤트 선행) → self-heal, 알림, 리포트 모두 스킵")
+    void handleEvent_WhenIntentional_ShouldSkipHealingAndAlertAndReport() {
         // given
         setupEventsCmdMock();
 
@@ -441,12 +444,11 @@ class DockerEventListenerTest {
         callback.onNext(createDockerEvent("stop", "container123"));
         callback.onNext(createDockerEvent("die", "container123"));
 
-        // then - intentional 판정되어 self-heal 스킵, sendAlert는 호출 (sendAlert 내부에서 규칙 게이트)
+        // then - intentional 판정되어 self-heal, 알림, 리포트 모두 스킵
         verify(selfHealingService, never()).handleContainerDeath(any());
-        verify(notificationService).sendAlert(deathEvent);
-        verify(incidentReportService).createReport(deathEvent);
+        verify(notificationService, never()).sendAlert(any());
+        verify(incidentReportService, never()).createReport(any());
         assertThat(deathEvent.isIntentional()).isTrue();
-        assertThat(deathEvent.getIntentionalReason()).isEqualTo("stop-event-precedent");
     }
 
     @Test

@@ -46,6 +46,7 @@ class ImageUpdatePollerTest {
                 eventPublisher, historyService);
 
         pollerLogger = (Logger) LoggerFactory.getLogger(ImageUpdatePoller.class);
+        pollerLogger.setLevel(Level.ALL);
         logAppender = new ListAppender<>();
         logAppender.start();
         pollerLogger.addAppender(logAppender);

@@ -339,6 +339,33 @@
     </div>
 </div>
 
+<!-- Registry Edit Modal -->
+<div class="modal-overlay" id="regEditModal">
+    <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+            <h3>이미지 레지스트리 수정</h3>
+            <button class="modal-close" onclick="closeRegEditModal()">&times;</button>
+        </div>
+        <input type="hidden" id="regEditId" />
+        <div class="edit-form">
+            <div class="form-group"><label>이미지 *</label><input type="text" id="regEditImage" /></div>
+            <div class="edit-row">
+                <div class="form-group"><label>별칭</label><input type="text" id="regEditAlias" /></div>
+                <div class="form-group"><label>설명</label><input type="text" id="regEditDesc" /></div>
+            </div>
+            <div class="form-group">
+                <label>GHCR 토큰 <span id="regEditTokenHint" class="text-muted" style="font-size:.75rem;"></span></label>
+                <input type="password" id="regEditToken" placeholder="변경하려면 입력" />
+            </div>
+            <div id="regEditError" style="color:#ef4444;font-size:.85rem;display:none;"></div>
+            <div class="edit-footer">
+                <button class="btn-sm btn-delete" onclick="closeRegEditModal()">취소</button>
+                <button class="btn-add" onclick="saveRegEdit()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <datalist id="imageList"></datalist>
 
 <script>
@@ -591,8 +618,47 @@ async function loadRegistryList() {
     if (images.length === 0) { el.innerHTML = '<div class="text-muted" style="text-align:center;padding:1rem;">등록된 이미지가 없습니다.</div>'; return; }
     el.innerHTML = images.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;">
         <div><strong style="font-family:monospace;">${escapeHtml(i.image)}</strong>${i.alias ? ' <span class="text-muted">(' + escapeHtml(i.alias) + ')</span>' : ''}${i.ghcrToken ? ' <span class="badge badge-token" style="font-size:.68rem;">토큰</span>' : ''}</div>
-        <button class="btn-sm btn-delete" onclick="deleteRegistryImage('${i.id}')">삭제</button>
+        <div class="btn-group">
+            <button class="btn-sm btn-edit" onclick="openRegEditModal('${i.id}')">수정</button>
+            <button class="btn-sm btn-delete" onclick="deleteRegistryImage('${i.id}')">삭제</button>
+        </div>
     </div>`).join('');
+}
+
+let regEditCache = {};
+async function openRegEditModal(id) {
+    const res = await fetch('/api/image-registry');
+    const images = await res.json();
+    const item = images.find(i => i.id === id);
+    if (!item) return;
+    regEditCache = item;
+    document.getElementById('regEditId').value = id;
+    document.getElementById('regEditImage').value = item.image || '';
+    document.getElementById('regEditAlias').value = item.alias || '';
+    document.getElementById('regEditDesc').value = item.description || '';
+    document.getElementById('regEditToken').value = '';
+    document.getElementById('regEditTokenHint').textContent = item.ghcrToken ? '(설정됨 — 변경하려면 입력)' : '(미설정)';
+    document.getElementById('regEditError').style.display = 'none';
+    document.getElementById('regEditModal').style.display = 'block';
+}
+function closeRegEditModal() { document.getElementById('regEditModal').style.display = 'none'; }
+
+async function saveRegEdit() {
+    const id = document.getElementById('regEditId').value;
+    const image = document.getElementById('regEditImage').value.trim();
+    const errEl = document.getElementById('regEditError');
+    if (!image) { errEl.textContent = '이미지 경로는 필수입니다.'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+    const body = {
+        image,
+        alias: document.getElementById('regEditAlias').value.trim(),
+        description: document.getElementById('regEditDesc').value.trim()
+    };
+    const token = document.getElementById('regEditToken').value.trim();
+    if (token) body.ghcrToken = token;
+    const res = await fetch(`/api/image-registry/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    if (res.ok) { closeRegEditModal(); loadRegistryList(); loadImageRegistry(); }
+    else { errEl.textContent = '수정 실패: ' + await res.text(); errEl.style.display = 'block'; }
 }
 
 async function addRegistryImage() {
@@ -621,6 +687,7 @@ async function deleteRegistryImage(id) {
 }
 
 document.getElementById('registryModal').addEventListener('click', function(e) { if (e.target === this) closeRegistryModal(); });
+document.getElementById('regEditModal').addEventListener('click', function(e) { if (e.target === this) closeRegEditModal(); });
 document.addEventListener('DOMContentLoaded', () => { loadWatches(); loadImageRegistry(); });
 </script>
 <script src="/js/sidebar-toggle.js"></script>
