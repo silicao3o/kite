@@ -185,6 +185,37 @@ class RollingUpdateServiceTest {
     }
 
     @Test
+    @DisplayName("glob 패턴(chat-quvi*) 이 chat-quvi-test 같은 컨테이너를 매칭한다 — Poller와 일관")
+    void onImageUpdateDetected_GlobPatternMatchesContainerName() {
+        ListContainersCmd listCmd = mock(ListContainersCmd.class);
+        Container c1 = mockContainer("c1", "/chat-quvi-test-nginx");
+        Container c2 = mockContainer("c2", "/chat-quvi-test");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listCmd);
+        when(listCmd.withShowAll(false)).thenReturn(listCmd);
+        when(listCmd.exec()).thenReturn(List.of(c1, c2));
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
+        when(historyService.record(any())).thenReturn(null);
+
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/chat-quvi")
+                .tag("v3.0")
+                .containerPattern("chat-quvi*")
+                .maxUnavailable(1)
+                .build();
+
+        ImageUpdateDetectedEvent event = new ImageUpdateDetectedEvent(
+                "c1", "chat-quvi-test-nginx", "ghcr.io/myorg/chat-quvi", "v3.0",
+                "sha256:old", "sha256:new", watch);
+
+        service.onImageUpdateDetected(event);
+
+        // glob "chat-quvi*" 가 두 컨테이너 모두 매칭해야 raw-regex 에서 0매칭이던 버그가 해결됨
+        verify(recreator).recreate(eq("c1"), any(), any(), any());
+        verify(recreator).recreate(eq("c2"), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("recreator에 watch digest로 pin된 이미지 참조를 전달한다 — :latest 디폴트 pull 버그 방지")
     void onImageUpdateDetected_PassesDigestPinnedImageRefToRecreator() {
         ListContainersCmd listCmd = mock(ListContainersCmd.class);

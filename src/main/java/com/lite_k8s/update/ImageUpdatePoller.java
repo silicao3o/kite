@@ -5,6 +5,7 @@ import com.github.dockerjava.api.model.Container;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import com.lite_k8s.util.ContainerPatternMatcher;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -259,39 +260,7 @@ public class ImageUpdatePoller {
     }
 
     private boolean matchesPattern(String name, String pattern) {
-        if (pattern == null || pattern.isEmpty()) {
-            return true;
-        }
-        // glob 패턴이면 regex로 변환 (*, ? 포함 + 유효한 regex가 아닌 경우)
-        String regex = isGlobPattern(pattern) ? globToRegex(pattern) : pattern;
-        try {
-            return name.matches(regex);
-        } catch (java.util.regex.PatternSyntaxException e) {
-            // 그래도 실패하면 substring 폴백
-            log.warn("컨테이너 패턴 매칭 실패 — substring 폴백: pattern={} reason={}",
-                    pattern, e.getDescription());
-            String core = pattern.replace("*", "").replace("?", "");
-            return !core.isEmpty() && name.contains(core);
-        }
-    }
-
-    private boolean isGlobPattern(String pattern) {
-        // glob 문자(*, ?)가 있고, 정규식 전용 문자(.*, .+, \d 등)가 없으면 glob으로 간주
-        if (!pattern.contains("*") && !pattern.contains("?")) return false;
-        return !pattern.contains(".*") && !pattern.contains(".+") && !pattern.contains("\\");
-    }
-
-    private String globToRegex(String glob) {
-        StringBuilder sb = new StringBuilder();
-        for (char c : glob.toCharArray()) {
-            switch (c) {
-                case '*' -> sb.append(".*");
-                case '?' -> sb.append(".");
-                case '.' -> sb.append("\\.");
-                default -> sb.append(c);
-            }
-        }
-        return sb.toString();
+        return ContainerPatternMatcher.matches(name, pattern);
     }
 
     private String shorten(String digest) {

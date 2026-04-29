@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
+import com.lite_k8s.util.ContainerPatternMatcher;
 import com.lite_k8s.util.DockerContainerNames;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -138,8 +139,7 @@ public class RollingUpdateService {
     }
 
     private boolean matchesPattern(String name, String pattern) {
-        if (pattern == null || pattern.isEmpty()) return true;
-        return name.matches(pattern);
+        return ContainerPatternMatcher.matches(name, pattern);
     }
 
     private String buildPullRef(ImageWatchEntity watch, String newDigest) {
