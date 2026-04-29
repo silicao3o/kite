@@ -59,7 +59,7 @@ class ContainerRecreatorTest {
         setupDockerCommands("new-container-id");
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new");
 
         // then
         assertThat(result).isTrue();
@@ -79,7 +79,7 @@ class ContainerRecreatorTest {
         setupDockerCommands("new-container-id");
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new");
 
         // then
         assertThat(result).isTrue();
@@ -99,7 +99,7 @@ class ContainerRecreatorTest {
         when(pullCmd.exec(any())).thenThrow(new RuntimeException("pull failed"));
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new");
 
         // then
         assertThat(result).isFalse();
@@ -118,7 +118,7 @@ class ContainerRecreatorTest {
         doThrow(new RuntimeException("stop failed")).when(stopCmd).exec();
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new");
 
         // then
         assertThat(result).isFalse();
@@ -136,7 +136,7 @@ class ContainerRecreatorTest {
         doThrow(new RuntimeException("start failed")).when(startCmd).exec();
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new");
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new");
 
         // then
         assertThat(result).isFalse();
@@ -158,7 +158,7 @@ class ContainerRecreatorTest {
         setupDockerCommandsOn(nodeClient, "new-container-id");
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/engine", "sha256:new", nodeId);
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/engine:latest", "sha256:new", nodeId);
 
         // then
         assertThat(result).isTrue();
@@ -179,7 +179,7 @@ class ContainerRecreatorTest {
         setupDockerCommands("new-container-id");
 
         // when
-        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp", "sha256:new", null);
+        boolean result = recreator.recreate("old-container", "ghcr.io/myorg/myapp:latest", "sha256:new", null);
 
         // then
         assertThat(result).isTrue();

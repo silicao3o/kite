@@ -185,6 +185,39 @@ class RollingUpdateServiceTest {
     }
 
     @Test
+    @DisplayName("recreator에 watch digest로 pin된 이미지 참조를 전달한다 — :latest 디폴트 pull 버그 방지")
+    void onImageUpdateDetected_PassesDigestPinnedImageRefToRecreator() {
+        ListContainersCmd listCmd = mock(ListContainersCmd.class);
+        Container target = mockContainer("c1", "/quvi-1");
+
+        when(dockerClient.listContainersCmd()).thenReturn(listCmd);
+        when(listCmd.withShowAll(false)).thenReturn(listCmd);
+        when(listCmd.exec()).thenReturn(List.of(target));
+        when(recreator.recreate(any(), any(), any(), any())).thenReturn(true);
+        when(historyService.record(any())).thenReturn(null);
+
+        ImageWatchEntity watch = ImageWatchEntity.builder()
+                .image("ghcr.io/myorg/quvi")
+                .tag("v3.0")
+                .containerPattern("quvi-.*")
+                .maxUnavailable(1)
+                .build();
+
+        ImageUpdateDetectedEvent event = new ImageUpdateDetectedEvent(
+                "c1", "quvi-1", "ghcr.io/myorg/quvi", "v3.0",
+                "sha256:old", "sha256:newdigest", watch);
+
+        service.onImageUpdateDetected(event);
+
+        // digest로 pin된 이미지 참조여야 :latest 폴백으로 잘못 pull되지 않는다
+        verify(recreator).recreate(
+                eq("c1"),
+                eq("ghcr.io/myorg/quvi@sha256:newdigest"),
+                eq("sha256:newdigest"),
+                any());
+    }
+
+    @Test
     @DisplayName("nodeId가 null이면 로컬 dockerClient로 컨테이너 검색")
     void onImageUpdateDetected_WithoutNodeId_UsesLocalClient() {
         ListContainersCmd listCmd = mock(ListContainersCmd.class);

@@ -77,7 +77,8 @@ public class RollingUpdateService {
 
                 log.info("[{}/{}] 업데이트 중: {}", i + 1, targets.size(), name);
 
-                boolean ok = recreator.recreate(container.getId(), watch.getImage(), newDigest, nodeId);
+                String pullRef = buildPullRef(watch, newDigest);
+                boolean ok = recreator.recreate(container.getId(), pullRef, newDigest, nodeId);
 
                 if (ok) {
                     results.add(UpdateResult.success(container.getId(), name, oldDigest, newDigest));
@@ -139,5 +140,15 @@ public class RollingUpdateService {
     private boolean matchesPattern(String name, String pattern) {
         if (pattern == null || pattern.isEmpty()) return true;
         return name.matches(pattern);
+    }
+
+    private String buildPullRef(ImageWatchEntity watch, String newDigest) {
+        // digest로 pin해서 폴러가 본 그 이미지 그대로 pull — 태그가 도중에 이동해도 안전
+        String image = watch.getEffectiveImage();
+        if (newDigest != null && newDigest.startsWith("sha256:")) {
+            return image + "@" + newDigest;
+        }
+        String tag = watch.getTag() != null && !watch.getTag().isBlank() ? watch.getTag() : "latest";
+        return image + ":" + tag;
     }
 }

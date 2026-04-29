@@ -58,12 +58,11 @@ public class ContainerRecreator {
             // 1. 기존 컨테이너 설정 조회
             InspectContainerResponse inspect = client.inspectContainerCmd(containerId).exec();
             String containerName = parseName(inspect.getName());
-            String fullImage = buildImageRef(imageRef, inspect);
 
             log.info("컨테이너 업데이트 시작: {} ({})", containerName, newDigest);
 
-            // 2. 새 이미지 pull — 로컬 :latest 가 옛날 이미지면 recreate 가 구버전으로 복제되는 걸 방지
-            pullImage(client, fullImage);
+            // 2. 새 이미지 pull — 호출부가 watch 태그/digest로 pin된 ref를 넘겨준다
+            pullImage(client, imageRef);
 
             // 3. 기존 컨테이너 중지
             ownActionTracker.markOwnAction(containerId);
@@ -75,7 +74,7 @@ public class ContainerRecreator {
             log.debug("컨테이너 제거 완료: {}", containerName);
 
             // 5. 새 이미지로 컨테이너 생성
-            String newContainerId = createContainer(client, containerName, fullImage, inspect);
+            String newContainerId = createContainer(client, containerName, imageRef, inspect);
             log.debug("컨테이너 생성 완료: {} → {}", containerName, newContainerId);
 
             // 6. 새 컨테이너 시작
@@ -114,15 +113,21 @@ public class ContainerRecreator {
         }
     }
 
-    private String resolveGhcrToken(String imageWithTag) {
+    private String resolveGhcrToken(String imageWithRef) {
         if (imageRegistryRepository == null) return null;
-        String imageOnly = imageWithTag.contains(":")
-                ? imageWithTag.substring(0, imageWithTag.lastIndexOf(":"))
-                : imageWithTag;
+        String imageOnly = stripReference(imageWithRef);
         return imageRegistryRepository.findByImage(imageOnly)
                 .map(r -> r.getGhcrToken())
                 .filter(t -> t != null && !t.isBlank())
                 .orElse(null);
+    }
+
+    private String stripReference(String ref) {
+        // image@sha256:... 또는 image:tag → image
+        int at = ref.indexOf('@');
+        if (at >= 0) return ref.substring(0, at);
+        int colon = ref.lastIndexOf(':');
+        return colon >= 0 ? ref.substring(0, colon) : ref;
     }
 
     private String createContainer(DockerClient client, String name, String image,
@@ -157,13 +162,5 @@ public class ContainerRecreator {
     private String parseName(String rawName) {
         if (rawName == null) return "unknown";
         return rawName.startsWith("/") ? rawName.substring(1) : rawName;
-    }
-
-    private String buildImageRef(String imageRef, InspectContainerResponse inspect) {
-        // 이미지 레퍼런스에 태그가 없으면 latest 붙임
-        if (!imageRef.contains(":")) {
-            return imageRef + ":latest";
-        }
-        return imageRef;
     }
 }
