@@ -179,6 +179,147 @@ public class ServiceDefinitionController {
         return ResponseEntity.ok(profiles);
     }
 
+    /** 73. 서비스별 노드/컨테이너 목록 조회 */
+    @GetMapping("/{id}/containers")
+    public ResponseEntity<?> listContainers(@PathVariable String id) {
+        Optional<ServiceDefinition> maybe = repository.findById(id);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        ServiceDefinition def = maybe.get();
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        Set<String> nodeIds = resolveNodeIds(def);
+        for (String nodeId : nodeIds) {
+            DockerClient client = resolveClient(nodeId);
+            String nodeName = nodeId == null ? "local" : resolveNodeName(nodeId);
+            try {
+                var containers = client.listContainersCmd()
+                        .withShowAll(true)
+                        .withLabelFilter(Map.of("kite.service-definition-id", id))
+                        .exec();
+                for (var c : containers) {
+                    String name = c.getNames() != null && c.getNames().length > 0
+                            ? c.getNames()[0].replaceFirst("^/", "") : c.getId();
+                    result.add(Map.of(
+                            "containerId", c.getId(),
+                            "name", name,
+                            "state", c.getState() != null ? c.getState() : "unknown",
+                            "image", c.getImage() != null ? c.getImage() : "",
+                            "nodeName", nodeName,
+                            "nodeId", nodeId != null ? nodeId : ""
+                    ));
+                }
+            } catch (Exception e) {
+                log.warn("컨테이너 조회 실패 (node={}): {}", nodeName, e.getMessage());
+            }
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /** 74. 노드별 컨테이너 stop */
+    @PostMapping("/{id}/nodes/{nodeName}/stop")
+    public ResponseEntity<?> stopByNode(@PathVariable String id, @PathVariable String nodeName) {
+        return executeOnNode(id, nodeName, "stop");
+    }
+
+    /** 75. 노드별 컨테이너 restart */
+    @PostMapping("/{id}/nodes/{nodeName}/restart")
+    public ResponseEntity<?> restartByNode(@PathVariable String id, @PathVariable String nodeName) {
+        return executeOnNode(id, nodeName, "restart");
+    }
+
+    /** 76. 개별 컨테이너 stop */
+    @PostMapping("/{id}/containers/{containerId}/stop")
+    public ResponseEntity<?> stopContainer(@PathVariable String id, @PathVariable String containerId) {
+        return executeOnContainer(id, containerId, "stop");
+    }
+
+    /** 76. 개별 컨테이너 restart */
+    @PostMapping("/{id}/containers/{containerId}/restart")
+    public ResponseEntity<?> restartContainer(@PathVariable String id, @PathVariable String containerId) {
+        return executeOnContainer(id, containerId, "restart");
+    }
+
+    private ResponseEntity<?> executeOnNode(String defId, String nodeName, String action) {
+        Optional<ServiceDefinition> maybe = repository.findById(defId);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        String nodeId = "local".equals(nodeName) ? null : resolveNodeId(nodeName);
+        DockerClient client = resolveClient(nodeId);
+        int count = 0;
+
+        try {
+            var containers = client.listContainersCmd()
+                    .withShowAll(true)
+                    .withLabelFilter(Map.of("kite.service-definition-id", defId))
+                    .exec();
+            for (var c : containers) {
+                try {
+                    if ("stop".equals(action)) {
+                        if ("running".equals(c.getState())) {
+                            client.stopContainerCmd(c.getId()).exec();
+                            count++;
+                        }
+                    } else if ("restart".equals(action)) {
+                        client.restartContainerCmd(c.getId()).exec();
+                        count++;
+                    }
+                } catch (Exception e) {
+                    log.warn("컨테이너 {} 실패 ({}): {}", action, c.getId(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(action + " 실패: " + e.getMessage());
+        }
+
+        return ResponseEntity.ok(Map.of("status", action + "ped", "node", nodeName, "count", count));
+    }
+
+    private ResponseEntity<?> executeOnContainer(String defId, String containerId, String action) {
+        Optional<ServiceDefinition> maybe = repository.findById(defId);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        // 모든 노드에서 컨테이너 찾기
+        Set<String> nodeIds = resolveNodeIds(maybe.get());
+        for (String nodeId : nodeIds) {
+            DockerClient client = resolveClient(nodeId);
+            try {
+                var inspect = client.inspectContainerCmd(containerId).exec();
+                if (inspect != null) {
+                    if ("stop".equals(action)) {
+                        client.stopContainerCmd(containerId).exec();
+                    } else if ("restart".equals(action)) {
+                        client.restartContainerCmd(containerId).exec();
+                    }
+                    return ResponseEntity.ok(Map.of("status", action + "ped", "containerId", containerId));
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return ResponseEntity.notFound().build();
+    }
+
+    private Set<String> resolveNodeIds(ServiceDefinition def) {
+        Set<String> nodeIds = new LinkedHashSet<>();
+        Map<String, String> mappings = def.getNodeEnvMappings();
+        if (mappings == null || mappings.isEmpty()) {
+            nodeIds.add(null);
+        } else {
+            for (String nodeName : mappings.keySet()) {
+                nodeIds.add(nodeName.isEmpty() ? null : resolveNodeId(nodeName));
+            }
+        }
+        return nodeIds;
+    }
+
+    private String resolveNodeName(String nodeId) {
+        if (nodeId == null) return "local";
+        return nodeRegistry.findById(nodeId)
+                .map(n -> n.getName())
+                .orElse(nodeId);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         repository.deleteById(id);

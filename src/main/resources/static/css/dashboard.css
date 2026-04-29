@@ -277,6 +277,7 @@ body {
 
 table {
     width: 100%;
+    min-width: max-content;
     border-collapse: collapse;
 }
 
@@ -301,9 +302,6 @@ td {
     color: var(--text-primary);
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
-    max-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23326ce5'/><path d='M16 5 L26 16 L16 22 L6 16 Z' fill='white' fill-opacity='0.95'/><path d='M16 22 L13.5 27 M16 22 L18.5 27' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-opacity='0.6'/><circle cx='16' cy='16' r='2' fill='%23326ce5'/></svg>">
+    <title>kite · Deploy Map</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .info-box { background: rgba(59,130,246,.08); border-left: 3px solid var(--accent-blue, #3b82f6); padding: .9rem 1.1rem; margin-bottom: 1.5rem; border-radius: 6px; font-size: .88rem; color: #93c5fd; }
+        .info-box strong { color: #bfdbfe; }
+        .image-group { background: var(--bg-card, #1e2a3a); border: 1px solid var(--border-color, #2d3f56); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .image-title { font-size: 1rem; font-weight: 600; font-family: monospace; color: var(--text-primary, #e8eaed); margin-bottom: .75rem; display: flex; align-items: center; gap: .5rem; }
+        .tag-row { display: flex; align-items: flex-start; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid var(--border-color, #2d3f56); }
+        .tag-row:last-child { border-bottom: none; }
+        .tag-label { min-width: 100px; flex-shrink: 0; }
+        .node-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+        .node-card { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .7rem; border-radius: 6px; font-size: .82rem; border: 1px solid var(--border-color, #2d3f56); background: var(--bg-tertiary, #243044); }
+        .node-card .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot-running { background: #22c55e; }
+        .dot-stopped { background: #f59e0b; }
+        .dot-unknown { background: #6b7280; }
+        .container-count { font-size: .72rem; color: var(--text-secondary, #9aa0a6); }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: .76rem; font-weight: 500; display: inline-block; }
+        .badge-tag { background: rgba(99,102,241,.15); color: #a5b4fc; }
+        .badge-source { background: rgba(34,197,94,.15); color: #86efac; font-size: .7rem; border-radius: 999px; }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #9aa0a6); }
+        .legend { display: flex; gap: 1rem; margin-bottom: 1rem; font-size: .82rem; color: var(--text-secondary, #9aa0a6); }
+        .legend-item { display: flex; align-items: center; gap: .3rem; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside th:replace="~{fragments/sidebar :: sidebar('deploy-map')}"></aside>
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Deploy Map</h2>
+            <p>이미지별 태그 → 노드 배포 매핑 시각화</p>
+        </div>
+
+        <div class="info-box">
+            <strong>Deploy Map</strong> — Image Watches와 Service Definitions에서 수집한 이미지-태그-노드 배포 현황을 한눈에 확인합니다.
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="dot dot-running" style="width:10px;height:10px;display:inline-block;border-radius:50%;"></span> 실행 중</div>
+            <div class="legend-item"><span class="dot dot-stopped" style="width:10px;height:10px;display:inline-block;border-radius:50%;"></span> 중지</div>
+            <div class="legend-item"><span class="dot dot-unknown" style="width:10px;height:10px;display:inline-block;border-radius:50%;"></span> 알 수 없음</div>
+        </div>
+
+        <div id="deployMap">
+            <div class="empty-state" id="emptyState">로딩 중...</div>
+        </div>
+    </main>
+</div>
+
+<script>
+async function loadDeployMap() {
+    const [watchesRes, nodesRes, servicesRes] = await Promise.all([
+        fetch('/api/image-watches'),
+        fetch('/api/nodes'),
+        fetch('/api/service-definitions')
+    ]);
+    const watches = await watchesRes.json();
+    const nodes = await nodesRes.json();
+    const services = servicesRes.ok ? await servicesRes.json() : [];
+
+    // 노드별 컨테이너 상태 수집
+    const nodeContainers = {};
+    for (const node of nodes) {
+        try {
+            const res = await fetch(`/api/containers?nodeId=${node.id}`);
+            if (res.ok) nodeContainers[node.name] = await res.json();
+        } catch(e) {}
+    }
+    // 로컬 컨테이너
+    try {
+        const res = await fetch('/api/containers');
+        if (res.ok) nodeContainers['local'] = await res.json();
+    } catch(e) {}
+
+    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], source: 'watch'|'service' } } }
+    const imageMap = {};
+
+    // 이미지 와치에서 수집
+    watches.forEach(w => {
+        if (!imageMap[w.image]) imageMap[w.image] = {};
+        const nodeList = w.nodeNames && w.nodeNames.length > 0 ? w.nodeNames : ['전체'];
+        imageMap[w.image][w.tag] = { nodes: nodeList, source: 'watch', pattern: w.containerPattern };
+    });
+
+    // 서비스 정의에서 수집
+    services.forEach(s => {
+        if (!s.nodeEnvMappings) return;
+        const nodeNames = Object.keys(s.nodeEnvMappings);
+        if (nodeNames.length === 0) return;
+        // compose에서 이미지 추출은 복잡하므로 서비스 이름으로 표시
+        const image = s.name || 'service';
+        if (!imageMap[image]) imageMap[image] = {};
+        imageMap[image]['compose'] = { nodes: nodeNames, source: 'service' };
+    });
+
+    const container = document.getElementById('deployMap');
+
+    if (Object.keys(imageMap).length === 0) {
+        container.innerHTML = '<div class="empty-state">배포 매핑 데이터가 없습니다.</div>';
+        return;
+    }
+
+    container.innerHTML = Object.entries(imageMap).map(([image, tags]) => {
+        const tagRows = Object.entries(tags).map(([tag, info]) => {
+            const nodeCards = info.nodes.map(nodeName => {
+                const containers = nodeContainers[nodeName] || [];
+                const pattern = info.pattern;
+                let matched = [];
+                if (pattern && containers.length > 0) {
+                    try {
+                        const re = new RegExp(pattern);
+                        matched = containers.filter(c => {
+                            const name = c.names ? c.names[0].replace(/^\//, '') : c.name || '';
+                            return re.test(name);
+                        });
+                    } catch(e) {}
+                }
+                const running = matched.filter(c => c.state === 'running' || c.status?.includes('Up')).length;
+                const total = matched.length;
+                const dotClass = total === 0 ? 'dot-unknown' : running === total ? 'dot-running' : 'dot-stopped';
+                return `<div class="node-card">
+                    <span class="dot ${dotClass}"></span>
+                    <span>${escapeHtml(nodeName)}</span>
+                    ${total > 0 ? `<span class="container-count">${running}/${total}</span>` : ''}
+                </div>`;
+            }).join('');
+
+            return `<div class="tag-row">
+                <div class="tag-label"><span class="badge badge-tag">${escapeHtml(tag)}</span> <span class="badge badge-source">${info.source}</span></div>
+                <div class="node-list">${nodeCards}</div>
+            </div>`;
+        }).join('');
+
+        return `<div class="image-group">
+            <div class="image-title">${escapeHtml(image)}</div>
+            ${tagRows}
+        </div>`;
+    }).join('');
+}
+
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.addEventListener('DOMContentLoaded', loadDeployMap);
+</script>
+<script src="/js/sidebar-toggle.js"></script>
+</body>
+</html>

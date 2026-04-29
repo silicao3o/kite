@@ -10,4 +10,9 @@ public class ImageWatchViewController {
     public String imageWatches() {
         return "image-watches";
     }
+
+    @GetMapping("/deploy-map")
+    public String deployMap() {
+        return "deploy-map";
+    }
 }

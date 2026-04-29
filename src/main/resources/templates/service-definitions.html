@@ -287,6 +287,7 @@ async function loadDefs() {
             <td><span class="badge ${statusClass}">${d.status}</span></td>
             <td>${mappingHtml}</td>
             <td><div class="btn-group">
+                ${d.status === 'DEPLOYED' ? `<button class="btn-sm" style="border-color:#3b82f6;color:#93c5fd;" onclick="showContainerDetail('${d.id}','${esc(d.name)}')">상세</button>` : ''}
                 ${d.status !== 'DEPLOYED' ? `<button class="btn-sm btn-deploy" onclick="deployDef('${d.id}',this)">배포</button>` : ''}
                 ${d.status === 'DEPLOYED' ? `<button class="btn-sm btn-stop" onclick="stopDef('${d.id}',this)">중지</button>` : ''}
                 <button class="btn-sm btn-edit" onclick="openEditDef('${d.id}')">수정</button>
@@ -369,8 +370,85 @@ document.getElementById('editDefModal').addEventListener('click', function(e) { 
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+async function showContainerDetail(defId, defName) {
+    document.getElementById('containerDetailTitle').textContent = defName + ' — 컨테이너';
+    document.getElementById('containerDetailModal').style.display = 'block';
+    const listEl = document.getElementById('containerDetailList');
+    listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-secondary);">로딩 중...</div>';
+
+    const res = await fetch(`/api/service-definitions/${defId}/containers`);
+    const containers = await res.json();
+
+    if (containers.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-secondary);">컨테이너가 없습니다.</div>';
+        return;
+    }
+
+    // 노드별 그룹핑
+    const grouped = {};
+    containers.forEach(c => {
+        if (!grouped[c.nodeName]) grouped[c.nodeName] = [];
+        grouped[c.nodeName].push(c);
+    });
+
+    listEl.innerHTML = Object.entries(grouped).map(([nodeName, conts]) => {
+        const rows = conts.map(c => {
+            const stateColor = c.state === 'running' ? '#22c55e' : '#f59e0b';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;">
+                <div>
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${stateColor};margin-right:.4rem;"></span>
+                    <strong>${esc(c.name)}</strong>
+                    <span style="color:var(--text-secondary);font-size:.78rem;margin-left:.5rem;">${esc(c.image)}</span>
+                </div>
+                <div style="display:flex;gap:.3rem;">
+                    ${c.state === 'running' ? `<button class="btn-sm btn-stop" onclick="containerAction('${defId}','${c.containerId}','stop',this)">Stop</button>` : ''}
+                    <button class="btn-sm btn-edit" onclick="containerAction('${defId}','${c.containerId}','restart',this)">Restart</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        return `<div style="margin-bottom:.75rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;background:var(--bg-tertiary,#243044);border-radius:6px 6px 0 0;font-size:.85rem;font-weight:600;">
+                <span>${esc(nodeName)}</span>
+                <div style="display:flex;gap:.3rem;">
+                    <button class="btn-sm btn-stop" onclick="nodeAction('${defId}','${esc(nodeName)}','stop',this)" style="font-size:.72rem;">All Stop</button>
+                    <button class="btn-sm btn-edit" onclick="nodeAction('${defId}','${esc(nodeName)}','restart',this)" style="font-size:.72rem;">All Restart</button>
+                </div>
+            </div>
+            ${rows}
+        </div>`;
+    }).join('');
+}
+
+async function containerAction(defId, containerId, action, btn) {
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
+    await fetch(`/api/service-definitions/${defId}/containers/${containerId}/${action}`, { method:'POST' });
+    btn.textContent = orig; btn.disabled = false;
+    showContainerDetail(defId, document.getElementById('containerDetailTitle').textContent.replace(' — 컨테이너', ''));
+}
+
+async function nodeAction(defId, nodeName, action, btn) {
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
+    await fetch(`/api/service-definitions/${defId}/nodes/${encodeURIComponent(nodeName)}/${action}`, { method:'POST' });
+    btn.textContent = orig; btn.disabled = false;
+    showContainerDetail(defId, document.getElementById('containerDetailTitle').textContent.replace(' — 컨테이너', ''));
+}
+
+function closeContainerDetail() { document.getElementById('containerDetailModal').style.display = 'none'; }
 document.addEventListener('DOMContentLoaded', () => { loadProfiles(); loadNodes(); loadDefs(); });
 </script>
+
+<!-- Container Detail Modal -->
+<div class="modal-overlay" id="containerDetailModal" style="display:none;" onclick="if(event.target===this)closeContainerDetail()">
+    <div class="modal-content" style="max-width:700px;">
+        <div class="modal-header">
+            <h3 id="containerDetailTitle">컨테이너 상세</h3>
+            <button class="modal-close" onclick="closeContainerDetail()">&times;</button>
+        </div>
+        <div id="containerDetailList"></div>
+    </div>
+</div>
+
 <script src="/js/sidebar-toggle.js"></script>
 </body>
 </html>
