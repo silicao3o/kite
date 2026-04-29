@@ -65,18 +65,18 @@ async function loadDeployMap() {
     const nodes = await nodesRes.json();
     const services = servicesRes.ok ? await servicesRes.json() : [];
 
-    // 노드별 컨테이너 상태 수집
+    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑
     const nodeContainers = {};
-    for (const node of nodes) {
-        try {
-            const res = await fetch(`/api/containers?nodeId=${node.id}`);
-            if (res.ok) nodeContainers[node.name] = await res.json();
-        } catch(e) {}
-    }
-    // 로컬 컨테이너
     try {
         const res = await fetch('/api/containers');
-        if (res.ok) nodeContainers['local'] = await res.json();
+        if (res.ok) {
+            const allContainers = await res.json();
+            allContainers.forEach(c => {
+                const nn = c.nodeName || 'local';
+                if (!nodeContainers[nn]) nodeContainers[nn] = [];
+                nodeContainers[nn].push(c);
+            });
+        }
     } catch(e) {}
 
     // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], source: 'watch'|'service' } } }
@@ -110,19 +110,18 @@ async function loadDeployMap() {
     container.innerHTML = Object.entries(imageMap).map(([image, tags]) => {
         const tagRows = Object.entries(tags).map(([tag, info]) => {
             const nodeCards = info.nodes.map(nodeName => {
-                const containers = nodeContainers[nodeName] || [];
+                const containers = nodeName === '전체'
+                    ? Object.values(nodeContainers).flat()
+                    : (nodeContainers[nodeName] || []);
                 const pattern = info.pattern;
                 let matched = [];
                 if (pattern && containers.length > 0) {
                     try {
                         const re = new RegExp(pattern);
-                        matched = containers.filter(c => {
-                            const name = c.names ? c.names[0].replace(/^\//, '') : c.name || '';
-                            return re.test(name);
-                        });
+                        matched = containers.filter(c => re.test(c.name || ''));
                     } catch(e) {}
                 }
-                const running = matched.filter(c => c.state === 'running' || c.status?.includes('Up')).length;
+                const running = matched.filter(c => c.state === 'running').length;
                 const total = matched.length;
                 const dotClass = total === 0 ? 'dot-unknown' : running === total ? 'dot-running' : 'dot-stopped';
                 return `<div class="node-card">
