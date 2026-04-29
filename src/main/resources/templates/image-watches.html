@@ -442,12 +442,11 @@ function loadWatchesFromCache() {
     Object.entries(grouped).forEach(([image, watches]) => {
         watches.forEach((w, idx) => {
             const tr = document.createElement('tr');
-            if (idx === 0 && watches.length > 1) tr.style.borderTop = '2px solid var(--accent-blue, #3b82f6)';
             const nodes = w.nodeNames && w.nodeNames.length > 0
                 ? w.nodeNames.map(n => `<span class="badge badge-node">${escapeHtml(n)}</span>`).join(' ')
                 : '<span class="text-muted">전체</span>';
             const imageCell = idx === 0
-                ? `<td rowspan="${watches.length}" style="vertical-align:middle;${watches.length > 1 ? 'border-left:3px solid var(--accent-blue,#3b82f6);' : ''}"><span class="badge badge-image">${escapeHtml(w.image)}</span></td>`
+                ? `<td rowspan="${watches.length}" style="vertical-align:middle;"><span class="badge badge-image">${escapeHtml(w.image)}</span></td>`
                 : '';
             tr.innerHTML = `
                 ${imageCell}
