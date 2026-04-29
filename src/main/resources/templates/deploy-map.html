@@ -24,6 +24,11 @@
         .badge { padding: 2px 8px; border-radius: 4px; font-size: .76rem; font-weight: 500; display: inline-block; }
         .badge-tag { background: rgba(99,102,241,.15); color: #a5b4fc; }
         .badge-source { background: rgba(34,197,94,.15); color: #86efac; font-size: .7rem; border-radius: 999px; }
+        .badge-mode-polling { background: rgba(59,130,246,.15); color: #93c5fd; font-size: .7rem; border-radius: 999px; }
+        .badge-mode-trigger { background: rgba(245,158,11,.15); color: #fcd34d; font-size: .7rem; border-radius: 999px; }
+        .mode-section { margin-top: .75rem; }
+        .mode-section + .mode-section { margin-top: 1rem; padding-top: .75rem; border-top: 1px dashed rgba(148,163,184,.15); }
+        .mode-header { margin-bottom: .35rem; }
         .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #9aa0a6); }
         .legend { display: flex; gap: 1rem; margin-bottom: 1rem; font-size: .82rem; color: var(--text-secondary, #9aa0a6); }
         .legend-item { display: flex; align-items: center; gap: .3rem; }
@@ -56,33 +61,15 @@
 
 <script>
 async function loadDeployMap() {
-    const watchesRes = await fetch('/api/image-watches');
-    const watches = await watchesRes.json();
+    const res = await fetch('/api/deploy-map');
+    const watches = res.ok ? await res.json() : [];
 
-    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑
-    const nodeContainers = {};
-    try {
-        const res = await fetch('/api/containers');
-        if (res.ok) {
-            const allContainers = await res.json();
-            allContainers.forEach(c => {
-                const nn = c.nodeName || 'local';
-                if (!nodeContainers[nn]) nodeContainers[nn] = [];
-                nodeContainers[nn].push(c);
-            });
-        }
-    } catch(e) {}
-
-    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], pattern } } }
+    // 이미지별 → mode별 → tag 별 그룹: { image: { POLLING|TRIGGER: { tag: watch } } }
     const imageMap = {};
     watches.forEach(w => {
-        if (!imageMap[w.image]) imageMap[w.image] = {};
-        const nodeList = w.nodeNames && w.nodeNames.length > 0 ? w.nodeNames : ['전체'];
-        imageMap[w.image][w.tag] = {
-            nodes: nodeList,
-            pattern: w.containerPattern,
-            watchImage: w.image
-        };
+        if (!imageMap[w.image]) imageMap[w.image] = { POLLING: {}, TRIGGER: {} };
+        const bucket = w.mode === 'TRIGGER' ? 'TRIGGER' : 'POLLING';
+        imageMap[w.image][bucket][w.tag] = w;
     });
 
     const container = document.getElementById('deployMap');
@@ -92,95 +79,52 @@ async function loadDeployMap() {
         return;
     }
 
-    container.innerHTML = Object.entries(imageMap).map(([image, tags]) => {
-        const tagRows = Object.entries(tags).map(([tag, info]) => {
-            const nodeCards = info.nodes.map(nodeName => {
-                const containers = nodeName === '전체'
-                    ? Object.values(nodeContainers).flat()
-                    : (nodeContainers[nodeName] || []);
-                // 백엔드 ImageUpdatePoller 와 동일하게: containerPattern 매칭 + 이미지 short name 가드
-                const matched = containers.filter(c =>
-                    matchesContainerPattern(c.name || '', info.pattern) &&
-                    sameShortName(c.image, info.watchImage)
-                );
-                const running = matched.filter(c => c.state === 'running').length;
-                const total = matched.length;
-                const dotClass = total === 0 ? 'dot-unknown' : running === total ? 'dot-running' : 'dot-stopped';
-                return `<div class="node-card">
-                    <span class="dot ${dotClass}"></span>
-                    <span>${escapeHtml(nodeName)}</span>
-                    ${total > 0 ? `<span class="container-count">${running}/${total}</span>` : ''}
-                </div>`;
-            }).join('');
-
-            return `<div class="tag-row">
-                <div class="tag-label"><span class="badge badge-tag">${escapeHtml(tag)}</span></div>
-                <div class="node-list">${nodeCards}</div>
-            </div>`;
-        }).join('');
-
+    container.innerHTML = Object.entries(imageMap).map(([image, byMode]) => {
+        const sections = ['POLLING', 'TRIGGER']
+            .filter(m => Object.keys(byMode[m]).length > 0)
+            .map(m => renderModeSection(m, byMode[m]))
+            .join('');
         return `<div class="image-group">
             <div class="image-title">${escapeHtml(image)}</div>
-            ${tagRows}
+            ${sections}
         </div>`;
     }).join('');
 }
 
+function renderModeSection(mode, tagMap) {
+    const tagRows = Object.entries(tagMap).map(([tag, w]) => {
+        const nodeCards = (w.nodes || []).map(n => {
+            const total = n.matched || 0;
+            const running = n.running || 0;
+            let dotClass;
+            if (n.reachable === false) dotClass = 'dot-unknown';
+            else if (total === 0) dotClass = 'dot-unknown';
+            else if (running === total) dotClass = 'dot-running';
+            else dotClass = 'dot-stopped';
+            const titleAttr = n.reachable === false
+                ? ' title="노드 데이터 조회 실패 또는 미등록"'
+                : (total === 0 ? ' title="패턴 매칭된 컨테이너 없음"' : '');
+            return `<div class="node-card"${titleAttr}>
+                <span class="dot ${dotClass}"></span>
+                <span>${escapeHtml(n.name)}</span>
+                ${total > 0 ? `<span class="container-count">${running}/${total}</span>` : ''}
+            </div>`;
+        }).join('');
+        return `<div class="tag-row">
+            <div class="tag-label"><span class="badge badge-tag">${escapeHtml(tag)}</span></div>
+            <div class="node-list">${nodeCards || '<span class="text-muted">노드 미지정</span>'}</div>
+        </div>`;
+    }).join('');
+
+    const modeBadgeClass = mode === 'TRIGGER' ? 'badge-mode-trigger' : 'badge-mode-polling';
+    const modeLabel = mode === 'TRIGGER' ? '트리거' : '폴링';
+    return `<div class="mode-section">
+        <div class="mode-header"><span class="badge ${modeBadgeClass}">${modeLabel}</span></div>
+        ${tagRows}
+    </div>`;
+}
+
 function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-// 백엔드 com.lite_k8s.util.ContainerPatternMatcher 와 동일한 규칙:
-// - 빈 패턴은 모두 매칭
-// - glob(*, ?)이 있고 regex 메타(.*, .+, \\)가 없으면 glob → regex 변환
-// - 그 외에는 그대로 정규식으로 사용
-// - 전체 매치(anchored)
-// - 정규식 컴파일 실패 시 substring 폴백
-function matchesContainerPattern(name, pattern) {
-    if (!pattern) return true;
-    const regexSrc = isGlobPattern(pattern) ? globToRegex(pattern) : pattern;
-    try {
-        return new RegExp('^(?:' + regexSrc + ')$').test(name);
-    } catch (e) {
-        const core = pattern.replace(/[*?]/g, '');
-        return core.length > 0 && name.includes(core);
-    }
-}
-
-function isGlobPattern(pattern) {
-    if (!pattern.includes('*') && !pattern.includes('?')) return false;
-    return !pattern.includes('.*') && !pattern.includes('.+') && !pattern.includes('\\');
-}
-
-function globToRegex(glob) {
-    let sb = '';
-    for (const c of glob) {
-        if (c === '*') sb += '.*';
-        else if (c === '?') sb += '.';
-        else if (c === '.') sb += '\\.';
-        else sb += c;
-    }
-    return sb;
-}
-
-// 백엔드 com.lite_k8s.util.ImageReferences 와 동일한 short name 비교.
-// 와치 이미지(ghcr.io/.../quvi)와 컨테이너 이미지(nginx:alpine)의 마지막 path
-// segment 가 같을 때만 매칭 — 같은 prefix 의 사이드카(nginx 등) 제외용.
-function imageShortName(ref) {
-    if (!ref) return '';
-    let s = ref;
-    const at = s.indexOf('@');
-    if (at >= 0) s = s.substring(0, at);
-    const lastSlash = s.lastIndexOf('/');
-    const lastColon = s.lastIndexOf(':');
-    if (lastColon > lastSlash) s = s.substring(0, lastColon);
-    const sep = s.lastIndexOf('/');
-    return sep >= 0 ? s.substring(sep + 1) : s;
-}
-
-function sameShortName(a, b) {
-    const sa = imageShortName(a);
-    const sb = imageShortName(b);
-    return sa.length > 0 && sa === sb;
-}
 
 document.addEventListener('DOMContentLoaded', loadDeployMap);
 </script>
