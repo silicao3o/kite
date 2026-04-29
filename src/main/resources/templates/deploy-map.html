@@ -65,7 +65,7 @@ async function loadDeployMap() {
     const nodes = await nodesRes.json();
     const services = servicesRes.ok ? await servicesRes.json() : [];
 
-    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑
+    // 전체 컨테이너를 가져와서 nodeName별로 그룹핑 (와치 행 매칭에 사용)
     const nodeContainers = {};
     try {
         const res = await fetch('/api/containers');
@@ -79,7 +79,19 @@ async function loadDeployMap() {
         }
     } catch(e) {}
 
-    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], source: 'watch'|'service' } } }
+    // 서비스 정의별 컨테이너를 라벨 기반(/api/service-definitions/{id}/containers)으로 병렬 조회.
+    // compose 행은 패턴 매칭 대신 service-definition-id 라벨 매칭으로 정확히 노드별 상태를 잡는다.
+    const containersByService = {};
+    await Promise.all(services.map(async s => {
+        try {
+            const r = await fetch(`/api/service-definitions/${encodeURIComponent(s.id)}/containers`);
+            containersByService[s.id] = r.ok ? await r.json() : [];
+        } catch (_) {
+            containersByService[s.id] = [];
+        }
+    }));
+
+    // 이미지별 그룹 빌드: { image: { tag: { nodes: [...], source: 'watch'|'service', ... } } }
     const imageMap = {};
 
     // 이미지 와치에서 수집
@@ -89,15 +101,26 @@ async function loadDeployMap() {
         imageMap[w.image][w.tag] = { nodes: nodeList, source: 'watch', pattern: w.containerPattern };
     });
 
-    // 서비스 정의에서 수집
+    // 서비스 정의에서 수집 — 라벨로 잡힌 컨테이너를 노드별로 그룹핑해서 같이 실어준다
     services.forEach(s => {
         if (!s.nodeEnvMappings) return;
         const nodeNames = Object.keys(s.nodeEnvMappings);
         if (nodeNames.length === 0) return;
-        // compose에서 이미지 추출은 복잡하므로 서비스 이름으로 표시
         const image = s.name || 'service';
         if (!imageMap[image]) imageMap[image] = {};
-        imageMap[image]['compose'] = { nodes: nodeNames, source: 'service' };
+
+        const byNode = {};
+        (containersByService[s.id] || []).forEach(c => {
+            const nn = c.nodeName || 'local';
+            if (!byNode[nn]) byNode[nn] = [];
+            byNode[nn].push(c);
+        });
+
+        imageMap[image]['compose'] = {
+            nodes: nodeNames,
+            source: 'service',
+            containersByNode: byNode
+        };
     });
 
     const container = document.getElementById('deployMap');
@@ -110,16 +133,23 @@ async function loadDeployMap() {
     container.innerHTML = Object.entries(imageMap).map(([image, tags]) => {
         const tagRows = Object.entries(tags).map(([tag, info]) => {
             const nodeCards = info.nodes.map(nodeName => {
-                const containers = nodeName === '전체'
-                    ? Object.values(nodeContainers).flat()
-                    : (nodeContainers[nodeName] || []);
-                const pattern = info.pattern;
-                let matched = [];
-                if (pattern && containers.length > 0) {
-                    try {
-                        const re = new RegExp(pattern);
-                        matched = containers.filter(c => re.test(c.name || ''));
-                    } catch(e) {}
+                let matched;
+                if (info.containersByNode) {
+                    // 서비스 정의: 라벨 매칭 결과를 그대로 사용
+                    matched = info.containersByNode[nodeName] || [];
+                } else {
+                    // 이미지 와치: containerPattern 정규식 매칭
+                    const containers = nodeName === '전체'
+                        ? Object.values(nodeContainers).flat()
+                        : (nodeContainers[nodeName] || []);
+                    const pattern = info.pattern;
+                    matched = [];
+                    if (pattern && containers.length > 0) {
+                        try {
+                            const re = new RegExp(pattern);
+                            matched = containers.filter(c => re.test(c.name || ''));
+                        } catch (e) {}
+                    }
                 }
                 const running = matched.filter(c => c.state === 'running').length;
                 const total = matched.length;
