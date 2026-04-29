@@ -138,18 +138,14 @@ async function loadDeployMap() {
                     // 서비스 정의: 라벨 매칭 결과를 그대로 사용
                     matched = info.containersByNode[nodeName] || [];
                 } else {
-                    // 이미지 와치: containerPattern 정규식 매칭
+                    // 이미지 와치: 백엔드 ContainerPatternMatcher 와 동일한 규칙으로 매칭
                     const containers = nodeName === '전체'
                         ? Object.values(nodeContainers).flat()
                         : (nodeContainers[nodeName] || []);
                     const pattern = info.pattern;
-                    matched = [];
-                    if (pattern && containers.length > 0) {
-                        try {
-                            const re = new RegExp(pattern);
-                            matched = containers.filter(c => re.test(c.name || ''));
-                        } catch (e) {}
-                    }
+                    matched = (pattern && containers.length > 0)
+                        ? containers.filter(c => matchesContainerPattern(c.name || '', pattern))
+                        : [];
                 }
                 const running = matched.filter(c => c.state === 'running').length;
                 const total = matched.length;
@@ -175,6 +171,39 @@ async function loadDeployMap() {
 }
 
 function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 백엔드 com.lite_k8s.util.ContainerPatternMatcher 와 동일한 규칙:
+// - 빈 패턴은 모두 매칭
+// - glob(*, ?)이 있고 regex 메타(.*, .+, \\)가 없으면 glob → regex 변환
+// - 그 외에는 그대로 정규식으로 사용
+// - 전체 매치(anchored)
+// - 정규식 컴파일 실패 시 substring 폴백
+function matchesContainerPattern(name, pattern) {
+    if (!pattern) return true;
+    const regexSrc = isGlobPattern(pattern) ? globToRegex(pattern) : pattern;
+    try {
+        return new RegExp('^(?:' + regexSrc + ')$').test(name);
+    } catch (e) {
+        const core = pattern.replace(/[*?]/g, '');
+        return core.length > 0 && name.includes(core);
+    }
+}
+
+function isGlobPattern(pattern) {
+    if (!pattern.includes('*') && !pattern.includes('?')) return false;
+    return !pattern.includes('.*') && !pattern.includes('.+') && !pattern.includes('\\');
+}
+
+function globToRegex(glob) {
+    let sb = '';
+    for (const c of glob) {
+        if (c === '*') sb += '.*';
+        else if (c === '?') sb += '.';
+        else if (c === '.') sb += '\\.';
+        else sb += c;
+    }
+    return sb;
+}
 
 document.addEventListener('DOMContentLoaded', loadDeployMap);
 </script>
