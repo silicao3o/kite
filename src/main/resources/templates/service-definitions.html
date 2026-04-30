@@ -91,7 +91,6 @@
                 </div>
                 <textarea id="defYaml" placeholder="services:&#10;  app:&#10;    image: ghcr.io/org/app:latest&#10;    ports:&#10;      - '8080:8080'"></textarea>
             </div>
-            <div id="presetPreview" style="display:none;margin-top:.75rem;background:var(--bg-tertiary,#243044);border:1px solid var(--border-color,#2d3f56);border-radius:6px;padding:.75rem;font-size:.82rem;"></div>
             <div style="margin-top:.75rem;">
                 <button class="btn-add" onclick="createDef()">등록</button>
                 <span id="defError" style="color:#fca5a5;font-size:.85rem;margin-left:.5rem;display:none;"></span>
@@ -232,57 +231,16 @@ function onYamlSourceChange() {
         presetSel.style.display = 'none';
         presetSel.value = '';
         yaml.placeholder = "services:\n  app:\n    image: ghcr.io/org/app:latest\n    ports:\n      - '8080:8080'";
-        document.getElementById('presetPreview').style.display = 'none';
     }
 }
 
 function loadPresetYaml() {
     const presetId = document.getElementById('defPresetSelect').value;
-    const preview = document.getElementById('presetPreview');
-    if (!presetId) { preview.style.display = 'none'; return; }
+    if (!presetId) return;
     const def = defsCache.find(d => d.id === presetId);
-    if (!def) { preview.style.display = 'none'; return; }
-
-    if (def.composeYaml) document.getElementById('defYaml').value = def.composeYaml;
-
-    // 미리보기 렌더링
-    let html = `<div style="font-weight:600;margin-bottom:.5rem;color:var(--text-primary,#e8eaed);">미리보기 — ${esc(def.name)}</div>`;
-    html += `<div style="margin-bottom:.4rem;"><span style="color:var(--text-secondary);">상태:</span> <span class="badge ${def.status === 'DEPLOYED' ? 'badge-deployed' : def.status === 'STOPPED' ? 'badge-stopped' : 'badge-draft'}">${def.status || 'DRAFT'}</span></div>`;
-
-    // 노드/프로파일 매핑
-    const mappings = def.nodeEnvMappings || {};
-    if (Object.keys(mappings).length > 0) {
-        html += `<div style="margin-bottom:.4rem;"><span style="color:var(--text-secondary);">노드 매핑:</span></div>`;
-        html += `<div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem;">`;
-        Object.entries(mappings).forEach(([node, profileId]) => {
-            const profileName = getProfileName(profileId);
-            const nodeLabel = node || '로컬';
-            html += `<span class="mapping-tag">${esc(nodeLabel)}${profileName ? ' → ' + esc(profileName) : ''}</span>`;
-        });
-        html += `</div>`;
+    if (def && def.composeYaml) {
+        document.getElementById('defYaml').value = def.composeYaml;
     }
-
-    // compose YAML에서 서비스 목록 파싱 (간단히 services: 하위 키 추출)
-    if (def.composeYaml) {
-        const serviceNames = [];
-        const lines = def.composeYaml.split('\n');
-        let inServices = false;
-        for (const line of lines) {
-            if (/^services:\s*$/.test(line)) { inServices = true; continue; }
-            if (inServices && /^\s{2}\w/.test(line)) {
-                const name = line.trim().replace(/:.*$/, '');
-                serviceNames.push(name);
-            }
-            if (inServices && /^\S/.test(line) && !/^services:/.test(line)) break;
-        }
-        if (serviceNames.length > 0) {
-            html += `<div style="margin-bottom:.3rem;"><span style="color:var(--text-secondary);">서비스 (${serviceNames.length}개):</span></div>`;
-            html += serviceNames.map(s => `<span class="badge" style="background:rgba(139,92,246,.15);color:#c4b5fd;margin:1px;">${esc(s)}</span>`).join(' ');
-        }
-    }
-
-    preview.innerHTML = html;
-    preview.style.display = 'block';
 }
 
 async function loadDefs() {
