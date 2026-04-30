@@ -30,6 +30,8 @@
         .svc-table th, .svc-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--border-color, #2d3f56); text-align: left; font-size: .85rem; }
         .svc-table th { font-weight: 600; color: var(--text-secondary, #9aa0a6); font-size: .75rem; text-transform: uppercase; }
         .svc-table tr:hover td { background: var(--bg-tertiary, #243044); }
+        .svc-table th:first-child, .svc-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg-card, #1e2a3a); }
+        .svc-table tr:hover td:first-child { background: var(--bg-tertiary, #243044); }
         .badge { padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
         .badge-draft { background: rgba(107,114,128,.15); color: #9ca3af; }
         .badge-deployed { background: rgba(34,197,94,.15); color: #86efac; }
@@ -392,6 +394,7 @@ async function showContainerDetail(defId, defName) {
                 <div style="display:flex;gap:.3rem;">
                     ${c.state === 'running' ? `<button class="btn-sm btn-stop" onclick="containerAction('${defId}','${c.containerId}','stop',this)">Stop</button>` : ''}
                     <button class="btn-sm btn-edit" onclick="containerAction('${defId}','${c.containerId}','restart',this)">Restart</button>
+                    <button class="btn-sm btn-deploy" onclick="containerAction('${defId}','${c.containerId}','redeploy',this)">Redeploy</button>
                 </div>
             </div>`;
         }).join('');
@@ -402,6 +405,7 @@ async function showContainerDetail(defId, defName) {
                 <div style="display:flex;gap:.3rem;">
                     <button class="btn-sm btn-stop" onclick="nodeAction('${defId}','${esc(nodeName)}','stop',this)" style="font-size:.72rem;">All Stop</button>
                     <button class="btn-sm btn-edit" onclick="nodeAction('${defId}','${esc(nodeName)}','restart',this)" style="font-size:.72rem;">All Restart</button>
+                    <button class="btn-sm btn-deploy" onclick="nodeAction('${defId}','${esc(nodeName)}','redeploy',this)" style="font-size:.72rem;">All Redeploy</button>
                 </div>
             </div>
             ${rows}

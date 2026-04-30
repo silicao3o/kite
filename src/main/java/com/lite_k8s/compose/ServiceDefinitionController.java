@@ -241,6 +241,96 @@ public class ServiceDefinitionController {
         return executeOnContainer(id, containerId, "restart");
     }
 
+    /** 노드별 재배포 — stop+remove 후 최신 설정으로 재생성 */
+    @PostMapping("/{id}/nodes/{nodeName}/redeploy")
+    public ResponseEntity<?> redeployByNode(@PathVariable String id, @PathVariable String nodeName,
+                                             @RequestParam(required = false) List<String> activeProfiles) {
+        Optional<ServiceDefinition> maybe = repository.findById(id);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        ServiceDefinition def = maybe.get();
+        String nodeId = "local".equals(nodeName) ? null : resolveNodeId(nodeName);
+        DockerClient client = resolveClient(nodeId);
+
+        try {
+            // 1. 기존 컨테이너 stop + remove
+            var containers = client.listContainersCmd()
+                    .withShowAll(true)
+                    .withLabelFilter(Map.of("kite.service-definition-id", id))
+                    .exec();
+            for (var c : containers) {
+                try {
+                    if ("running".equals(c.getState())) client.stopContainerCmd(c.getId()).exec();
+                    client.removeContainerCmd(c.getId()).exec();
+                } catch (Exception e) {
+                    log.warn("재배포 전 컨테이너 정리 실패: {}", c.getId(), e);
+                }
+            }
+
+            // 2. 최신 설정으로 재배포
+            List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
+            String profileId = def.getNodeEnvMappings() != null ? def.getNodeEnvMappings().get(nodeName) : null;
+            List<String> containerIds = new ArrayList<>();
+            for (ParsedService svc : services) {
+                containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()));
+            }
+
+            return ResponseEntity.ok(Map.of("status", "redeployed", "node", nodeName, "containerIds", containerIds));
+        } catch (Exception e) {
+            log.error("노드 재배포 실패: {} node={}", def.getName(), nodeName, e);
+            return ResponseEntity.internalServerError().body("재배포 실패: " + e.getMessage());
+        }
+    }
+
+    /** 개별 컨테이너 재배포 — 해당 컨테이너만 stop+remove 후 최신 설정으로 재생성 */
+    @PostMapping("/{id}/containers/{containerId}/redeploy")
+    public ResponseEntity<?> redeployContainer(@PathVariable String id, @PathVariable String containerId,
+                                                @RequestParam(required = false) List<String> activeProfiles) {
+        Optional<ServiceDefinition> maybe = repository.findById(id);
+        if (maybe.isEmpty()) return ResponseEntity.notFound().build();
+
+        ServiceDefinition def = maybe.get();
+        Set<String> nodeIds = resolveNodeIds(def);
+
+        for (String nodeId : nodeIds) {
+            DockerClient client = resolveClient(nodeId);
+            try {
+                var inspect = client.inspectContainerCmd(containerId).exec();
+                if (inspect == null) continue;
+
+                String containerName = inspect.getName();
+                if (containerName != null && containerName.startsWith("/")) containerName = containerName.substring(1);
+
+                // 1. stop + remove
+                if (inspect.getState() != null && Boolean.TRUE.equals(inspect.getState().getRunning())) {
+                    client.stopContainerCmd(containerId).exec();
+                }
+                client.removeContainerCmd(containerId).exec();
+
+                // 2. compose에서 해당 서비스 찾아서 재배포
+                List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
+                String nodeName = resolveNodeName(nodeId);
+                String profileId = def.getNodeEnvMappings() != null ? def.getNodeEnvMappings().get(nodeName) : null;
+
+                // 컨테이너 이름으로 매칭되는 서비스 찾기
+                String finalContainerName = containerName;
+                ParsedService matchedSvc = services.stream()
+                        .filter(s -> finalContainerName != null && finalContainerName.contains(s.getContainerName() != null ? s.getContainerName() : s.getServiceName()))
+                        .findFirst()
+                        .orElse(services.isEmpty() ? null : services.get(0));
+
+                if (matchedSvc != null) {
+                    String newId = deployer.deployWithDefinitionId(matchedSvc, profileId, nodeId, def.getId());
+                    return ResponseEntity.ok(Map.of("status", "redeployed", "containerId", newId));
+                }
+
+                return ResponseEntity.ok(Map.of("status", "removed", "message", "매칭 서비스를 찾을 수 없어 삭제만 수행"));
+            } catch (Exception ignored) {}
+        }
+
+        return ResponseEntity.notFound().build();
+    }
+
     private ResponseEntity<?> executeOnNode(String defId, String nodeName, String action) {
         Optional<ServiceDefinition> maybe = repository.findById(defId);
         if (maybe.isEmpty()) return ResponseEntity.notFound().build();
