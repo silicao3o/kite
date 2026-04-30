@@ -448,6 +448,9 @@ function loadWatchesFromCache() {
             const imageCell = idx === 0
                 ? `<td rowspan="${watches.length}" style="vertical-align:middle;"><span class="badge badge-image">${escapeHtml(w.image)}</span></td>`
                 : '';
+            if (!w.enabled) tr.style.opacity = '0.5';
+            const toggleLabel = w.enabled ? 'OFF' : 'ON';
+            const toggleClass = w.enabled ? 'btn-stop' : 'btn-deploy';
             tr.innerHTML = `
                 ${imageCell}
                 <td><span class="badge badge-tag">${escapeHtml(w.tag)}</span></td>
@@ -457,6 +460,7 @@ function loadWatchesFromCache() {
                 <td>${w.maxUnavailable}</td>
                 <td>${w.ghcrToken ? '<span class="badge badge-token">설정됨</span>' : '<span class="text-muted">글로벌</span>'}</td>
                 <td><div class="btn-group">
+                    <button class="btn-sm ${toggleClass}" onclick="toggleWatch('${w.id}',${!w.enabled})">${toggleLabel}</button>
                     <button class="btn-sm btn-edit" onclick="openEditModal('${w.id}')">수정</button>
                     <button class="btn-sm btn-history" onclick="showHistory('${w.id}','${escapeHtml(w.image)}')">이력</button>
                     <button class="btn-sm btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
@@ -485,6 +489,9 @@ function loadTriggerWatches() {
 
     list.forEach(w => {
         const tr = document.createElement('tr');
+        if (!w.enabled) tr.style.opacity = '0.5';
+        const toggleLabel = w.enabled ? 'OFF' : 'ON';
+        const toggleClass = w.enabled ? 'btn-stop' : 'btn-deploy';
         const nodes = w.nodeNames && w.nodeNames.length > 0
             ? w.nodeNames.map(n => `<span class="badge badge-node">${escapeHtml(n)}</span>`).join(' ')
             : '<span class="text-muted">전체</span>';
@@ -493,7 +500,8 @@ function loadTriggerWatches() {
             <td><span class="badge badge-tag">${escapeHtml(w.tag)}</span></td>
             <td>${nodes}</td>
             <td><div class="btn-group">
-                <button class="btn-sm btn-trigger" onclick="triggerWatch('${w.id}',this)">지금 체크</button>
+                <button class="btn-sm ${toggleClass}" onclick="toggleWatch('${w.id}',${!w.enabled})">${toggleLabel}</button>
+                <button class="btn-sm btn-trigger" onclick="triggerWatch('${w.id}',this)"${!w.enabled ? ' disabled' : ''}>지금 체크</button>
                 <button class="btn-sm btn-edit" onclick="openEditModal('${w.id}')">수정</button>
                 <button class="btn-sm btn-history" onclick="showHistory('${w.id}','${escapeHtml(w.image)}')">이력</button>
                 <button class="btn-sm btn-delete" onclick="deleteWatch('${w.id}')">삭제</button>
@@ -519,6 +527,15 @@ async function triggerAll() {
         if (res.ok) { s.textContent = '전체 트리거 완료!'; s.className = 'trigger-status success'; }
     } catch { s.textContent = '트리거 실패'; }
     setTimeout(() => { s.textContent = ''; }, 3000);
+}
+
+async function toggleWatch(id, enabled) {
+    await fetch(`/api/image-watches/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+    });
+    loadWatches();
 }
 
 async function addPollingWatch() {
