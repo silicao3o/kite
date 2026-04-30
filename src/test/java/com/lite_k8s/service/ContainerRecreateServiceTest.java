@@ -7,6 +7,8 @@ import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.ContainerConfig;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PullResponseItem;
+import com.lite_k8s.compose.ServiceDefinitionRepository;
+import com.lite_k8s.compose.ServiceDeployer;
 import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
@@ -33,6 +35,8 @@ class ContainerRecreateServiceTest {
     @Mock private DockerClient dockerClient;
     @Mock private NodeRegistry nodeRegistry;
     @Mock private NodeDockerClientFactory nodeClientFactory;
+    @Mock private ServiceDefinitionRepository serviceDefinitionRepository;
+    @Mock private ServiceDeployer serviceDeployer;
     @Mock private InspectContainerCmd inspectCmd;
     @Mock private InspectContainerResponse inspectResponse;
     @Mock private ContainerConfig containerConfig;
@@ -41,7 +45,8 @@ class ContainerRecreateServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ContainerRecreateService(dockerClient, nodeRegistry, nodeClientFactory, new com.lite_k8s.service.OwnActionTracker());
+        service = new ContainerRecreateService(dockerClient, nodeRegistry, nodeClientFactory,
+                new com.lite_k8s.service.OwnActionTracker(), serviceDefinitionRepository, serviceDeployer);
     }
 
     @Test
