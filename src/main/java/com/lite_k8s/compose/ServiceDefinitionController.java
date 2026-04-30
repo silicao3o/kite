@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -83,25 +85,28 @@ public class ServiceDefinitionController {
         ServiceDefinition def = maybe.get();
         try {
             List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
-            List<String> containerIds = new ArrayList<>();
+            List<String> containerIds = new CopyOnWriteArrayList<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
 
             Map<String, String> mappings = def.getNodeEnvMappings();
             if (mappings == null || mappings.isEmpty()) {
-                // 매핑 없으면 로컬에 배포
                 for (ParsedService svc : services) {
-                    containerIds.add(deployer.deployWithDefinitionId(svc, null, null, def.getId()));
+                    futures.add(CompletableFuture.runAsync(() ->
+                            containerIds.add(deployer.deployWithDefinitionId(svc, null, null, def.getId()))));
                 }
             } else {
-                // 각 노드별로 매핑된 profileId로 배포
                 for (Map.Entry<String, String> entry : mappings.entrySet()) {
                     String nodeName = entry.getKey();
                     String profileId = entry.getValue();
                     String nodeId = nodeName.isEmpty() ? null : resolveNodeId(nodeName);
                     for (ParsedService svc : services) {
-                        containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()));
+                        futures.add(CompletableFuture.runAsync(() ->
+                                containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()))));
                     }
                 }
             }
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             def.setStatus(ServiceDefinition.Status.DEPLOYED);
             repository.save(def);
