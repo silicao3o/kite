@@ -26,10 +26,15 @@
         .btn-delete:hover { background: rgba(239,68,68,.1); }
         .btn-group { display: flex; gap: .4rem; flex-wrap: wrap; }
         .table-wrap { overflow-x: auto; }
-        .svc-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
-        .svc-table th, .svc-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--border-color, #2d3f56); text-align: left; font-size: .85rem; }
+        .svc-table { width: 100%; border-collapse: collapse; margin-top: .5rem; table-layout: fixed; }
+        .svc-table th, .svc-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--border-color, #2d3f56); text-align: left; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .svc-table th { font-weight: 600; color: var(--text-secondary, #9aa0a6); font-size: .75rem; text-transform: uppercase; }
         .svc-table tr:hover td { background: var(--bg-tertiary, #243044); }
+        /* 4컬럼 합 100% — 이름 / 상태 / 노드+Env / 액션 */
+        .svc-table th:nth-child(1), .svc-table td:nth-child(1) { width: 24%; }
+        .svc-table th:nth-child(2), .svc-table td:nth-child(2) { width: 11%; }
+        .svc-table th:nth-child(3), .svc-table td:nth-child(3) { width: 38%; white-space: normal; }
+        .svc-table th:nth-child(4), .svc-table td:nth-child(4) { width: 27%; white-space: normal; overflow: visible; }
         .badge { padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
         .badge-draft { background: rgba(107,114,128,.15); color: #9ca3af; }
         .badge-deployed { background: rgba(34,197,94,.15); color: #86efac; }
@@ -280,7 +285,7 @@ async function loadDefs() {
         }
 
         tr.innerHTML = `
-            <td><strong>${esc(d.name)}</strong></td>
+            <td title="${esc(d.name)}"><strong>${esc(d.name)}</strong></td>
             <td><span class="badge ${statusClass}">${d.status}</span></td>
             <td>${mappingHtml}</td>
             <td><div class="btn-group">
