@@ -273,6 +273,48 @@ class ServiceDeployerTest {
     }
 
     @Test
+    @DisplayName("pull 콜백은 success 였지만 daemon 에 이미지가 없으면 명확한 에러로 throw — silent failure 2단계")
+    void deploy_PullSuccessButImageMissing_ThrowsClearError() {
+        // pull 자체는 onComplete 만 호출 (성공한 척). 하지만 daemon inspect 는 NotFoundException.
+        var pullCmd = mock(com.github.dockerjava.api.command.PullImageCmd.class);
+        when(dockerClient.pullImageCmd(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withAuthConfig(any())).thenReturn(pullCmd);
+        when(pullCmd.exec(any())).thenAnswer(invocation -> {
+            com.github.dockerjava.api.async.ResultCallback<com.github.dockerjava.api.model.PullResponseItem> cb
+                    = invocation.getArgument(0);
+            cb.onComplete();   // pull 은 "성공" 으로 끝남
+            return cb;
+        });
+
+        // pull 직후 verify 단계에서 inspect 가 NotFound — daemon 에 이미지가 실제로 없음
+        var inspectCmd = mock(com.github.dockerjava.api.command.InspectImageCmd.class);
+        when(dockerClient.inspectImageCmd("ghcr.io/daquv-core/engine:latest")).thenReturn(inspectCmd);
+        when(inspectCmd.exec()).thenThrow(new com.github.dockerjava.api.exception.NotFoundException(
+                "Status 404: {\"message\":\"No such image: ghcr.io/daquv-core/engine:latest\"}"));
+
+        ParsedService svc = ParsedService.builder()
+                .serviceName("engine")
+                .image("ghcr.io/daquv-core/engine:latest")
+                .containerName("engine")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of())
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        assertThatThrownBy(() -> deployer.deploy(svc, null, null))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("이미지 pull 후 daemon 레지스트리에 이미지 없음")
+                .hasMessageContaining("ghcr.io/daquv-core/engine:latest");
+
+        // 진짜 createContainer 까지 가면 안 됨 — pullImage 단계에서 fail-fast
+        verify(dockerClient, never()).createContainerCmd(anyString());
+    }
+
+    @Test
     @DisplayName("이미지 pull 콜백이 onError 를 받으면 deploy 가 RuntimeException 으로 실패한다 — silent failure 방지")
     void deploy_PullCallbackOnError_PropagatesAsRuntimeException() {
         // PullImageCmd 가 onError 를 즉시 호출하는 daemon 시나리오 (manifest not found, auth 실패 등)

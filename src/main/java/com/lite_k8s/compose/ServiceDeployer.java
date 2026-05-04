@@ -226,15 +226,24 @@ public class ServiceDeployer {
             }
         }
 
-        // 기본 Adapter 는 onError 를 삼킨 채 awaitCompletion 이 정상 리턴 → "완료" 로깅 후
-        // createContainer 가 No such image 로 죽는다. onError 를 캡처해 awaitCompletion 후
-        // 던져야 진짜 daemon 에러가 호출자에게 보인다.
+        // 기본 Adapter 는 onError 와 stream 안의 error payload (PullResponseItem.error) 를
+        // 둘 다 삼킨 채 awaitCompletion 이 정상 리턴 → "완료" 로깅 후 createContainer 가
+        // No such image 로 죽는다. 두 채널을 모두 캡처해 awaitCompletion 후 throw 한다.
         var callback = new ResultCallback.Adapter<PullResponseItem>() {
             volatile Throwable error;
+            volatile String streamError;
             @Override
             public void onError(Throwable throwable) {
                 this.error = throwable;
                 super.onError(throwable);
+            }
+            @Override
+            public void onNext(PullResponseItem item) {
+                if (item.isErrorIndicated() && this.streamError == null) {
+                    this.streamError = item.getError() != null ? item.getError()
+                            : (item.getErrorDetail() != null ? item.getErrorDetail().getMessage() : "unknown error");
+                }
+                super.onNext(item);
             }
         };
 
@@ -247,10 +256,25 @@ public class ServiceDeployer {
         }
 
         if (callback.error != null) {
-            throw new RuntimeException("이미지 pull 실패: " + image + " — " + callback.error.getMessage(), callback.error);
+            throw new RuntimeException("이미지 pull 실패 (transport): " + image + " — " + callback.error.getMessage(), callback.error);
+        }
+        if (callback.streamError != null) {
+            throw new RuntimeException("이미지 pull 실패 (stream): " + image + " — " + callback.streamError);
         }
         if (!completed) {
             throw new RuntimeException("이미지 pull 타임아웃 (300s): " + image);
+        }
+
+        // post-pull verify — pull stream 이 깨끗하게 끝났어도 daemon 의 로컬 레지스트리에 이미지가
+        // 없는 경우가 있다 (병렬 pull race, manifest list platform mismatch 의 silent skip 등).
+        // 이 경우 다음 createContainer 가 NotFound 로 죽고 진짜 원인이 묻히므로, 여기서
+        // 명확한 에러로 fail-fast.
+        try {
+            client.inspectImageCmd(image).exec();
+        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
+            throw new RuntimeException(
+                    "이미지 pull 후 daemon 레지스트리에 이미지 없음 — 병렬 pull race 또는 platform 불일치 의심: "
+                            + image, e);
         }
         log.info("이미지 pull 완료: {}", image);
     }
