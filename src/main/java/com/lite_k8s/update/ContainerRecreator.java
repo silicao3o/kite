@@ -35,6 +35,7 @@ public class ContainerRecreator {
     private final NodeDockerClientFactory nodeClientFactory;
     private final OwnActionTracker ownActionTracker;
     private final ImageRegistryRepository imageRegistryRepository;
+    private final ImageRetentionService imageRetentionService;
 
     /**
      * 컨테이너를 새 이미지로 재생성 (로컬)
@@ -80,6 +81,17 @@ public class ContainerRecreator {
             // 6. 새 컨테이너 시작
             client.startContainerCmd(newContainerId).exec();
             log.info("컨테이너 업데이트 완료: {} → {}", containerName, newContainerId);
+
+            // 7. 옛 이미지 retention cleanup — 디스크 누적 방지. 실패해도 update 자체는 성공.
+            try {
+                String repo = stripReference(imageRef);
+                int pruned = imageRetentionService.pruneOldImages(client, repo);
+                if (pruned > 0) {
+                    log.info("retention: {} 옛 이미지 {}개 prune", repo, pruned);
+                }
+            } catch (Exception e) {
+                log.warn("retention: cleanup 중 오류 (update 자체는 성공): {}", containerName, e);
+            }
 
             return true;
 

@@ -142,6 +142,11 @@ docker:
       #     container-pattern: "myapp-.*"
       #     max-unavailable: 1
 
+    # 이미지 retention — recreate 후 같은 repo 의 옛 dangling 이미지 정리 (디스크 누적 방지)
+    image-retention:
+      # 사용중이 아닌 이미지 중 최신 K개 유지. 이외엔 prune.
+      keep-recent: ${IMAGE_RETENTION_KEEP_RECENT:3}
+
     # 다중 노드 스케줄링 설정
     nodes:
       # 활성화 여부

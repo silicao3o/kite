@@ -41,13 +41,15 @@ class ContainerRecreatorTest {
     @Mock private CreateContainerResponse createResponse;
     @Mock private StartContainerCmd startCmd;
     @Mock private PullImageCmd pullCmd;
+    @Mock private ImageRetentionService imageRetentionService;
 
     private ContainerRecreator recreator;
 
     @BeforeEach
     void setUp() {
         recreator = new ContainerRecreator(dockerClient, nodeRegistry, nodeClientFactory,
-                new com.lite_k8s.service.OwnActionTracker(), imageRegistryRepository);
+                new com.lite_k8s.service.OwnActionTracker(), imageRegistryRepository,
+                imageRetentionService);
     }
 
     @Test
