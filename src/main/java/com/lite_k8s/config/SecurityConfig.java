@@ -27,12 +27,16 @@ public class SecurityConfig {
             // 보안 비활성화 시 모든 요청 허용
             return http
                     .csrf(AbstractHttpConfigurer::disable)
+                    // /deployments 탭 wrapper 가 /service-definitions, /env-profiles 를 iframe 으로 띄우려면
+                    // X-Frame-Options 가 DENY (Spring Security default) 면 안 됨. 같은 origin 만 허용.
+                    .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                     .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                     .build();
         }
 
         return http
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
