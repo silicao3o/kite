@@ -50,6 +50,18 @@ class ServiceDeployerTest {
         when(dockerClient.inspectImageCmd(anyString())).thenReturn(inspectImageCmd);
         when(inspectImageCmd.exec()).thenReturn(mock(com.github.dockerjava.api.command.InspectImageResponse.class));
 
+        // pullImageCmd — 기본은 성공 (callback.onComplete 만 호출). 실패 케이스 테스트는 개별 override.
+        var pullCmd = mock(com.github.dockerjava.api.command.PullImageCmd.class);
+        when(dockerClient.pullImageCmd(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withAuthConfig(any())).thenReturn(pullCmd);
+        when(pullCmd.exec(any())).thenAnswer(invocation -> {
+            com.github.dockerjava.api.async.ResultCallback<com.github.dockerjava.api.model.PullResponseItem> cb
+                    = invocation.getArgument(0);
+            cb.onComplete();
+            return cb;
+        });
+
         when(dockerClient.createContainerCmd(anyString())).thenReturn(createCmd);
         when(createCmd.withName(anyString())).thenReturn(createCmd);
         when(createCmd.withHostConfig(any())).thenReturn(createCmd);
@@ -258,5 +270,40 @@ class ServiceDeployerTest {
         ArgumentCaptor<Map<String, String>> labelsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(createCmd).withLabels(labelsCaptor.capture());
         assertThat(labelsCaptor.getValue()).containsEntry("kite.service-definition-id", "def-123");
+    }
+
+    @Test
+    @DisplayName("이미지 pull 콜백이 onError 를 받으면 deploy 가 RuntimeException 으로 실패한다 — silent failure 방지")
+    void deploy_PullCallbackOnError_PropagatesAsRuntimeException() {
+        // PullImageCmd 가 onError 를 즉시 호출하는 daemon 시나리오 (manifest not found, auth 실패 등)
+        var pullCmd = mock(com.github.dockerjava.api.command.PullImageCmd.class);
+        when(dockerClient.pullImageCmd(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withPlatform(anyString())).thenReturn(pullCmd);
+        when(pullCmd.withAuthConfig(any())).thenReturn(pullCmd);
+        when(pullCmd.exec(any())).thenAnswer(invocation -> {
+            com.github.dockerjava.api.async.ResultCallback<com.github.dockerjava.api.model.PullResponseItem> cb
+                    = invocation.getArgument(0);
+            cb.onError(new RuntimeException("daemon: manifest unknown"));
+            return cb;
+        });
+
+        ParsedService svc = ParsedService.builder()
+                .serviceName("engine")
+                .image("ghcr.io/daquv-core/engine:latest")
+                .containerName("engine")
+                .ports(List.of())
+                .volumes(List.of())
+                .environment(Map.of())
+                .networks(List.of())
+                .restartPolicy(null)
+                .labels(Map.of())
+                .build();
+
+        assertThatThrownBy(() -> deployer.deploy(svc, null, null))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("manifest unknown");
+
+        // pull 실패 시 createContainer 까지 가면 안 됨 — fail-fast
+        verify(dockerClient, never()).createContainerCmd(anyString());
     }
 }

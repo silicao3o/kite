@@ -210,29 +210,49 @@ public class ServiceDeployer {
 
     private void pullImage(DockerClient client, String image) {
         log.info("이미지 pull 시작: {}", image);
-        try {
-            PullImageCmd cmd = client.pullImageCmd(image).withPlatform("linux/amd64");
+        PullImageCmd cmd = client.pullImageCmd(image).withPlatform("linux/amd64");
 
-            // GHCR private 이미지면 레지스트리 토큰으로 인증
-            if (image.startsWith("ghcr.io")) {
-                String token = resolveGhcrToken(image);
-                if (token != null) {
-                    String[] parts = image.split("/");
-                    String username = parts.length >= 2 ? parts[1] : "token";
-                    cmd.withAuthConfig(new AuthConfig()
-                            .withRegistryAddress("https://ghcr.io")
-                            .withUsername(username)
-                            .withPassword(token));
-                    log.debug("GHCR 인증 적용: {}", image);
-                }
+        // GHCR private 이미지면 레지스트리 토큰으로 인증
+        if (image.startsWith("ghcr.io")) {
+            String token = resolveGhcrToken(image);
+            if (token != null) {
+                String[] parts = image.split("/");
+                String username = parts.length >= 2 ? parts[1] : "token";
+                cmd.withAuthConfig(new AuthConfig()
+                        .withRegistryAddress("https://ghcr.io")
+                        .withUsername(username)
+                        .withPassword(token));
+                log.debug("GHCR 인증 적용: {}", image);
             }
-
-            cmd.exec(new ResultCallback.Adapter<PullResponseItem>() {})
-                    .awaitCompletion(300, TimeUnit.SECONDS);
-            log.info("이미지 pull 완료: {}", image);
-        } catch (Exception e) {
-            log.warn("이미지 pull 실패 (기존 이미지로 계속 진행): {}", image, e);
         }
+
+        // 기본 Adapter 는 onError 를 삼킨 채 awaitCompletion 이 정상 리턴 → "완료" 로깅 후
+        // createContainer 가 No such image 로 죽는다. onError 를 캡처해 awaitCompletion 후
+        // 던져야 진짜 daemon 에러가 호출자에게 보인다.
+        var callback = new ResultCallback.Adapter<PullResponseItem>() {
+            volatile Throwable error;
+            @Override
+            public void onError(Throwable throwable) {
+                this.error = throwable;
+                super.onError(throwable);
+            }
+        };
+
+        boolean completed;
+        try {
+            completed = cmd.exec(callback).awaitCompletion(300, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("이미지 pull 중단: " + image, e);
+        }
+
+        if (callback.error != null) {
+            throw new RuntimeException("이미지 pull 실패: " + image + " — " + callback.error.getMessage(), callback.error);
+        }
+        if (!completed) {
+            throw new RuntimeException("이미지 pull 타임아웃 (300s): " + image);
+        }
+        log.info("이미지 pull 완료: {}", image);
     }
 
     /** 이미지 경로에서 레지스트리 토큰 조회 (image:tag → image로 검색) */
