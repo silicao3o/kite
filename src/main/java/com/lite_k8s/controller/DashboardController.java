@@ -34,7 +34,6 @@ public class DashboardController {
     private final HealingEventRepository healingEventRepository;
     private final MetricsScheduler metricsScheduler;
     private final LogSearchService logSearchService;
-    private final MultiLogsProperties multiLogsProperties;
     private final NodeRegistry nodeRegistry;
 
     @GetMapping("/containers")
@@ -197,12 +196,10 @@ public class DashboardController {
         return healingEventRepository.findAll();
     }
 
-    // 메인 화면 — 로그인 후 기본 진입점. /multi-logs는 backward compat 용도로 유지
-    @GetMapping({"/", "/multi-logs"})
-    public String multiLogs(Model model) {
-        model.addAttribute("containers", metricsScheduler.getCachedContainers());
-        model.addAttribute("presets", multiLogsProperties.getPresets());
-        return "multi-logs";
+    // 메인 화면 — 로그인 후 기본 진입점은 사이드바 최상단 Nodes 로
+    @GetMapping("/")
+    public String root() {
+        return "redirect:/nodes";
     }
 
     @GetMapping("/api/containers")

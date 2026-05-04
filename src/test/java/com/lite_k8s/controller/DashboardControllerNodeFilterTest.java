@@ -37,7 +37,6 @@ class DashboardControllerNodeFilterTest {
     @Mock private HealingEventRepository healingEventRepository;
     @Mock private MetricsScheduler metricsScheduler;
     @Mock private LogSearchService logSearchService;
-    @Mock private MultiLogsProperties multiLogsProperties;
     @Mock private NodeRegistry nodeRegistry;
 
     private DashboardController controller;
@@ -47,7 +46,7 @@ class DashboardControllerNodeFilterTest {
         controller = new DashboardController(
                 dockerService, selfHealingProperties, labelReader, ruleMatcher,
                 restartTracker, healingEventRepository, metricsScheduler,
-                logSearchService, multiLogsProperties, nodeRegistry);
+                logSearchService, nodeRegistry);
     }
 
     @Test

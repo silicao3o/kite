@@ -17,21 +17,13 @@
     <nav class="sidebar-nav">
         <div class="nav-section">
             <div class="nav-section-title">Workloads</div>
-            <a href="/multi-logs" class="nav-item" th:classappend="${activePage == 'multi-logs'} ? ' active'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
-                Multi Logs
-            </a>
-            <a href="/containers" class="nav-item" th:classappend="${activePage == 'containers'} ? ' active'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                Containers
-            </a>
             <a href="/nodes" class="nav-item" th:classappend="${activePage == 'nodes'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
                 Nodes
             </a>
-            <a href="/desired-state" class="nav-item" th:classappend="${activePage == 'desired-state'} ? ' active'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
-                Desired State
+            <a href="/containers" class="nav-item" th:classappend="${activePage == 'containers'} ? ' active'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Containers
             </a>
             <a href="/image-watches" class="nav-item" th:classappend="${activePage == 'image-watches'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -49,6 +41,10 @@
             <a href="/self-healing-rules" class="nav-item" th:classappend="${activePage == 'self-healing-rules'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 Self-Healing Rules
+            </a>
+            <a href="/desired-state" class="nav-item" th:classappend="${activePage == 'desired-state'} ? ' active'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+                Desired State
             </a>
             <a href="/email-subscriptions" class="nav-item" th:classappend="${activePage == 'email-subscriptions'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
