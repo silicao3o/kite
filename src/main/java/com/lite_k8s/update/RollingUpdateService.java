@@ -31,6 +31,7 @@ public class RollingUpdateService {
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
     private final ImageUpdateHistoryService historyService;
+    private final ImageMatchPolicy imageMatchPolicy;
 
     @EventListener
     public void onImageUpdateDetected(ImageUpdateDetectedEvent event) {
@@ -38,7 +39,8 @@ public class RollingUpdateService {
         log.info("Rolling Update 시작: {} ({}개 컨테이너)",
                 event.getImageName(), "조회 중");
 
-        List<Container> targets = findMatchingContainers(watch.getContainerPattern(), event.getNodeId());
+        List<Container> targets = findMatchingContainers(
+                watch.getContainerPattern(), watch.getEffectiveImage(), event.getNodeId());
 
         if (targets.isEmpty()) {
             log.warn("업데이트 대상 컨테이너 없음: 패턴={}", watch.getContainerPattern());
@@ -117,13 +119,21 @@ public class RollingUpdateService {
         }
     }
 
-    private List<Container> findMatchingContainers(String pattern, String nodeId) {
+    private List<Container> findMatchingContainers(String pattern, String watchImage, String nodeId) {
         DockerClient client = resolveClient(nodeId);
         return client.listContainersCmd()
                 .withShowAll(false)
                 .exec()
                 .stream()
                 .filter(c -> matchesPattern(extractName(c), pattern))
+                .filter(c -> {
+                    boolean allowed = imageMatchPolicy.allowsUpdate(c, watchImage);
+                    if (!allowed) {
+                        log.info("ImageMatchPolicy deny — 업데이트 스킵: {} (watch={})",
+                                extractName(c), watchImage);
+                    }
+                    return allowed;
+                })
                 .toList();
     }
 
