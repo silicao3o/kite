@@ -83,25 +83,41 @@ public class ServiceDefinitionController {
         if (maybe.isEmpty()) return ResponseEntity.notFound().build();
 
         ServiceDefinition def = maybe.get();
+        long startMs = System.currentTimeMillis();
         try {
             List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
+            log.info("[deploy] 시작: defId={}, name={}, services={}, profiles={}",
+                    id, def.getName(),
+                    services.stream().map(ParsedService::getServiceName).toList(),
+                    activeProfiles);
+
             List<String> containerIds = new CopyOnWriteArrayList<>();
             List<CompletableFuture<Void>> futures = new ArrayList<>();
 
             Map<String, String> mappings = def.getNodeEnvMappings();
             if (mappings == null || mappings.isEmpty()) {
+                log.info("[deploy] 노드 매핑 없음 → 로컬에 {}개 서비스 병렬 배포", services.size());
                 for (ParsedService svc : services) {
-                    futures.add(CompletableFuture.runAsync(() ->
-                            containerIds.add(deployer.deployWithDefinitionId(svc, null, null, def.getId()))));
+                    futures.add(CompletableFuture.runAsync(() -> {
+                        log.info("[deploy] 서비스 시작: name={}, image={}, container={}",
+                                svc.getServiceName(), svc.getImage(), svc.getContainerName());
+                        containerIds.add(deployer.deployWithDefinitionId(svc, null, null, def.getId()));
+                    }));
                 }
             } else {
+                log.info("[deploy] 노드별 매핑: {}", mappings.keySet());
                 for (Map.Entry<String, String> entry : mappings.entrySet()) {
                     String nodeName = entry.getKey();
                     String profileId = entry.getValue();
                     String nodeId = nodeName.isEmpty() ? null : resolveNodeId(nodeName);
+                    log.info("[deploy] 노드 {} (profileId={}, nodeId={}) 에 {}개 서비스 병렬 배포",
+                            nodeName, profileId, nodeId, services.size());
                     for (ParsedService svc : services) {
-                        futures.add(CompletableFuture.runAsync(() ->
-                                containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()))));
+                        futures.add(CompletableFuture.runAsync(() -> {
+                            log.info("[deploy] 서비스 시작: node={}, name={}, image={}, container={}",
+                                    nodeName, svc.getServiceName(), svc.getImage(), svc.getContainerName());
+                            containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()));
+                        }));
                     }
                 }
             }
@@ -111,9 +127,14 @@ public class ServiceDefinitionController {
             def.setStatus(ServiceDefinition.Status.DEPLOYED);
             repository.save(def);
 
+            long duration = System.currentTimeMillis() - startMs;
+            log.info("[deploy] 완료: defId={}, name={}, deployed={}개, duration={}ms",
+                    id, def.getName(), containerIds.size(), duration);
             return ResponseEntity.ok(Map.of("status", "deployed", "containerIds", containerIds));
         } catch (Exception e) {
-            log.error("서비스 배포 실패: {}", def.getName(), e);
+            long duration = System.currentTimeMillis() - startMs;
+            log.error("[deploy] 실패: defId={}, name={}, duration={}ms — {}",
+                    id, def.getName(), duration, e.getMessage(), e);
             return ResponseEntity.internalServerError().body("배포 실패: " + e.getMessage());
         }
     }
@@ -125,8 +146,10 @@ public class ServiceDefinitionController {
         if (maybe.isEmpty()) return ResponseEntity.notFound().build();
 
         ServiceDefinition def = maybe.get();
+        long startMs = System.currentTimeMillis();
         try {
             int totalRemoved = 0;
+            int totalFailed = 0;
 
             // 각 노드별로 컨테이너 정리
             Set<String> nodeIds = new LinkedHashSet<>();
@@ -138,23 +161,38 @@ public class ServiceDefinitionController {
                     nodeIds.add(nodeName.isEmpty() ? null : resolveNodeId(nodeName));
                 }
             }
+            log.info("[serviceStop] 시작: defId={}, name={}, 대상 노드={}",
+                    id, def.getName(), nodeIds);
 
             for (String nodeId : nodeIds) {
+                String nodeName = resolveNodeName(nodeId);
                 DockerClient client = resolveClient(nodeId);
                 var containers = client.listContainersCmd()
                         .withShowAll(true)
                         .withLabelFilter(Map.of("kite.service-definition-id", id))
                         .exec();
+                log.info("[serviceStop] 노드 {} — 정리 대상 {}개", nodeName, containers.size());
 
                 for (var container : containers) {
+                    String cName = container.getNames() != null && container.getNames().length > 0
+                            ? container.getNames()[0].replaceFirst("^/", "") : container.getId();
                     try {
                         if (container.getState() != null && container.getState().contains("running")) {
+                            log.info("[serviceStop] stop 호출: node={}, container={} ({})",
+                                    nodeName, cName, container.getId());
                             client.stopContainerCmd(container.getId()).exec();
+                        } else {
+                            log.info("[serviceStop] 이미 중지됨, stop 스킵: node={}, container={} (state={})",
+                                    nodeName, cName, container.getState());
                         }
+                        log.info("[serviceStop] remove 호출: node={}, container={} ({})",
+                                nodeName, cName, container.getId());
                         client.removeContainerCmd(container.getId()).exec();
                         totalRemoved++;
                     } catch (Exception e) {
-                        log.warn("컨테이너 정리 실패: {}", container.getId(), e);
+                        totalFailed++;
+                        log.warn("[serviceStop] 컨테이너 정리 실패: node={}, container={} ({}) — {}",
+                                nodeName, cName, container.getId(), e.getMessage(), e);
                     }
                 }
             }
@@ -162,9 +200,14 @@ public class ServiceDefinitionController {
             def.setStatus(ServiceDefinition.Status.STOPPED);
             repository.save(def);
 
+            long duration = System.currentTimeMillis() - startMs;
+            log.info("[serviceStop] 완료: defId={}, name={}, removed={}, failed={}, duration={}ms",
+                    id, def.getName(), totalRemoved, totalFailed, duration);
             return ResponseEntity.ok(Map.of("status", "stopped", "removed", totalRemoved));
         } catch (Exception e) {
-            log.error("서비스 중지 실패: {}", def.getName(), e);
+            long duration = System.currentTimeMillis() - startMs;
+            log.error("[serviceStop] 실패: defId={}, name={}, duration={}ms — {}",
+                    id, def.getName(), duration, e.getMessage(), e);
             return ResponseEntity.internalServerError().body("중지 실패: " + e.getMessage());
         }
     }
@@ -256,6 +299,9 @@ public class ServiceDefinitionController {
         ServiceDefinition def = maybe.get();
         String nodeId = "local".equals(nodeName) ? null : resolveNodeId(nodeName);
         DockerClient client = resolveClient(nodeId);
+        long startMs = System.currentTimeMillis();
+        log.info("[allRedeploy] 시작: defId={}, name={}, node={}, profiles={}",
+                id, def.getName(), nodeName, activeProfiles);
 
         try {
             // 1. 기존 컨테이너 stop + remove
@@ -263,26 +309,52 @@ public class ServiceDefinitionController {
                     .withShowAll(true)
                     .withLabelFilter(Map.of("kite.service-definition-id", id))
                     .exec();
+            log.info("[allRedeploy] 정리 대상 {}개 (node={})", containers.size(), nodeName);
+
+            int cleaned = 0, cleanFailed = 0;
             for (var c : containers) {
+                String cName = c.getNames() != null && c.getNames().length > 0
+                        ? c.getNames()[0].replaceFirst("^/", "") : c.getId();
                 try {
-                    if ("running".equals(c.getState())) client.stopContainerCmd(c.getId()).exec();
+                    if ("running".equals(c.getState())) {
+                        log.info("[allRedeploy] stop: node={}, container={} ({})", nodeName, cName, c.getId());
+                        client.stopContainerCmd(c.getId()).exec();
+                    } else {
+                        log.info("[allRedeploy] 이미 중지됨, stop 스킵: node={}, container={} (state={})",
+                                nodeName, cName, c.getState());
+                    }
+                    log.info("[allRedeploy] remove: node={}, container={} ({})", nodeName, cName, c.getId());
                     client.removeContainerCmd(c.getId()).exec();
+                    cleaned++;
                 } catch (Exception e) {
-                    log.warn("재배포 전 컨테이너 정리 실패: {}", c.getId(), e);
+                    cleanFailed++;
+                    log.warn("[allRedeploy] 컨테이너 정리 실패: node={}, container={} — {}",
+                            nodeName, cName, e.getMessage(), e);
                 }
             }
+            log.info("[allRedeploy] 정리 완료: cleaned={}, failed={}", cleaned, cleanFailed);
 
             // 2. 최신 설정으로 재배포
             List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
             String profileId = def.getNodeEnvMappings() != null ? def.getNodeEnvMappings().get(nodeName) : null;
+            log.info("[allRedeploy] 재배포 시작: node={}, services={}, profileId={}",
+                    nodeName, services.stream().map(ParsedService::getServiceName).toList(), profileId);
+
             List<String> containerIds = new ArrayList<>();
             for (ParsedService svc : services) {
+                log.info("[allRedeploy] 서비스 배포: node={}, name={}, image={}, container={}",
+                        nodeName, svc.getServiceName(), svc.getImage(), svc.getContainerName());
                 containerIds.add(deployer.deployWithDefinitionId(svc, profileId, nodeId, def.getId()));
             }
 
+            long duration = System.currentTimeMillis() - startMs;
+            log.info("[allRedeploy] 완료: defId={}, node={}, deployed={}개, duration={}ms",
+                    id, nodeName, containerIds.size(), duration);
             return ResponseEntity.ok(Map.of("status", "redeployed", "node", nodeName, "containerIds", containerIds));
         } catch (Exception e) {
-            log.error("노드 재배포 실패: {} node={}", def.getName(), nodeName, e);
+            long duration = System.currentTimeMillis() - startMs;
+            log.error("[allRedeploy] 실패: defId={}, node={}, duration={}ms — {}",
+                    id, nodeName, duration, e.getMessage(), e);
             return ResponseEntity.internalServerError().body("재배포 실패: " + e.getMessage());
         }
     }
@@ -296,25 +368,40 @@ public class ServiceDefinitionController {
 
         ServiceDefinition def = maybe.get();
         Set<String> nodeIds = resolveNodeIds(def);
+        long startMs = System.currentTimeMillis();
+        log.info("[containerRedeploy] 시작: defId={}, name={}, containerId={}, profiles={}, 후보 노드={}",
+                id, def.getName(), containerId, activeProfiles, nodeIds);
 
         for (String nodeId : nodeIds) {
+            String nodeName = resolveNodeName(nodeId);
             DockerClient client = resolveClient(nodeId);
             try {
                 var inspect = client.inspectContainerCmd(containerId).exec();
-                if (inspect == null) continue;
+                if (inspect == null) {
+                    log.debug("[containerRedeploy] inspect null — 다른 노드 시도: node={}, containerId={}",
+                            nodeName, containerId);
+                    continue;
+                }
 
                 String containerName = inspect.getName();
                 if (containerName != null && containerName.startsWith("/")) containerName = containerName.substring(1);
+                String oldImage = inspect.getConfig() != null ? inspect.getConfig().getImage() : null;
+                log.info("[containerRedeploy] 컨테이너 발견: node={}, container={} ({}), image={}",
+                        nodeName, containerName, containerId, oldImage);
 
                 // 1. stop + remove
                 if (inspect.getState() != null && Boolean.TRUE.equals(inspect.getState().getRunning())) {
+                    log.info("[containerRedeploy] stop: node={}, container={}", nodeName, containerName);
                     client.stopContainerCmd(containerId).exec();
+                } else {
+                    log.info("[containerRedeploy] 이미 중지됨, stop 스킵: node={}, container={}",
+                            nodeName, containerName);
                 }
+                log.info("[containerRedeploy] remove: node={}, container={}", nodeName, containerName);
                 client.removeContainerCmd(containerId).exec();
 
                 // 2. compose에서 해당 서비스 찾아서 재배포
                 List<ParsedService> services = ComposeParser.parse(def.getComposeYaml(), activeProfiles);
-                String nodeName = resolveNodeName(nodeId);
                 String profileId = def.getNodeEnvMappings() != null ? def.getNodeEnvMappings().get(nodeName) : null;
 
                 // 컨테이너 이름으로 매칭되는 서비스 찾기
@@ -325,14 +412,26 @@ public class ServiceDefinitionController {
                         .orElse(services.isEmpty() ? null : services.get(0));
 
                 if (matchedSvc != null) {
+                    log.info("[containerRedeploy] 매칭 서비스: name={}, image={}, container={} → 배포 시작",
+                            matchedSvc.getServiceName(), matchedSvc.getImage(), matchedSvc.getContainerName());
                     String newId = deployer.deployWithDefinitionId(matchedSvc, profileId, nodeId, def.getId());
+                    long duration = System.currentTimeMillis() - startMs;
+                    log.info("[containerRedeploy] 완료: defId={}, node={}, container={}, oldId={}, newId={}, duration={}ms",
+                            id, nodeName, containerName, containerId, newId, duration);
                     return ResponseEntity.ok(Map.of("status", "redeployed", "containerId", newId));
                 }
 
+                log.warn("[containerRedeploy] 매칭 서비스 없음, 삭제만 수행: node={}, container={}",
+                        nodeName, containerName);
                 return ResponseEntity.ok(Map.of("status", "removed", "message", "매칭 서비스를 찾을 수 없어 삭제만 수행"));
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("[containerRedeploy] 노드 {} 에서 실패 (다른 노드 시도): {}", nodeName, e.getMessage());
+            }
         }
 
+        long duration = System.currentTimeMillis() - startMs;
+        log.warn("[containerRedeploy] 컨테이너 미발견: defId={}, containerId={}, duration={}ms",
+                id, containerId, duration);
         return ResponseEntity.notFound().build();
     }
 
@@ -342,32 +441,57 @@ public class ServiceDefinitionController {
 
         String nodeId = "local".equals(nodeName) ? null : resolveNodeId(nodeName);
         DockerClient client = resolveClient(nodeId);
-        int count = 0;
+        long startMs = System.currentTimeMillis();
+        String tag = "[all" + Character.toUpperCase(action.charAt(0)) + action.substring(1) + "]";
+        log.info("{} 시작: defId={}, name={}, node={}",
+                tag, defId, maybe.get().getName(), nodeName);
+
+        int count = 0, skipped = 0, failed = 0;
 
         try {
             var containers = client.listContainersCmd()
                     .withShowAll(true)
                     .withLabelFilter(Map.of("kite.service-definition-id", defId))
                     .exec();
+            log.info("{} 대상 {}개 (node={})", tag, containers.size(), nodeName);
+
             for (var c : containers) {
+                String cName = c.getNames() != null && c.getNames().length > 0
+                        ? c.getNames()[0].replaceFirst("^/", "") : c.getId();
                 try {
                     if ("stop".equals(action)) {
                         if ("running".equals(c.getState())) {
+                            log.info("{} stop 호출: node={}, container={} ({})",
+                                    tag, nodeName, cName, c.getId());
                             client.stopContainerCmd(c.getId()).exec();
                             count++;
+                        } else {
+                            log.info("{} 이미 중지됨, 스킵: node={}, container={} (state={})",
+                                    tag, nodeName, cName, c.getState());
+                            skipped++;
                         }
                     } else if ("restart".equals(action)) {
+                        log.info("{} restart 호출: node={}, container={} ({}, image={})",
+                                tag, nodeName, cName, c.getId(), c.getImage());
                         client.restartContainerCmd(c.getId()).exec();
                         count++;
                     }
                 } catch (Exception e) {
-                    log.warn("컨테이너 {} 실패 ({}): {}", action, c.getId(), e.getMessage());
+                    failed++;
+                    log.warn("{} {} 실패: node={}, container={} ({}) — {}",
+                            tag, action, nodeName, cName, c.getId(), e.getMessage(), e);
                 }
             }
         } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startMs;
+            log.error("{} 실패: defId={}, node={}, duration={}ms — {}",
+                    tag, defId, nodeName, duration, e.getMessage(), e);
             return ResponseEntity.internalServerError().body(action + " 실패: " + e.getMessage());
         }
 
+        long duration = System.currentTimeMillis() - startMs;
+        log.info("{} 완료: defId={}, node={}, success={}, skipped={}, failed={}, duration={}ms",
+                tag, defId, nodeName, count, skipped, failed, duration);
         return ResponseEntity.ok(Map.of("status", action + "ped", "node", nodeName, "count", count));
     }
 
@@ -377,21 +501,49 @@ public class ServiceDefinitionController {
 
         // 모든 노드에서 컨테이너 찾기
         Set<String> nodeIds = resolveNodeIds(maybe.get());
+        long startMs = System.currentTimeMillis();
+        String tag = "[container" + Character.toUpperCase(action.charAt(0)) + action.substring(1) + "]";
+        log.info("{} 시작: defId={}, name={}, containerId={}, 후보 노드={}",
+                tag, defId, maybe.get().getName(), containerId, nodeIds);
+
         for (String nodeId : nodeIds) {
+            String nodeName = resolveNodeName(nodeId);
             DockerClient client = resolveClient(nodeId);
             try {
                 var inspect = client.inspectContainerCmd(containerId).exec();
                 if (inspect != null) {
+                    String cName = inspect.getName() != null ? inspect.getName().replaceFirst("^/", "") : containerId;
+                    String image = inspect.getConfig() != null ? inspect.getConfig().getImage() : "?";
+                    boolean running = inspect.getState() != null && Boolean.TRUE.equals(inspect.getState().getRunning());
+
                     if ("stop".equals(action)) {
-                        client.stopContainerCmd(containerId).exec();
+                        if (running) {
+                            log.info("{} stop 호출: node={}, container={} ({}, image={})",
+                                    tag, nodeName, cName, containerId, image);
+                            client.stopContainerCmd(containerId).exec();
+                        } else {
+                            log.info("{} 이미 중지됨, stop 스킵: node={}, container={}",
+                                    tag, nodeName, cName);
+                        }
                     } else if ("restart".equals(action)) {
+                        log.info("{} restart 호출: node={}, container={} ({}, image={}, wasRunning={})",
+                                tag, nodeName, cName, containerId, image, running);
                         client.restartContainerCmd(containerId).exec();
                     }
+
+                    long duration = System.currentTimeMillis() - startMs;
+                    log.info("{} 완료: defId={}, node={}, container={}, duration={}ms",
+                            tag, defId, nodeName, cName, duration);
                     return ResponseEntity.ok(Map.of("status", action + "ped", "containerId", containerId));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("{} 노드 {} 에서 실패 (다른 노드 시도): {}", tag, nodeName, e.getMessage());
+            }
         }
 
+        long duration = System.currentTimeMillis() - startMs;
+        log.warn("{} 컨테이너 미발견: defId={}, containerId={}, duration={}ms",
+                tag, defId, containerId, duration);
         return ResponseEntity.notFound().build();
     }
 
