@@ -41,7 +41,7 @@ public class ServiceDeployer {
                 .map(e -> e.getKey() + "=" + e.getValue()).toList();
 
         // 2. 전체 필드에 ${KEY} 변수 치환 (image, containerName, ports, volumes 등)
-        ParsedService resolved = substituteAllFields(svc, envContext);
+        ParsedService resolved = EnvSubstitution.substituteFields(svc, envContext);
 
         // 3. 네트��크 생성/매칭 (실제 이름으로 resolve)
         List<String> resolvedNetworks = new ArrayList<>();
@@ -118,75 +118,11 @@ public class ServiceDeployer {
                     if (!other.getKey().equals(key)) ctx.put(other.getKey(), other.getValue());
                 }
                 ctx.putAll(profileEnv);
-                resolved.put(key, substituteVars(entry.getValue(), ctx));
+                resolved.put(key, EnvSubstitution.substituteVars(entry.getValue(), ctx));
             }
         }
         resolved.putAll(profileEnv);
         return resolved;
-    }
-
-    /** ParsedService의 모든 문자열 필드에 ${KEY} 변수 치환 적용 */
-    private ParsedService substituteAllFields(ParsedService svc, Map<String, String> context) {
-        return ParsedService.builder()
-                .serviceName(svc.getServiceName())
-                .image(substituteVars(svc.getImage(), context))
-                .containerName(substituteVars(svc.getContainerName(), context))
-                .ports(substituteList(svc.getPorts(), context))
-                .volumes(substituteList(svc.getVolumes(), context))
-                .environment(svc.getEnvironment())
-                .networks(svc.getNetworks())
-                .restartPolicy(svc.getRestartPolicy())
-                .labels(svc.getLabels())
-                .extraHosts(substituteList(svc.getExtraHosts(), context))
-                .dependsOn(svc.getDependsOn())
-                .memoryLimit(substituteVars(svc.getMemoryLimit(), context))
-                .cpuLimit(substituteVars(svc.getCpuLimit(), context))
-                .build();
-    }
-
-    private List<String> substituteList(List<String> list, Map<String, String> context) {
-        if (list == null) return List.of();
-        return list.stream().map(v -> substituteVars(v, context)).toList();
-    }
-
-    private String substituteVars(String value, Map<String, String> context) {
-        if (value == null || !value.contains("${")) return value;
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\$\\{([^}]+)}").matcher(value);
-        StringBuilder sb = new StringBuilder();
-        while (m.find()) {
-            String expr = m.group(1);
-            String varName;
-            String defaultValue = null;
-            boolean required = false;
-            String requiredMsg = null;
-
-            // ${KEY:?error message} — 필수 변수 (없으면 에러)
-            int reqIdx = expr.indexOf(":?");
-            // ${KEY:-default} — 기본값
-            int defIdx = expr.indexOf(":-");
-
-            if (reqIdx >= 0) {
-                varName = expr.substring(0, reqIdx);
-                requiredMsg = expr.substring(reqIdx + 2);
-                required = true;
-            } else if (defIdx >= 0) {
-                varName = expr.substring(0, defIdx);
-                defaultValue = expr.substring(defIdx + 2);
-            } else {
-                varName = expr;
-            }
-
-            String replacement = context.get(varName);
-            if (replacement == null && required) {
-                throw new IllegalStateException("필수 변수 미설정: " + varName + " (" + requiredMsg + ")");
-            }
-            if (replacement == null && defaultValue != null) {
-                replacement = defaultValue;
-            }
-            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(replacement != null ? replacement : m.group(0)));
-        }
-        m.appendTail(sb);
-        return sb.toString();
     }
 
     private HostConfig buildHostConfig(ParsedService svc) {
