@@ -37,6 +37,7 @@ class ImageUpdatePollerNodeAwareTest {
     @Mock private ListContainersCmd remoteListCmd;
     @Mock private ImageWatchService watchService;
     @Mock private ImageUpdateHistoryService historyService;
+    @Mock private ImageMatchPolicy imageMatchPolicy;
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
@@ -52,7 +53,8 @@ class ImageUpdatePollerNodeAwareTest {
                 .status(NodeStatus.HEALTHY).build();
 
         poller = new ImageUpdatePoller(properties, watchService, ghcrClient, localClient,
-                eventPublisher, historyService, nodeRegistry, nodeClientFactory);
+                eventPublisher, historyService, nodeRegistry, nodeClientFactory, imageMatchPolicy);
+        when(imageMatchPolicy.allowsUpdate(any(), any())).thenReturn(true);
     }
 
     @Test

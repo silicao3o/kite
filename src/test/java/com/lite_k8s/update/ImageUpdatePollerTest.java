@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -25,6 +27,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ImageUpdatePollerTest {
 
     @Mock private GhcrClient ghcrClient;
@@ -33,6 +36,7 @@ class ImageUpdatePollerTest {
     @Mock private ListContainersCmd listContainersCmd;
     @Mock private ImageWatchService watchService;
     @Mock private ImageUpdateHistoryService historyService;
+    @Mock private ImageMatchPolicy imageMatchPolicy;
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
@@ -43,7 +47,9 @@ class ImageUpdatePollerTest {
     void setUp() {
         properties = new ImageWatchProperties();
         poller = new ImageUpdatePoller(properties, watchService, ghcrClient, dockerClient,
-                eventPublisher, historyService);
+                eventPublisher, historyService, imageMatchPolicy);
+        // 기본 동작: 모든 컨테이너 허용 (deny 케이스만 개별 stub)
+        lenient().when(imageMatchPolicy.allowsUpdate(any(), any())).thenReturn(true);
 
         pollerLogger = (Logger) LoggerFactory.getLogger(ImageUpdatePoller.class);
         pollerLogger.setLevel(Level.ALL);
@@ -441,25 +447,25 @@ class ImageUpdatePollerTest {
     }
 
     @Test
-    @DisplayName("이름은 패턴에 걸려도 이미지 short name이 다르면 스킵한다 (nginx 사이드카)")
-    void checkWatch_WhenContainerImageShortNameDiffers_SkipsContainer() {
+    @DisplayName("ImageMatchPolicy 가 deny 한 컨테이너는 패턴 매칭이어도 이벤트 발행 안 함 (nginx 사이드카)")
+    void checkWatch_WhenPolicyDenies_SkipsContainer() {
         ImageWatchEntity watch = ImageWatchEntity.builder()
                 .image("ghcr.io/daquv-core/chat-quvi")
                 .tag("v3.0")
                 .containerPattern("chat-quvi*")
                 .build();
 
-        // 같은 compose 스택의 nginx 사이드카 — 이름은 'chat-quvi*' 에 걸리지만
-        // 실제 이미지는 nginx:alpine
+        // 이름은 'chat-quvi*' 에 걸리지만 declared/runtime 이미지가 watch 와 달라서 정책이 deny
         Container nginx = mock(Container.class);
         when(nginx.getNames()).thenReturn(new String[]{"/chat-quvi-test-nginx"});
-        when(nginx.getImage()).thenReturn("nginx:alpine");
 
         when(dockerClient.listContainersCmd()).thenReturn(listContainersCmd);
         when(listContainersCmd.withShowAll(false)).thenReturn(listContainersCmd);
         when(listContainersCmd.exec()).thenReturn(List.of(nginx));
         when(ghcrClient.getLatestDigest(anyString(), anyString(), any()))
                 .thenReturn("sha256:new");
+        when(imageMatchPolicy.allowsUpdate(eq(nginx), eq("ghcr.io/daquv-core/chat-quvi")))
+                .thenReturn(false);
 
         poller.checkWatch(watch);
 

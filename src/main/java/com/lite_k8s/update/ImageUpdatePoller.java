@@ -6,7 +6,6 @@ import com.lite_k8s.node.Node;
 import com.lite_k8s.node.NodeDockerClientFactory;
 import com.lite_k8s.node.NodeRegistry;
 import com.lite_k8s.util.ContainerPatternMatcher;
-import com.lite_k8s.util.ImageReferences;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +37,7 @@ public class ImageUpdatePoller {
     private final ImageUpdateHistoryService historyService;
     private final NodeRegistry nodeRegistry;
     private final NodeDockerClientFactory nodeClientFactory;
+    private final ImageMatchPolicy imageMatchPolicy;
 
     private TaskScheduler taskScheduler;
     private final Map<String, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
@@ -51,7 +51,8 @@ public class ImageUpdatePoller {
             ApplicationEventPublisher eventPublisher,
             ImageUpdateHistoryService historyService,
             NodeRegistry nodeRegistry,
-            NodeDockerClientFactory nodeClientFactory) {
+            NodeDockerClientFactory nodeClientFactory,
+            ImageMatchPolicy imageMatchPolicy) {
         this.properties = properties;
         this.watchService = watchService;
         this.ghcrClient = ghcrClient;
@@ -60,6 +61,7 @@ public class ImageUpdatePoller {
         this.historyService = historyService;
         this.nodeRegistry = nodeRegistry;
         this.nodeClientFactory = nodeClientFactory;
+        this.imageMatchPolicy = imageMatchPolicy;
     }
 
     // 테스트 호환 생성자
@@ -69,8 +71,10 @@ public class ImageUpdatePoller {
             GhcrClient ghcrClient,
             DockerClient dockerClient,
             ApplicationEventPublisher eventPublisher,
-            ImageUpdateHistoryService historyService) {
-        this(properties, watchService, ghcrClient, dockerClient, eventPublisher, historyService, null, null);
+            ImageUpdateHistoryService historyService,
+            ImageMatchPolicy imageMatchPolicy) {
+        this(properties, watchService, ghcrClient, dockerClient, eventPublisher,
+                historyService, null, null, imageMatchPolicy);
     }
 
     @PostConstruct
@@ -220,14 +224,10 @@ public class ImageUpdatePoller {
             if (!matchesPattern(name, watch.getContainerPattern())) {
                 continue;
             }
-            // 이름 패턴은 걸려도 컨테이너 이미지의 short name 이 watch 와 다르면 스킵
-            // (예: chat-quvi* 에 걸린 nginx:alpine 사이드카). short name 비교라
-            // 레지스트리 host/org 가 바뀌어도(같은 이미지 이전) 매칭은 유지된다.
-            // 단, 컨테이너 image 가 ID 형태(digest pin 후 태그 untag) 면 비교 불가능 →
-            // 패턴 매칭만 신뢰.
-            if (ImageReferences.isImageReference(container.getImage())
-                    && !ImageReferences.sameShortName(container.getImage(), watchImage)) {
-                log.debug("이미지 short name 불일치로 스킵: {} (container={}, watch={})",
+            // ImageMatchPolicy 가 deny 하면 스킵 — declared image (compose YAML) 와 다르거나
+            // declared 가 없으면 runtime image 의 short name 이 다른 경우.
+            if (!imageMatchPolicy.allowsUpdate(container, watchImage)) {
+                log.debug("ImageMatchPolicy deny — 스킵: {} (container={}, watch={})",
                         name, container.getImage(), watchImage);
                 continue;
             }

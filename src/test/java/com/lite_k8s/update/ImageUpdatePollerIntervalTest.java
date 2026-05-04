@@ -28,6 +28,7 @@ class ImageUpdatePollerIntervalTest {
     @Mock private ImageUpdateHistoryService historyService;
     @Mock private TaskScheduler taskScheduler;
     @Mock private ScheduledFuture<?> scheduledFuture;
+    @Mock private ImageMatchPolicy imageMatchPolicy;
 
     private ImageWatchProperties properties;
     private ImageUpdatePoller poller;
@@ -37,7 +38,7 @@ class ImageUpdatePollerIntervalTest {
         properties = new ImageWatchProperties();
         properties.setEnabled(true);
         poller = new ImageUpdatePoller(properties, watchService, ghcrClient, dockerClient,
-                eventPublisher, historyService);
+                eventPublisher, historyService, imageMatchPolicy);
         poller.setTaskScheduler(taskScheduler);
     }
 
