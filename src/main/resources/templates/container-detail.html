@@ -10,6 +10,46 @@
     <style>
         .logs-content pre,
         .logs-content pre * { user-select: text; }
+
+        /* Auto-refresh 토글 — refresh-btn 과 동일한 톤 */
+        .auto-refresh-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .auto-refresh-toggle:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+        .auto-refresh-toggle input { display: none; }   /* 네이티브 체크박스 숨김 */
+        .auto-refresh-toggle .ar-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-secondary); opacity: .4;
+            transition: all 0.15s ease;
+        }
+        .auto-refresh-toggle.is-on {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .auto-refresh-toggle.is-on .ar-dot {
+            background: #22c55e; opacity: 1;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, .6);
+            animation: ar-pulse 1.6s infinite;
+        }
+        @keyframes ar-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, .6); }
+            70%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
     </style>
 </head>
 
@@ -172,8 +212,10 @@
             <div class="logs-card">
                 <div class="logs-header">
                     <h3>Container Logs</h3>
-                    <label style="display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--text-secondary);margin-right:.6rem;cursor:pointer;">
-                        <input type="checkbox" id="autoRefreshToggle" checked style="cursor:pointer;"> Auto refresh (5s)
+                    <label class="auto-refresh-toggle is-on" id="autoRefreshLabel">
+                        <input type="checkbox" id="autoRefreshToggle" checked>
+                        <span class="ar-dot"></span>
+                        <span>Auto refresh · 5s</span>
                     </label>
                     <button class="refresh-btn" onclick="refreshLogs()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -204,9 +246,6 @@
                             Search
                         </button>
                         <button class="clear-btn" onclick="clearSearch()">Clear</button>
-                    </div>
-                    <div class="search-row">
-                        <input type="text" id="traceIdFilter" placeholder="Trace ID (workflowId...)" class="search-input" style="flex: 1;">
                     </div>
                     <div class="search-row time-range-row">
                         <label class="time-label">From:</label>
@@ -301,12 +340,11 @@
 
         function isSearchActive() {
             const k = document.getElementById('searchKeyword').value;
-            const t = document.getElementById('traceIdFilter').value;
             const f = document.getElementById('fromTime').value;
             const u = document.getElementById('toTime').value;
             const lvl = document.getElementById('logLevel');
             const anyLevel = Array.from(lvl.selectedOptions).length > 0;
-            return !!(k || t || f || u || anyLevel);
+            return !!(k || f || u || anyLevel);
         }
 
         function autoRefreshTick() {
@@ -325,11 +363,13 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const toggle = document.getElementById('autoRefreshToggle');
+            const label = document.getElementById('autoRefreshLabel');
             if (toggle.checked) startAutoRefresh();
             toggle.addEventListener('change', () => {
+                label.classList.toggle('is-on', toggle.checked);
                 toggle.checked ? startAutoRefresh() : stopAutoRefresh();
             });
-            // 탭 백그라운드 시 polling 멈춤 — 트래픽 절약
+            // 탭 백그라운드 시 polling 멈춤 — 트래픽 절약 (UI label 은 그대로 ON 유지)
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) stopAutoRefresh();
                 else if (toggle.checked) startAutoRefresh();
@@ -342,14 +382,11 @@
             const selectedLevels = Array.from(levelSelect.selectedOptions).map(opt => opt.value);
             const fromTime = document.getElementById('fromTime').value;
             const toTime = document.getElementById('toTime').value;
-            const traceId = document.getElementById('traceIdFilter').value;
-
             const params = new URLSearchParams();
             if (keyword) params.append('keyword', keyword);
             selectedLevels.forEach(level => params.append('levels', level));
             if (fromTime) params.append('from', fromTime);
             if (toTime) params.append('to', toTime);
-            if (traceId) params.append('traceId', traceId);
             if (containerName) params.append('name', containerName);
             if (nodeId) params.append('nodeId', nodeId);
 
@@ -416,7 +453,6 @@
             document.getElementById('logLevel').selectedIndex = -1;
             document.getElementById('fromTime').value = '';
             document.getElementById('toTime').value = '';
-            document.getElementById('traceIdFilter').value = '';
             document.getElementById('logs').innerHTML = originalLogs;
             document.getElementById('searchInfo').style.display = 'none';
         }
@@ -453,12 +489,6 @@
             }
         });
 
-        // traceId Enter key to search
-        document.getElementById('traceIdFilter').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                searchLogs();
-            }
-        });
 
     </script>
     <script src="/js/sidebar-toggle.js"></script>
