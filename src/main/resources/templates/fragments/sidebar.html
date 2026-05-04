@@ -41,13 +41,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="14"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="19" r="3"/><line x1="12" y1="14" x2="6" y2="16"/><line x1="12" y1="14" x2="18" y2="16"/></svg>
                 Deploy Map
             </a>
-            <a href="/env-profiles" class="nav-item" th:classappend="${activePage == 'env-profiles'} ? ' active'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                Env Profiles
-            </a>
-            <a href="/service-definitions" class="nav-item" th:classappend="${activePage == 'service-definitions'} ? ' active'">
+            <a href="/deployments" class="nav-item"
+               th:classappend="${activePage == 'deployments' or activePage == 'service-definitions' or activePage == 'env-profiles'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-                Services
+                Deployments
             </a>
             <a href="/self-healing-rules" class="nav-item" th:classappend="${activePage == 'self-healing-rules'} ? ' active'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23326ce5'/><path d='M16 5 L26 16 L16 22 L6 16 Z' fill='white' fill-opacity='0.95'/><path d='M16 22 L13.5 27 M16 22 L18.5 27' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-opacity='0.6'/><circle cx='16' cy='16' r='2' fill='%23326ce5'/></svg>">
+    <title>Deployments — kite</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .tabs { display: flex; gap: .25rem; border-bottom: 1px solid var(--border-color, #2d3f56); margin-bottom: 1rem; }
+        .tab {
+            padding: .6rem 1.1rem; cursor: pointer; background: transparent; border: none;
+            color: var(--text-secondary, #9aa0a6); font-size: .92rem; font-weight: 500;
+            border-bottom: 2px solid transparent; margin-bottom: -1px;
+        }
+        .tab:hover { color: var(--text-primary, #e8eaed); }
+        .tab.active { color: var(--accent-blue, #3b82f6); border-bottom-color: var(--accent-blue, #3b82f6); }
+        .tab-frame { width: 100%; height: calc(100vh - 180px); border: none; background: transparent; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside th:replace="~{fragments/sidebar :: sidebar('deployments')}"></aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Deployments</h2>
+            <p>Service Definitions 와 Env Profiles 를 한 곳에서 관리합니다.</p>
+        </div>
+
+        <div class="tabs" role="tablist">
+            <button class="tab" id="tab-services" role="tab" onclick="switchTab('services')">Services</button>
+            <button class="tab" id="tab-profiles" role="tab" onclick="switchTab('profiles')">Env Profiles</button>
+        </div>
+
+        <iframe id="frame-services" class="tab-frame" src="/service-definitions?embedded=true"
+                title="Services" style="display:none;"></iframe>
+        <iframe id="frame-profiles" class="tab-frame" src="/env-profiles?embedded=true"
+                title="Env Profiles" style="display:none;"></iframe>
+    </main>
+</div>
+
+<script th:inline="javascript">
+    const initialTab = /*[[${activeTab}]]*/ 'services';
+
+    function switchTab(tab) {
+        const valid = (tab === 'profiles') ? 'profiles' : 'services';
+        document.getElementById('tab-services').classList.toggle('active', valid === 'services');
+        document.getElementById('tab-profiles').classList.toggle('active', valid === 'profiles');
+        document.getElementById('frame-services').style.display = valid === 'services' ? 'block' : 'none';
+        document.getElementById('frame-profiles').style.display = valid === 'profiles' ? 'block' : 'none';
+
+        // URL 동기화 — 새로고침/북마크 시 같은 탭으로
+        const url = new URL(window.location);
+        url.searchParams.set('tab', valid);
+        window.history.replaceState({}, '', url);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => switchTab(initialTab));
+</script>
+<script src="/js/sidebar-toggle.js"></script>
+</body>
+</html>

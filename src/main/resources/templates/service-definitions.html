@@ -53,7 +53,14 @@
         }
     </style>
 </head>
-<body>
+<body th:classappend="${embedded} ? 'embedded' : ''">
+<style th:if="${embedded}">
+    /* /deployments 탭 wrapper 안에서 iframe 으로 표시될 때 — sidebar 와 page-header 숨김 */
+    .layout > aside { display: none !important; }
+    .main-content { margin-left: 0 !important; padding: 1rem !important; }
+    .main-content > .page-header { display: none !important; }
+    body { background: transparent; }
+</style>
 <div class="layout">
     <aside th:replace="~{fragments/sidebar :: sidebar('service-definitions')}"></aside>
 
@@ -359,6 +366,22 @@ document.getElementById('editDefModal').addEventListener('click', function(e) { 
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/** ghcr.io/.../app@sha256:1825ca8349f4...237a9 → ghcr.io/.../app@sha256:1825ca83 (full 은 title 로 노출) */
+function formatImage(image) {
+    if (!image) return '';
+    const at = image.indexOf('@sha256:');
+    if (at >= 0) {
+        const digest = image.substring(at + 8);  // skip "@sha256:"
+        const shortDigest = digest.length > 12 ? digest.substring(0, 12) : digest;
+        return image.substring(0, at) + '@sha256:' + shortDigest;
+    }
+    // image-id 만 있는 경우 (sha256: 없는 hex)
+    if (/^[0-9a-f]{32,}$/i.test(image)) {
+        return image.substring(0, 12);
+    }
+    return image;
+}
+
 async function showContainerDetail(defId, defName) {
     document.getElementById('containerDetailTitle').textContent = defName + ' — 컨테이너';
     document.getElementById('containerDetailModal').style.display = 'block';
@@ -383,11 +406,12 @@ async function showContainerDetail(defId, defName) {
     listEl.innerHTML = Object.entries(grouped).map(([nodeName, conts]) => {
         const rows = conts.map(c => {
             const stateColor = c.state === 'running' ? '#22c55e' : '#f59e0b';
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;">
-                <div>
-                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${stateColor};margin-right:.4rem;"></span>
-                    <strong>${esc(c.name)}</strong>
-                    <span style="color:var(--text-secondary);font-size:.78rem;margin-left:.5rem;">${esc(c.image)}</span>
+            const shortImg = formatImage(c.image);
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;border-bottom:1px solid var(--border-color,#2d3f56);font-size:.85rem;gap:.5rem;">
+                <div style="min-width:0;flex:1;display:flex;align-items:center;gap:.5rem;">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${stateColor};flex-shrink:0;"></span>
+                    <strong style="flex-shrink:0;">${esc(c.name)}</strong>
+                    <span style="color:var(--text-secondary);font-size:.78rem;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${esc(c.image)}">${esc(shortImg)}</span>
                 </div>
                 <div style="display:flex;gap:.3rem;">
                     ${c.state === 'running' ? `<button class="btn-sm btn-stop" onclick="containerAction('${defId}','${c.containerId}','stop',this)">Stop</button>` : ''}
