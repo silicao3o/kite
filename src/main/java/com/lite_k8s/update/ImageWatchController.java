@@ -29,12 +29,21 @@ public class ImageWatchController {
 
         String tag = asStringOrDefault(body.get("tag"), "latest");
         ImageWatchEntity.WatchMode mode = parseMode(asString(body.get("mode")));
+        String containerPattern = asString(body.get("containerPattern"));
+        List<String> nodeNames = asStringList(body.get("nodeNames"));
 
-        // image+tag 중복 체크
-        boolean duplicate = watchService.findAll().stream()
-                .anyMatch(w -> w.getEffectiveImage().equals(image) && tag.equals(w.getTag()));
+        // 같은 스코프 (image + tag + mode + pattern + nodes) 만 중복으로 본다.
+        // mode/pattern/nodes 중 하나라도 다르면 별개의 와치로 허용 — 노드별 정책 분리,
+        // POLLING/TRIGGER 공존 등을 위해서.
+        boolean duplicate = watchService.findAll().stream().anyMatch(w ->
+                w.getEffectiveImage().equals(image)
+                && tag.equals(w.getTag())
+                && w.getMode() == mode
+                && Objects.equals(w.getContainerPattern(), containerPattern)
+                && nodeNamesEqual(w.getNodeNames(), nodeNames));
         if (duplicate) {
-            return ResponseEntity.status(409).body("이미 동일한 이미지+태그 와치가 존재합니다: " + image + ":" + tag);
+            return ResponseEntity.status(409).body(
+                    "동일 스코프 (image+tag+mode+pattern+nodes) 와치가 이미 존재합니다: " + image + ":" + tag);
         }
 
         ImageRegistry registry = imageRegistryRepository.findByImage(image).orElse(null);
@@ -43,8 +52,8 @@ public class ImageWatchController {
                 .image(image)
                 .imageRegistry(registry)
                 .tag(tag)
-                .containerPattern(asString(body.get("containerPattern")))
-                .nodeNames(asStringList(body.get("nodeNames")))
+                .containerPattern(containerPattern)
+                .nodeNames(nodeNames)
                 .pollIntervalSeconds(mode == ImageWatchEntity.WatchMode.TRIGGER ? null : asInt(body.get("pollIntervalSeconds"), 300))
                 .maxUnavailable(asInt(body.get("maxUnavailable"), 1))
                 .mode(mode)
@@ -172,5 +181,12 @@ public class ImageWatchController {
             return list.stream().map(Object::toString).toList();
         }
         return new ArrayList<>();
+    }
+
+    /** null/빈 리스트는 동일하게 본다. 순서 무관, 중복 무관 — 같은 노드 집합인지만 체크. */
+    private boolean nodeNamesEqual(List<String> a, List<String> b) {
+        Set<String> sa = a == null ? Set.of() : new HashSet<>(a);
+        Set<String> sb = b == null ? Set.of() : new HashSet<>(b);
+        return sa.equals(sb);
     }
 }

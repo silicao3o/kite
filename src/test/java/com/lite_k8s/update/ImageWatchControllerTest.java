@@ -282,12 +282,15 @@ class ImageWatchControllerTest {
     }
 
     @Test
-    @DisplayName("65. 같은 이미지+태그 조합 중복 등록 시 409 반환")
-    void create_DuplicateImageTag_Returns409() throws Exception {
+    @DisplayName("65. image+tag+mode+pattern+nodes 가 모두 같으면 중복 (409)")
+    void create_DuplicateScope_Returns409() throws Exception {
         when(watchService.findAll()).thenReturn(List.of(
                 ImageWatchEntity.builder()
                         .image("ghcr.io/org/app")
                         .tag("latest")
+                        .mode(ImageWatchEntity.WatchMode.POLLING)
+                        .containerPattern("app*")
+                        .nodeNames(List.of("node-a"))
                         .build()
         ));
 
@@ -295,9 +298,90 @@ class ImageWatchControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "image", "ghcr.io/org/app",
-                                "tag", "latest"
+                                "tag", "latest",
+                                "mode", "POLLING",
+                                "containerPattern", "app*",
+                                "nodeNames", List.of("node-a")
                         ))))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("같은 image+tag 라도 mode 가 다르면 등록 가능 (POLLING vs TRIGGER)")
+    void create_DifferentMode_Allowed() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/chat-quvi")
+                        .tag("latest")
+                        .mode(ImageWatchEntity.WatchMode.TRIGGER)
+                        .containerPattern("chat-quvi*")
+                        .nodeNames(List.of("node-a"))
+                        .build()
+        ));
+        when(watchService.save(any())).thenReturn(ImageWatchEntity.builder().build());
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/chat-quvi",
+                                "tag", "latest",
+                                "mode", "POLLING",
+                                "containerPattern", "chat-quvi*",
+                                "nodeNames", List.of("node-a")
+                        ))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("같은 image+tag+mode 라도 nodeNames 가 다르면 등록 가능 (노드별 정책 분리)")
+    void create_DifferentNodes_Allowed() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/chat-quvi")
+                        .tag("latest")
+                        .mode(ImageWatchEntity.WatchMode.POLLING)
+                        .containerPattern("chat-quvi*")
+                        .nodeNames(List.of("node-a"))
+                        .build()
+        ));
+        when(watchService.save(any())).thenReturn(ImageWatchEntity.builder().build());
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/chat-quvi",
+                                "tag", "latest",
+                                "mode", "POLLING",
+                                "containerPattern", "chat-quvi*",
+                                "nodeNames", List.of("node-b")
+                        ))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("같은 image+tag+mode+nodes 라도 containerPattern 이 다르면 등록 가능")
+    void create_DifferentPattern_Allowed() throws Exception {
+        when(watchService.findAll()).thenReturn(List.of(
+                ImageWatchEntity.builder()
+                        .image("ghcr.io/org/chat-quvi")
+                        .tag("latest")
+                        .mode(ImageWatchEntity.WatchMode.POLLING)
+                        .containerPattern("chat-quvi*")
+                        .nodeNames(List.of("node-a"))
+                        .build()
+        ));
+        when(watchService.save(any())).thenReturn(ImageWatchEntity.builder().build());
+
+        mockMvc.perform(post("/api/image-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "image", "ghcr.io/org/chat-quvi",
+                                "tag", "latest",
+                                "mode", "POLLING",
+                                "containerPattern", "^chat-quvi$",
+                                "nodeNames", List.of("node-a")
+                        ))))
+                .andExpect(status().isCreated());
     }
 
     @Test
