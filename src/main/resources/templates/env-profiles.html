@@ -66,10 +66,11 @@
 </head>
 <body th:classappend="${embedded} ? 'embedded' : ''">
 <style th:if="${embedded}">
-    /* /deployments 탭 wrapper 안에서 iframe 으로 표시될 때 — sidebar 와 page-header 숨김 */
+    /* /deployments 탭 wrapper 안에서 iframe 으로 표시될 때 — sidebar / page-header / 햄버거 토글 모두 숨김 */
     .layout > aside { display: none !important; }
     .main-content { margin-left: 0 !important; padding: 1rem !important; }
     .main-content > .page-header { display: none !important; }
+    .sidebar-toggle { display: none !important; }
     body { background: transparent; }
 </style>
 <div class="layout">
