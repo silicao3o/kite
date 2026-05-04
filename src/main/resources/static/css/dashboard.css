@@ -277,8 +277,14 @@ body {
 
 table {
     width: 100%;
-    min-width: max-content;
+    table-layout: fixed;       /* 지정한 % 너비를 엄격히 따르고, 셀 콘텐츠가 길면 ellipsis 로 자름 */
     border-collapse: collapse;
+}
+
+table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 thead {
@@ -376,17 +382,15 @@ tbody tr:last-child td {
     background-color: var(--status-restarting);
 }
 
-/* Table column sizing */
-table th:nth-child(1), table td:nth-child(1) { width: 18%; } /* Name */
-table th:nth-child(2), table td:nth-child(2) { width: 13%; } /* Node */
-table th:nth-child(3), table td:nth-child(3) { width: 20%; } /* Image */
+/* Table column sizing — 8개 컬럼 합 100% (Action 컬럼 제거 후 재배분) */
+table th:nth-child(1), table td:nth-child(1) { width: 22%; } /* Name */
+table th:nth-child(2), table td:nth-child(2) { width: 12%; } /* Node */
+table th:nth-child(3), table td:nth-child(3) { width: 22%; } /* Image */
 table th:nth-child(4), table td:nth-child(4) { width: 9%;  } /* Status */
 table th:nth-child(5), table td:nth-child(5) { width: 7%;  } /* CPU */
-table th:nth-child(6), table td:nth-child(6) { width: 12%; } /* Memory */
-table th:nth-child(7), table td:nth-child(7) { width: 5%;  } /* Healing */
-table th:nth-child(8), table td:nth-child(8) { width: 8%;  } /* Container ID */
-table th:nth-child(9), table td:nth-child(9) { width: 8%; overflow: visible; } /* Action */
-table td:nth-child(9) { overflow: visible; }
+table th:nth-child(6), table td:nth-child(6) { width: 11%; } /* Memory */
+table th:nth-child(7), table td:nth-child(7) { width: 7%;  } /* Healing */
+table th:nth-child(8), table td:nth-child(8) { width: 10%; } /* Container ID */
 
 /* Container Name Link */
 .container-link {
@@ -984,9 +988,9 @@ mark {
 }
 /* ===== 반응형 (Responsive) ===== */
 
-/* 1200px 이하 — 가로 스크롤로 모든 컬럼 유지 (컬럼 숨김 없이 원래 비율 그대로) */
-@media (max-width: 1200px) {
-    table { min-width: 1200px; }
+/* 1000px 이하 — 가로 스크롤로 모든 컬럼 유지 (컬럼 숨김 없이 원래 비율 그대로) */
+@media (max-width: 1000px) {
+    table { min-width: 1000px; }
 }
 
 /* ===== 페이지네이션 ===== */
