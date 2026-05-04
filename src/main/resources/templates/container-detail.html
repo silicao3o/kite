@@ -33,31 +33,7 @@
                 </div>
                 <span class="status-badge" th:classappend="${container.statusClass}"
                     th:text="${container.state}">running</span>
-                <button id="update-image-btn" class="refresh-btn" onclick="updateImage()" style="margin-left:auto;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                    </svg>
-                    Update Image
-                </button>
-                <button id="start-btn" class="refresh-btn" onclick="startContainer()" th:if="${container.state != 'running'}" style="background:#22c55e;border-color:#16a34a;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3"/>
-                    </svg>
-                    Start
-                </button>
-                <button id="stop-btn" class="refresh-btn" onclick="stopContainer()" th:if="${container.state == 'running'}" style="background:#f59e0b;border-color:#d97706;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-                    </svg>
-                    Stop
-                </button>
-                <button id="restart-btn" class="refresh-btn" onclick="restartContainer()" th:if="${container.state == 'running'}">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
-                    </svg>
-                    Restart
-                </button>
-                <button id="delete-container-btn" class="delete-btn" onclick="deleteContainer()">
+                <button id="delete-container-btn" class="delete-btn" onclick="deleteContainer()" style="margin-left:auto;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6" />
                         <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
@@ -131,17 +107,15 @@
                 </div>
             </div>
 
-            <!-- Env Profile -->
+            <!-- Env Profile (read-only) — 변경은 Service 상세에서 -->
             <div class="info-card">
                 <h4>Env Profile</h4>
-                <div style="margin-bottom:.6rem;">
-                    <select id="envProfileSelect" style="padding:.4rem .7rem;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary);font-size:.85rem;min-width:200px;">
-                        <option value="">프로파일 선택...</option>
-                    </select>
-                    <button onclick="applyEnvProfile()" style="margin-left:.5rem;padding:.4rem .8rem;background:var(--accent-blue);color:#fff;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;">적용</button>
-                    <span id="envProfileStatus" style="font-size:.82rem;margin-left:.5rem;"></span>
+                <div id="currentProfiles" style="font-size:.85rem;color:var(--text-primary);">
+                    <span style="color:var(--text-secondary);">로드 중...</span>
                 </div>
-                <div id="currentProfiles" style="font-size:.82rem;color:var(--text-secondary);"></div>
+                <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.5rem;">
+                    프로파일 변경은 Service 상세에서 ServiceDefinition 의 매핑을 수정 후 Redeploy 로 적용됩니다.
+                </div>
             </div>
 
             <!-- Self Healing Info -->
@@ -260,6 +234,7 @@
         const containerId = [[${ container.id }]];
         const nodeId = [[${ container.nodeId }]];
         const containerName = [[${ container.name }]]; // 컨테이너 이름 — 재기동 시 이름으로 재검색용
+        window.containerLabels = /*[[${ container.labels }]]*/ {}; // Env Profile read-only 표시용
         // 페이지 최초 로드 시 ANSI 제거 + 색상 강조 적용
         document.getElementById('logs').innerHTML = highlightLog(document.getElementById('logs').textContent);
         let originalLogs = document.getElementById('logs').innerHTML;
@@ -276,41 +251,6 @@
                 list.style.display = 'none';
                 icon.textContent = '▶ 펼치기';
             }
-        }
-
-        async function startContainer() {
-            const btn = document.getElementById('start-btn');
-            btn.disabled = true; btn.textContent = 'Starting...';
-            const params = nodeId ? '?nodeId=' + encodeURIComponent(nodeId) : '';
-            try {
-                const res = await fetch('/api/containers/' + containerId + '/start' + params, { method: 'POST' });
-                if (res.ok) { btn.textContent = 'Started!'; setTimeout(() => location.reload(), 1500); }
-                else { btn.textContent = 'Failed'; btn.disabled = false; }
-            } catch { btn.textContent = 'Error'; btn.disabled = false; }
-        }
-
-        async function stopContainer() {
-            if (!confirm('컨테이너를 정지하시겠습니까?')) return;
-            const btn = document.getElementById('stop-btn');
-            btn.disabled = true; btn.textContent = 'Stopping...';
-            const params = nodeId ? '?nodeId=' + encodeURIComponent(nodeId) : '';
-            try {
-                const res = await fetch('/api/containers/' + containerId + '/stop' + params, { method: 'POST' });
-                if (res.ok) { btn.textContent = 'Stopped!'; setTimeout(() => location.reload(), 1500); }
-                else { btn.textContent = 'Failed'; btn.disabled = false; }
-            } catch { btn.textContent = 'Error'; btn.disabled = false; }
-        }
-
-        async function restartContainer() {
-            if (!confirm('컨테이너를 재시작하시겠습니까?')) return;
-            const btn = document.getElementById('restart-btn');
-            btn.disabled = true; btn.textContent = 'Restarting...';
-            const params = nodeId ? '?nodeId=' + encodeURIComponent(nodeId) : '';
-            try {
-                const res = await fetch('/api/containers/' + containerId + '/restart' + params, { method: 'POST' });
-                if (res.ok) { btn.textContent = 'Restarted!'; setTimeout(() => location.reload(), 1500); }
-                else { btn.textContent = 'Failed'; btn.disabled = false; }
-            } catch { btn.textContent = 'Error'; btn.disabled = false; }
         }
 
         function deleteContainer() {
@@ -336,26 +276,6 @@
                     alert('삭제 실패: ' + err.message);
                     btn.disabled = false;
                     btn.textContent = 'Delete Container';
-                });
-        }
-
-        function updateImage() {
-            const btn = document.getElementById('update-image-btn');
-            btn.disabled = true;
-            btn.textContent = 'Updating...';
-
-            const params = new URLSearchParams();
-            if (nodeId) params.append('nodeId', nodeId);
-
-            fetch('/api/containers/' + containerId + '/update-image', { method: 'POST', body: params })
-                .then(r => r.text())
-                .then(() => {
-                    btn.textContent = '✓ Updated';
-                    setTimeout(() => location.reload(), 2000);
-                })
-                .catch(() => {
-                    btn.textContent = '✗ Failed';
-                    btn.disabled = false;
                 });
         }
 
@@ -496,51 +416,30 @@
                 .catch(() => {});
         })();
 
-        // Env Profile 로드
-        (async function loadEnvProfiles() {
+        // 컨테이너 라벨 (kite.env-profile-ids) → profile 이름 read-only 표시
+        (async function showCurrentProfile() {
+            const el = document.getElementById('currentProfiles');
+            const labelKey = 'kite.env-profile-ids';
+            const labelVal = (window.containerLabels || {})[labelKey];
+            if (!labelVal) {
+                el.innerHTML = '<span style="color:var(--text-secondary);">적용된 Env Profile 없음</span>';
+                return;
+            }
+            const ids = labelVal.split(',').map(s => s.trim()).filter(Boolean);
             try {
                 const res = await fetch('/api/env-profiles');
                 const profiles = await res.json();
-                const select = document.getElementById('envProfileSelect');
-                profiles.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.textContent = p.name + (p.description ? ' — ' + p.description : '');
-                    select.appendChild(opt);
+                const byId = {};
+                profiles.forEach(p => { byId[p.id] = p; });
+                const labels = ids.map(id => {
+                    const p = byId[id];
+                    return p ? `<a href="/deployments?tab=profiles" target="_blank" style="color:var(--accent-blue);text-decoration:none;">${p.name}</a>` : `<span title="${id}">unknown (${id.substring(0, 8)})</span>`;
                 });
-            } catch(e) { console.error('프로파일 로드 실패', e); }
-        })();
-
-        async function applyEnvProfile() {
-            const profileId = document.getElementById('envProfileSelect').value;
-            const statusEl = document.getElementById('envProfileStatus');
-            if (!profileId) { statusEl.textContent = '프로파일을 선택하세요.'; statusEl.style.color = '#ef4444'; return; }
-            if (!confirm('프로파일의 DB 환경변수를 적용하고 컨테이너를 재시작하시겠습니까?')) return;
-
-            statusEl.textContent = '적용 중...';
-            statusEl.style.color = 'var(--text-secondary)';
-
-            const params = nodeId ? '?nodeId=' + encodeURIComponent(nodeId) : '';
-            try {
-                const res = await fetch('/api/containers/' + containerId + '/apply-env-profile' + params, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ profileIds: [profileId] })
-                });
-                if (res.ok) {
-                    statusEl.textContent = '적용 완료! 새로고침 중...';
-                    statusEl.style.color = '#065f46';
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    const msg = await res.text();
-                    statusEl.textContent = '실패: ' + msg;
-                    statusEl.style.color = '#ef4444';
-                }
-            } catch(e) {
-                statusEl.textContent = '오류 발생';
-                statusEl.style.color = '#ef4444';
+                el.innerHTML = labels.join(', ');
+            } catch (e) {
+                el.innerHTML = `<span style="color:var(--text-secondary);">${ids.length}개 프로파일 적용됨 (이름 조회 실패)</span>`;
             }
-        }
+        })();
 
         // Enter key to search
         document.getElementById('searchKeyword').addEventListener('keypress', function (e) {

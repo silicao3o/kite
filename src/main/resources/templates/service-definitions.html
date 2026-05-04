@@ -415,6 +415,9 @@ async function showContainerDetail(defId, defName) {
                     <span style="color:var(--text-secondary);font-size:.78rem;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${esc(c.image)}">${esc(shortImg)}</span>
                 </div>
                 <div style="display:flex;gap:.3rem;">
+                    <button class="btn-sm" style="border-color:#3b82f6;color:#93c5fd;"
+                            onclick="window.open('/containers/${c.containerId}', '_blank')"
+                            title="Container 상세 (logs/labels) 새 탭으로 열기">Logs</button>
                     ${c.state === 'running' ? `<button class="btn-sm btn-stop" onclick="containerAction('${defId}','${c.containerId}','stop',this)">Stop</button>` : ''}
                     <button class="btn-sm btn-edit" onclick="containerAction('${defId}','${c.containerId}','restart',this)">Restart</button>
                     <button class="btn-sm btn-deploy" onclick="containerAction('${defId}','${c.containerId}','redeploy',this)">Redeploy</button>
